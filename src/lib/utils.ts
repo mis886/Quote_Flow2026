@@ -109,6 +109,19 @@ export function parseQuoteTerms(raw: string | undefined | null): string {
   return collectedLines.map((s, i) => `${i + 1}. ${s}`).join('\n');
 }
 
+export function getThisWeekRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, …
+  const diffToMon = (day === 0 ? -6 : 1 - day);
+  const start = new Date(now);
+  start.setDate(now.getDate() + diffToMon);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
 export const generateId = (prefix: string, existingIds: string[]) => {
   const yr = new Date().getFullYear();
   let maxNum = 0;

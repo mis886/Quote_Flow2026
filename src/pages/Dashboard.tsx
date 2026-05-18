@@ -1,17 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../store';
-import { formatINR, cn } from '../lib/utils';
+import { formatINR, cn, getThisWeekRange } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Clock, IndianRupee, FileSignature, Trophy } from 'lucide-react';
+import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight } from 'lucide-react';
 
 type Period = '30d' | 'quarter' | 'year';
+type DashTab = 'overview' | 'this-week';
+
+type ActivityItem = {
+  ts: string;
+  type: 'enquiry' | 'quote' | 'order' | 'followup';
+  who: string;
+  title: string;
+  subtitle: string;
+  refId: string;
+  refType: string;
+};
 
 export function Dashboard() {
   // @ts-ignore - Assuming globalDateRange is added to the store
   const { data, openDetailPanel, user, globalDateRange } = useAppStore();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<Period>('30d');
+  const [activeTab, setActiveTab] = useState<DashTab>('overview');
+  const [expandedMdo, setExpandedMdo] = useState<Record<string, boolean>>({});
 
   const userName = user?.email ? user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ') : 'User';
   const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
@@ -176,14 +189,130 @@ export function Dashboard() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
 
+  // ── This Week computations ────────────────────────────────────────────────
+  const { start: weekStart, end: weekEnd } = getThisWeekRange();
+
+  const inThisWeek = (dateStr?: string | null) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr).getTime();
+    return d >= weekStart.getTime() && d <= weekEnd.getTime();
+  };
+
+  const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+
+  const activityFeed = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = [];
+
+    // Enquiries received this week
+    data.enquiries.forEach(e => {
+      if (!inThisWeek(e.recv)) return;
+      items.push({
+        ts: e.recv,
+        type: 'enquiry',
+        who: e.assigned || 'Team',
+        title: `Enquiry ${e.id} received from ${e.cust}`,
+        subtitle: `${e.urg} · ${e.items.length} item${e.items.length !== 1 ? 's' : ''} · ${e.src}`,
+        refId: e.id,
+        refType: 'enquiry',
+      });
+    });
+
+    // Quotes issued (non-draft) this week
+    data.quotes.forEach(q => {
+      if (q.status === 'Draft') return;
+      if (!inThisWeek(q.date)) return;
+      const val = q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0);
+      items.push({
+        ts: q.date,
+        type: 'quote',
+        who: 'Team',
+        title: `Quote ${q.id} issued to ${q.cust}`,
+        subtitle: `${q.status} · ${formatINR(val)}`,
+        refId: q.id,
+        refType: 'quote',
+      });
+    });
+
+    // Orders placed this week
+    data.orders.forEach(o => {
+      if (!inThisWeek(o.poDate)) return;
+      const val = o.items.reduce((s, i) => s + (i.total || 0), 0);
+      items.push({
+        ts: o.poDate!,
+        type: 'order',
+        who: 'Team',
+        title: `Order ${o.id} received from ${o.cust}`,
+        subtitle: `PO: ${o.poNo} · ${formatINR(val)}`,
+        refId: o.id,
+        refType: 'order',
+      });
+    });
+
+    // Follow-up logs this week
+    data.followups.forEach(fu => {
+      (fu.logs || []).forEach(log => {
+        if (!inThisWeek(log.ts)) return;
+        items.push({
+          ts: log.ts,
+          type: 'followup',
+          who: log.who || fu.owner || 'Team',
+          title: `Follow-up logged on ${fu.quote_id}`,
+          subtitle: `${log.channel} · ${log.note?.slice(0, 60) || '—'}`,
+          refId: fu.quote_id,
+          refType: 'quote',
+        });
+      });
+    });
+
+    return items.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  }, [data, weekStart.getTime()]);
+
+  // ── MDO Panel computations ─────────────────────────────────────────────────
+  const SLA_H: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
+
+  const mdoPendingFollowups = useMemo(() =>
+    data.followups.filter(fu =>
+      fu.status === 'open' && fu.next_date && inThisWeek(fu.next_date)
+    ), [data.followups, weekStart.getTime()]);
+
+  const mdoOverdueEnqs = useMemo(() =>
+    data.enquiries.filter(e =>
+      (e.status === 'New' || e.status === 'In Review') &&
+      e.ageH >= (SLA_H[e.urg] ?? 48)
+    ), [data.enquiries]);
+
+  const mdoQuotesAwaitingDecision = useMemo(() => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+    return data.quotes.filter(q => {
+      if (q.status !== 'Sent') return false;
+      const fu = data.followups.find(f => f.quote_id === q.id);
+      if (!fu || !fu.logs || fu.logs.length === 0) return true;
+      const lastLog = fu.logs[fu.logs.length - 1];
+      return new Date(lastLog.ts).getTime() < sevenDaysAgo;
+    });
+  }, [data.quotes, data.followups]);
+
+  const mdoOpenOrders = useMemo(() => {
+    const todayTs = new Date();
+    todayTs.setHours(23, 59, 59, 999);
+    return data.orders.filter(o =>
+      o.status === 'Processing' && o.dlvDate && new Date(o.dlvDate) <= todayTs
+    );
+  }, [data.orders]);
+
+  const mdoPipelineCounts = useMemo(() => ({
+    openEnqs: data.enquiries.filter(e => e.status === 'New' || e.status === 'In Review').length,
+    sentQuotes: data.quotes.filter(q => q.status === 'Sent').length,
+    processingOrders: data.orders.filter(o => o.status === 'Processing').length,
+  }), [data]);
+
+  const toggleMdo = (key: string) => setExpandedMdo(prev => ({ ...prev, [key]: !prev[key] }));
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-y-auto">
       <div className="pt-5 px-[30px] shrink-0">
-        <div className="flex items-start justify-between gap-3 border-b border-g200 pb-4 mb-4">
+        <div className="flex items-start justify-between gap-3 pb-4">
           <div>
-            <div className="font-mono text-[9px] font-bold tracking-[3px] uppercase text-red-mrt mb-1.5 flex items-center gap-2">
-              Overview
-            </div>
             <h1 className="font-serif text-2xl text-blk tracking-tight leading-tight flex items-baseline gap-2">
               Good morning, <em className="italic text-red-mrt font-serif ml-0.5">{formattedName}</em>
             </h1>
@@ -194,26 +323,260 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0 mt-2">
-        {(!globalDateRange?.startDate && !globalDateRange?.endDate) && (
-          <select
-              title="Dashboard period"
-              value={period}
-              onChange={e => setPeriod(e.target.value as Period)}
-              className="h-8 px-2.5 pr-7 text-[11px] font-mono font-bold tracking-[1px] text-g600 bg-white border border-g200 rounded-[3px] outline-none focus:border-red-mrt appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_7px_center] cursor-pointer"
-            >
-              <option value="30d">Last 30 days</option>
-              <option value="quarter">This quarter</option>
-              <option value="year">This year</option>
-          </select>
-        )}
+            {activeTab === 'overview' && !globalDateRange?.startDate && !globalDateRange?.endDate && (
+              <select
+                title="Dashboard period"
+                value={period}
+                onChange={e => setPeriod(e.target.value as Period)}
+                className="h-8 px-2.5 pr-7 text-[11px] font-mono font-bold tracking-[1px] text-g600 bg-white border border-g200 rounded-[3px] outline-none focus:border-red-mrt appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_7px_center] cursor-pointer"
+              >
+                <option value="30d">Last 30 days</option>
+                <option value="quarter">This quarter</option>
+                <option value="year">This year</option>
+              </select>
+            )}
             <Button variant="secondary" onClick={() => navigate('/enquiries')}>View All</Button>
             <Button variant="primary" onClick={() => navigate('/enquiries/new')}>
               <Plus size={14} className="stroke-[2.5px]" /> Log Enquiry
             </Button>
           </div>
         </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-0 border-b border-g200 mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] font-bold tracking-[1.5px] uppercase border-b-2 -mb-px transition-colors focus:outline-none',
+              activeTab === 'overview'
+                ? 'border-red-mrt text-red-mrt'
+                : 'border-transparent text-g400 hover:text-g600'
+            )}
+          >
+            <TrendingUp size={12} />
+            Overview
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('this-week')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] font-bold tracking-[1.5px] uppercase border-b-2 -mb-px transition-colors focus:outline-none',
+              activeTab === 'this-week'
+                ? 'border-red-mrt text-red-mrt'
+                : 'border-transparent text-g400 hover:text-g600'
+            )}
+          >
+            <Activity size={12} />
+            This Week
+            {activityFeed.length > 0 && (
+              <span className="ml-1 bg-red-mrt text-white font-mono text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                {activityFeed.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
+      {activeTab === 'this-week' && (
+        <div className="px-[30px] pb-6 flex flex-col gap-4">
+
+          {/* Pipeline snapshot KPIs */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white border border-g200 rounded-[8px] p-4 flex items-center gap-3 shadow-sm">
+              <div className="w-9 h-9 rounded-[6px] bg-blue-50 flex items-center justify-center shrink-0">
+                <FileText size={16} className="text-blue-500" />
+              </div>
+              <div>
+                <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">Open Enquiries</div>
+                <div className="font-serif text-[26px] font-bold text-blk leading-none mt-0.5">{mdoPipelineCounts.openEnqs}</div>
+              </div>
+            </div>
+            <div className="bg-white border border-g200 rounded-[8px] p-4 flex items-center gap-3 shadow-sm">
+              <div className="w-9 h-9 rounded-[6px] bg-orange-50 flex items-center justify-center shrink-0">
+                <FileSignature size={16} className="text-orange-500" />
+              </div>
+              <div>
+                <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">Quotes Pending PO</div>
+                <div className="font-serif text-[26px] font-bold text-blk leading-none mt-0.5">{mdoPipelineCounts.sentQuotes}</div>
+              </div>
+            </div>
+            <div className="bg-white border border-g200 rounded-[8px] p-4 flex items-center gap-3 shadow-sm">
+              <div className="w-9 h-9 rounded-[6px] bg-teal-50 flex items-center justify-center shrink-0">
+                <ShoppingBag size={16} className="text-teal-500" />
+              </div>
+              <div>
+                <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">Orders Processing</div>
+                <div className="font-serif text-[26px] font-bold text-blk leading-none mt-0.5">{mdoPipelineCounts.processingOrders}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[1.6fr_1fr] gap-4 items-start">
+
+            {/* Activity Feed */}
+            <div className="bg-white border border-g200 rounded-[8px] overflow-hidden shadow-sm">
+              <div className="p-[10px_16px] border-b border-g200 flex items-center justify-between">
+                <span className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 flex items-center gap-2">
+                  <Activity size={11} className="text-red-mrt" />
+                  What Happened This Week
+                </span>
+                <span className="font-mono text-[9px] text-g400 tracking-[1px]">{weekLabel}</span>
+              </div>
+              {activityFeed.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center">
+                  <div className="text-[24px] mb-2 opacity-20">📋</div>
+                  <div className="text-[13px] font-bold text-blk mb-1">No activity yet</div>
+                  <div className="text-[12px] text-g400">Enquiries, quotes, orders and follow-ups logged this week will appear here.</div>
+                </div>
+              ) : (
+                <div className="divide-y divide-g100">
+                  {activityFeed.map((item, idx) => {
+                    const iconMap = {
+                      enquiry: <FileText size={13} className="text-blue-500" />,
+                      quote: <FileSignature size={13} className="text-orange-500" />,
+                      order: <ShoppingBag size={13} className="text-emerald-500" />,
+                      followup: <Phone size={13} className="text-purple-500" />,
+                    };
+                    const dotColor = {
+                      enquiry: 'bg-blue-500',
+                      quote: 'bg-orange-500',
+                      order: 'bg-emerald-500',
+                      followup: 'bg-purple-500',
+                    }[item.type];
+                    const timeStr = new Date(item.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = new Date(item.ts).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+                    return (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => openDetailPanel(item.refType as any, item.refId)}
+                        className="w-full flex items-start gap-3 p-[10px_16px] hover:bg-g50 transition-colors text-left focus:outline-none"
+                      >
+                        <div className="relative flex flex-col items-center shrink-0 mt-0.5">
+                          <div className={cn('w-[28px] h-[28px] rounded-full flex items-center justify-center', {
+                            'bg-blue-50': item.type === 'enquiry',
+                            'bg-orange-50': item.type === 'quote',
+                            'bg-emerald-50': item.type === 'order',
+                            'bg-purple-50': item.type === 'followup',
+                          })}>
+                            {iconMap[item.type]}
+                          </div>
+                          {idx < activityFeed.length - 1 && (
+                            <div className="w-px flex-1 bg-g100 mt-1 h-full absolute top-[28px] bottom-[-10px]" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="text-[12.5px] font-semibold text-blk leading-tight">{item.title}</div>
+                            <div className="text-right shrink-0">
+                              <div className="font-mono text-[9.5px] font-bold text-g400">{timeStr}</div>
+                              <div className="font-mono text-[9px] text-g300">{dateStr}</div>
+                            </div>
+                          </div>
+                          <div className="text-[11.5px] text-g500 mt-0.5 truncate">{item.subtitle}</div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotColor)} />
+                            <span className="font-mono text-[9px] text-g400">{item.who}</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* MDO Panel */}
+            <div className="flex flex-col gap-3">
+              <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 flex items-center gap-2 pt-1">
+                <CalendarClock size={11} className="text-red-mrt" />
+                What To Do — MDO
+              </div>
+
+              {/* Pending follow-ups this week */}
+              <MdoSection
+                title="Follow-ups Due This Week"
+                count={mdoPendingFollowups.length}
+                color="purple"
+                expanded={!!expandedMdo['fu']}
+                onToggle={() => toggleMdo('fu')}
+                emptyText="No follow-ups due this week"
+              >
+                {mdoPendingFollowups.map(fu => (
+                  <button type="button" key={fu.id} onClick={() => openDetailPanel('quote' as any, fu.quote_id)} className="w-full text-left px-3 py-2 hover:bg-g50 border-b border-g100 last:border-0 focus:outline-none">
+                    <div className="font-mono text-[10px] font-bold text-purple-600">{fu.quote_id}</div>
+                    <div className="text-[11.5px] text-blk font-medium">{fu.owner}</div>
+                    <div className="text-[11px] text-g400">{fu.next_date} {fu.next_time}</div>
+                  </button>
+                ))}
+              </MdoSection>
+
+              {/* Overdue enquiries */}
+              <MdoSection
+                title="Overdue Enquiries"
+                count={mdoOverdueEnqs.length}
+                color="red"
+                expanded={!!expandedMdo['enq']}
+                onToggle={() => toggleMdo('enq')}
+                emptyText="No SLA breaches"
+              >
+                {mdoOverdueEnqs.map(e => (
+                  <button type="button" key={e.id} onClick={() => openDetailPanel('enquiry' as any, e.id)} className="w-full text-left px-3 py-2 hover:bg-g50 border-b border-g100 last:border-0 focus:outline-none">
+                    <div className="flex items-center justify-between">
+                      <div className="font-mono text-[10px] font-bold text-red-mrt">{e.id}</div>
+                      <Badge status={e.urg} />
+                    </div>
+                    <div className="text-[11.5px] text-blk font-medium truncate">{e.cust}</div>
+                    <div className="text-[11px] text-red-mrt font-mono">{e.ageH >= 24 ? `${Math.floor(e.ageH/24)}d ${Math.round(e.ageH%24)}h` : `${e.ageH.toFixed(1)}h`} old</div>
+                  </button>
+                ))}
+              </MdoSection>
+
+              {/* Quotes awaiting decision */}
+              <MdoSection
+                title="Quotes Awaiting Decision"
+                count={mdoQuotesAwaitingDecision.length}
+                color="orange"
+                expanded={!!expandedMdo['qt']}
+                onToggle={() => toggleMdo('qt')}
+                emptyText="All quotes recently followed up"
+              >
+                {mdoQuotesAwaitingDecision.map(q => {
+                  const val = q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0);
+                  return (
+                    <button type="button" key={q.id} onClick={() => openDetailPanel('quote' as any, q.id)} className="w-full text-left px-3 py-2 hover:bg-g50 border-b border-g100 last:border-0 focus:outline-none">
+                      <div className="font-mono text-[10px] font-bold text-orange-600">{q.id}</div>
+                      <div className="text-[11.5px] text-blk font-medium truncate">{q.cust}</div>
+                      <div className="font-mono text-[11px] text-g500">{formatINR(val)}</div>
+                    </button>
+                  );
+                })}
+              </MdoSection>
+
+              {/* Open orders overdue */}
+              <MdoSection
+                title="Orders Overdue / Due Today"
+                count={mdoOpenOrders.length}
+                color="teal"
+                expanded={!!expandedMdo['ord']}
+                onToggle={() => toggleMdo('ord')}
+                emptyText="No overdue orders"
+              >
+                {mdoOpenOrders.map(o => (
+                  <button type="button" key={o.id} onClick={() => openDetailPanel('order' as any, o.id)} className="w-full text-left px-3 py-2 hover:bg-g50 border-b border-g100 last:border-0 focus:outline-none">
+                    <div className="font-mono text-[10px] font-bold text-teal-600">{o.id}</div>
+                    <div className="text-[11.5px] text-blk font-medium truncate">{o.cust}</div>
+                    <div className="text-[11px] text-g400">Due: {o.dlvDate}</div>
+                  </button>
+                ))}
+              </MdoSection>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'overview' && (
       <div className="px-[30px] pb-6">
         {/* KPI Cards */}
         <div className="grid grid-cols-5 gap-3 mb-3">
@@ -433,6 +796,7 @@ export function Dashboard() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -590,6 +954,52 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+const MDO_COLORS = {
+  purple: { badge: 'bg-purple-100 text-purple-700', header: 'text-purple-700', dot: 'bg-purple-500' },
+  red:    { badge: 'bg-red-100 text-red-600',       header: 'text-red-600',    dot: 'bg-red-500'    },
+  orange: { badge: 'bg-orange-100 text-orange-700', header: 'text-orange-700', dot: 'bg-orange-500' },
+  teal:   { badge: 'bg-teal-100 text-teal-700',     header: 'text-teal-700',   dot: 'bg-teal-500'   },
+};
+
+function MdoSection({
+  title, count, color, expanded, onToggle, emptyText, children,
+}: {
+  title: string;
+  count: number;
+  color: keyof typeof MDO_COLORS;
+  expanded: boolean;
+  onToggle: () => void;
+  emptyText: string;
+  children: React.ReactNode;
+}) {
+  const c = MDO_COLORS[color];
+  return (
+    <div className="bg-white border border-g200 rounded-[8px] overflow-hidden shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-[10px_14px] hover:bg-g50 transition-colors focus:outline-none"
+      >
+        <div className="flex items-center gap-2">
+          <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', c.dot)} />
+          <span className={cn('font-mono text-[9.5px] font-bold tracking-[1.5px] uppercase', c.header)}>{title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={cn('font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-full', c.badge)}>{count}</span>
+          {expanded ? <ChevronDown size={12} className="text-g400" /> : <ChevronRight size={12} className="text-g400" />}
+        </div>
+      </button>
+      {expanded && (
+        count === 0 ? (
+          <div className="px-4 py-3 text-[11.5px] text-g400 italic border-t border-g100">{emptyText}</div>
+        ) : (
+          <div className="border-t border-g100">{children}</div>
+        )
+      )}
     </div>
   );
 }
