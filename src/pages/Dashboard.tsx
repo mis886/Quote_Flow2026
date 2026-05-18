@@ -323,7 +323,7 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0 mt-2">
-            {activeTab === 'overview' && !globalDateRange?.startDate && !globalDateRange?.endDate && (
+            {/* {activeTab === 'overview' && !globalDateRange?.startDate && !globalDateRange?.endDate && (
               <select
                 title="Dashboard period"
                 value={period}
@@ -334,7 +334,7 @@ export function Dashboard() {
                 <option value="quarter">This quarter</option>
                 <option value="year">This year</option>
               </select>
-            )}
+            )} */}
             <Button variant="secondary" onClick={() => navigate('/enquiries')}>View All</Button>
             <Button variant="primary" onClick={() => navigate('/enquiries/new')}>
               <Plus size={14} className="stroke-[2.5px]" /> Log Enquiry
