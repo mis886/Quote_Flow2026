@@ -1,0 +1,222 @@
+import { useState } from 'react';
+import { useAppStore } from '../store';
+import { Quote, FollowUpLog } from '../lib/types';
+import { format, parseISO, isBefore, isToday, startOfDay } from 'date-fns';
+import { Phone, ChevronRight, CheckCircle2, Plus, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { cn } from '../lib/utils';
+
+export function FollowUpSummary({ quote }: { quote: Quote }) {
+  const { data, user, addFollowUpLog } = useAppStore();
+  const followUp = data.followups.find(f => f.quote_id === quote.id);
+  const today = startOfDay(new Date());
+  const lastLog = followUp?.logs?.[0];
+  const status = followUp?.status ?? 'open';
+
+  const [showForm, setShowForm] = useState(false);
+  const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
+  const [note, setNote] = useState('');
+  const [nextDate, setNextDate] = useState('');
+  const [nextTime, setNextTime] = useState('');
+  const [nextNote, setNextNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  let dueLabel = 'Not scheduled';
+  let dueColor = 'text-g400';
+  if (status === 'closed') {
+    dueLabel = 'Closed';
+    dueColor = 'text-emerald-600';
+  } else if (followUp?.next_date) {
+    const d = parseISO(followUp.next_date);
+    const datePart = isToday(d) ? 'Today' : format(d, 'dd MMM');
+    const timePart = followUp.next_time ? ` at ${followUp.next_time}` : '';
+    dueLabel = `${datePart}${timePart}`;
+    if (isBefore(d, today)) dueColor = 'text-red-mrt';
+    else if (isToday(d)) dueColor = 'text-sR';
+    else dueColor = 'text-sW';
+  }
+
+  const resetForm = () => {
+    setChannel('Called');
+    setNote('');
+    setNextDate('');
+    setNextTime('');
+    setNextNote('');
+    setErrorMsg('');
+  };
+
+  const handleSave = async () => {
+    if (!note.trim()) return;
+    setSaving(true);
+    setErrorMsg('');
+    try {
+      const log: FollowUpLog = {
+        ts: new Date().toISOString(),
+        who: user?.user_metadata?.full_name ?? user?.email ?? 'Unknown',
+        channel,
+        note: note.trim(),
+        nextDate: nextDate || undefined,
+        nextChannel: nextDate ? channel : undefined,
+        nextNote: nextDate ? (nextNote.trim() || undefined) : undefined,
+      };
+      await addFollowUpLog(quote.id, log, nextDate || null, nextTime || null);
+      resetForm();
+      setShowForm(false);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to log activity');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section>
+      <div className="mb-[12px] pb-[7px] border-b border-g200 mt-8 flex items-center justify-between gap-3">
+        <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt">
+          Follow-Up · {followUp?.logs?.length ?? 0} log{(followUp?.logs?.length ?? 0) === 1 ? '' : 's'}
+        </span>
+        <div className="flex items-center gap-2">
+          {showForm ? (
+            <button
+              type="button"
+              onClick={() => { resetForm(); setShowForm(false); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-[4px] border border-g200 text-g500 bg-white hover:bg-g50 hover:text-blk transition-colors"
+            >
+              <X size={12} /> Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-[4px] border border-red-mrt bg-red-mrt text-white hover:bg-red-h transition-colors shadow-sm"
+            >
+              <Plus size={12} /> Log Activity
+            </button>
+          )}
+          <Link
+            to="/followups"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
+          >
+            Open <ChevronRight size={12} />
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2.5">
+          <div className="text-[9px] font-bold tracking-[1px] uppercase text-g400 mb-1">Owner</div>
+          <div className="text-[12px] font-semibold text-blk truncate">{followUp?.owner || 'Unassigned'}</div>
+        </div>
+        <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2.5">
+          <div className="text-[9px] font-bold tracking-[1px] uppercase text-g400 mb-1">Next Due</div>
+          <div className={cn('text-[12px] font-semibold truncate flex items-center gap-1', dueColor)}>
+            {status === 'closed' ? <CheckCircle2 size={11} /> : <Phone size={11} />}
+            {dueLabel}
+          </div>
+        </div>
+        <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2.5">
+          <div className="text-[9px] font-bold tracking-[1px] uppercase text-g400 mb-1">Last Activity</div>
+          <div className="text-[12px] font-semibold text-blk truncate">
+            {lastLog ? `${lastLog.channel} · ${format(parseISO(lastLog.ts), 'dd MMM')}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Inline Log Activity form */}
+      {showForm && (
+        <div className="mt-3 px-3 py-3 bg-red-lt/30 border border-red-mrt/20 rounded-[4px] space-y-2.5">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-[9px] font-bold tracking-[1px] uppercase text-g500 mb-1">Channel</label>
+              <select
+                title="Activity channel"
+                value={channel}
+                onChange={e => setChannel(e.target.value as FollowUpLog['channel'])}
+                className="w-full bg-white border border-g300 rounded-[3px] px-2 py-[5px] text-[11.5px] outline-none focus:border-red-mrt"
+              >
+                <option>Called</option>
+                <option>WhatsApp</option>
+                <option>Email</option>
+                <option>Meeting</option>
+                <option>Visit</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold tracking-[1px] uppercase text-g500 mb-1">Next Date (optional)</label>
+              <input
+                type="date"
+                title="Next follow-up date"
+                placeholder="yyyy-mm-dd"
+                value={nextDate}
+                onChange={e => setNextDate(e.target.value)}
+                className="w-full bg-white border border-g300 rounded-[3px] px-2 py-[5px] text-[11.5px] outline-none focus:border-red-mrt"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold tracking-[1px] uppercase text-g500 mb-1">Time (optional)</label>
+              <input
+                type="time"
+                title="Next follow-up time"
+                placeholder="HH:MM"
+                value={nextTime}
+                onChange={e => setNextTime(e.target.value)}
+                className="w-full bg-white border border-g300 rounded-[3px] px-2 py-[5px] text-[11.5px] outline-none focus:border-red-mrt"
+              />
+            </div>
+          </div>
+
+          {nextDate && (
+            <textarea
+              value={nextNote}
+              onChange={e => setNextNote(e.target.value)}
+              placeholder="What to do on next follow-up? (optional)"
+              rows={2}
+              className="w-full bg-white border border-g300 rounded-[3px] px-2 py-1.5 text-[11.5px] outline-none focus:border-red-mrt resize-none"
+            />
+          )}
+
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="What happened? What did the customer say?"
+            rows={2}
+            className="w-full bg-white border border-g300 rounded-[3px] px-2 py-1.5 text-[12px] outline-none focus:border-red-mrt resize-none"
+          />
+
+          {errorMsg && <div className="text-[10px] text-red-mrt font-medium">{errorMsg}</div>}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { resetForm(); setShowForm(false); }}
+              disabled={saving}
+              className="h-7 px-3 border border-g200 rounded-[3px] text-[10px] font-medium text-g500 hover:bg-white disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!note.trim() || saving}
+              className="h-7 inline-flex items-center gap-1 px-3 bg-red-mrt text-white text-[10px] font-bold tracking-wider uppercase rounded-[3px] hover:bg-red-h disabled:opacity-50"
+            >
+              <CheckCircle2 size={10} /> Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      {lastLog && !showForm && (
+        <div className="mt-3 px-3 py-2 bg-white border border-g200 rounded-[4px]">
+          <div className="text-[10px] text-g400 mb-1">
+            <span className="font-semibold text-g500">{lastLog.who}</span>
+            {' · '}
+            {format(parseISO(lastLog.ts), 'dd MMM, HH:mm')}
+          </div>
+          <div className="text-[12px] text-g600 leading-relaxed whitespace-pre-wrap line-clamp-3">{lastLog.note}</div>
+        </div>
+      )}
+    </section>
+  );
+}

@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit', sans-serif;
+  --font-serif: 'El Messiri', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-messiri: 'El Messiri', serif;
+
+  --color-red-mrt: #D42027;
+  --color-red-h: #B91C22;
+  --color-red-lt: rgba(212, 32, 39, 0.06);
+  --color-blk: #111111;
+  --color-dark: #1C1C1C;
+  --color-cream: #FAF9F7;
+
+  --color-g100: #F3F1EE;
+  --color-g200: #E8E6E2;
+  --color-g300: #CCC;
+  --color-g400: #AAA;
+  --color-g500: #888;
+  --color-g600: #666;
+  --color-g700: #444;
+  --color-g800: #2D2D2D;
+
+  --color-sN: #2563EB;
+  --color-sR: #D97706;
+  --color-sQ: #7C3AED;
+  --color-sW: #059669;
+  --color-sL: #6B7280;
+  --color-sP: #EA580C;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-cream);
+  color: var(--color-blk);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar matching original design */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-g300); border-radius: 4px; }
+
+/* Reusable styled select — avoids inline backgroundImage */
+.select-filter {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: #fbbf24; /* amber-400 */
+}
+
+.btn-order {
+  --btn-bg: #10b981; /* Emerald Green */
+  background-color: color-mix(in oklab, var(--btn-bg) 15%, transparent);
+  color: #065f46; /* Deep contrast green */
+  border: 1px solid color-mix(in oklab, var(--btn-bg) 40%, transparent);
+}
+
+.btn-order:hover {
+  background: rgba(5, 150, 105, 0.15);
+}
