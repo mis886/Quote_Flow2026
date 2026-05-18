@@ -109,6 +109,53 @@ export function parseQuoteTerms(raw: string | undefined | null): string {
   return collectedLines.map((s, i) => `${i + 1}. ${s}`).join('\n');
 }
 
+export function isInDateRange(
+  dateStr: string | undefined | null,
+  range: { startDate: string; endDate: string } | null
+): boolean {
+  if (!range || (!range.startDate && !range.endDate)) return true;
+  if (!dateStr) return false;
+  const d = dateStr.slice(0, 10);
+  if (range.startDate && d < range.startDate) return false;
+  if (range.endDate && d > range.endDate) return false;
+  return true;
+}
+
+export function resolveDateRange(preset: string): { startDate: string; endDate: string } {
+  const now = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  if (preset === 'today') {
+    const s = iso(now);
+    return { startDate: s, endDate: s };
+  }
+  if (preset === 'yesterday') {
+    const y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    const s = iso(y);
+    return { startDate: s, endDate: s };
+  }
+  if (preset === 'this-week') {
+    const { start, end } = getThisWeekRange();
+    return { startDate: iso(start), endDate: iso(end) };
+  }
+  if (preset === 'this-month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { startDate: iso(start), endDate: iso(end) };
+  }
+  if (preset === 'this-quarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    const start = new Date(now.getFullYear(), q * 3, 1);
+    const end = new Date(now.getFullYear(), q * 3 + 3, 0);
+    return { startDate: iso(start), endDate: iso(end) };
+  }
+  if (preset === 'this-year') {
+    return { startDate: `${now.getFullYear()}-01-01`, endDate: `${now.getFullYear()}-12-31` };
+  }
+  return { startDate: '', endDate: '' };
+}
+
 export function getThisWeekRange(): { start: Date; end: Date } {
   const now = new Date();
   const day = now.getDay(); // 0=Sun, 1=Mon, …

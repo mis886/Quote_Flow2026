@@ -4,9 +4,10 @@ import { supabase, signOut, getSettings } from '../lib/supabase';
 import { fetchLabelledEmails } from '../lib/gmail';
 import { User } from '@supabase/supabase-js';
 
-interface GlobalDateRange {
+export interface GlobalDateRange {
   startDate: string;
   endDate: string;
+  preset: 'today' | 'yesterday' | 'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'custom';
 }
 
 interface AppContextType {

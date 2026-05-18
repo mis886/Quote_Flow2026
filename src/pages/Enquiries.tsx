@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
-import { Badge, Button, SourceIcon } from '../components/ui';
-import { Search, Plus } from 'lucide-react';
+import { Badge, Button, SourceIcon, DateFilterBanner } from '../components/ui';
+import { Search, Plus, Calendar, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { calculateAgeHours } from '../lib/utils';
+import { calculateAgeHours, isInDateRange } from '../lib/utils';
 import { EnqStatus, Urgency } from '../lib/types';
 import { format } from 'date-fns';
 
 export function Enquiries() {
-  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal } = useAppStore();
+  const store = useAppStore();
+  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal } = store;
+  const { globalDateRange, setGlobalDateRange } = store as any;
   const navigate = useNavigate();
   const [tab, setTab] = useState<'All' | 'Open' | EnqStatus>('All');
   const [srcFilter, setSrcFilter] = useState('');
@@ -36,6 +38,9 @@ export function Enquiries() {
     // Dropdown filters
     if (srcFilter && e.src !== srcFilter) return false;
     if (urgFilter && e.urg !== urgFilter) return false;
+
+    // Global date range filter (recv date)
+    if (!isInDateRange(e.recv?.slice(0, 10), globalDateRange)) return false;
 
     return true;
   });
@@ -86,6 +91,8 @@ export function Enquiries() {
         </div>
       </div>
 
+      <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
+
       <div className="flex items-center gap-2 px-6 py-2.5 bg-white border-b border-g200 flex-wrap mt-0">
         <div className="flex gap-[1px] bg-g100 border border-g200 rounded p-[2px]">
           <TabSelect current="All" label="All" count={statusCounts.All} />
@@ -110,9 +117,9 @@ export function Enquiries() {
           />
         </div>
 
-        <select 
-          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-no-repeat bg-[right_7px_center]"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")' }}
+        <select
+          title="Filter by source"
+          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_7px_center]"
           value={srcFilter}
           onChange={(e) => setSrcFilter(e.target.value)}
         >
@@ -124,9 +131,9 @@ export function Enquiries() {
           <option>Website</option>
         </select>
 
-        <select 
-          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-no-repeat bg-[right_7px_center]"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")' }}
+        <select
+          title="Filter by urgency"
+          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_7px_center]"
           value={urgFilter}
           onChange={(e) => setUrgFilter(e.target.value)}
         >

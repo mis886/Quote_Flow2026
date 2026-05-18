@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
-import { Badge, Button } from '../components/ui';
+import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Loader2, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatINR } from '../lib/utils';
+import { formatINR, isInDateRange } from '../lib/utils';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { exportOrderToSheets, buildSheetsPayload } from '../lib/sheets';
 import { getS3SignedUrl } from '../lib/s3';
@@ -12,7 +12,9 @@ import { Order } from '../lib/types';
 import { SendEmailModal } from '../components/SendEmailModal';
 
 export function Orders() {
-  const { data, user, globalSearchQuery, setGlobalSearchQuery, updateOrder, openAttachmentModal } = useAppStore();
+  const store = useAppStore();
+  const { data, user, globalSearchQuery, setGlobalSearchQuery, updateOrder, openAttachmentModal } = store;
+  const { globalDateRange, setGlobalDateRange } = store as any;
   const navigate = useNavigate();
   const [tab, setTab] = useState<'All' | 'Processing' | 'Delivered'>('All');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -72,11 +74,14 @@ export function Orders() {
 
     if (globalSearchQuery) {
       const q = globalSearchQuery.toLowerCase();
-      const match = o.cust.toLowerCase().includes(q) || 
-                    o.id.toLowerCase().includes(q) || 
+      const match = o.cust.toLowerCase().includes(q) ||
+                    o.id.toLowerCase().includes(q) ||
                     o.poNo.toLowerCase().includes(q);
       if (!match) return false;
     }
+
+    // Global date range filter (PO date)
+    if (!isInDateRange(o.poDate, globalDateRange)) return false;
 
     return true;
   });
@@ -128,6 +133,8 @@ export function Orders() {
           </div>
         </div>
       </div>
+
+      <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
 
       <div className="flex items-center gap-2 px-6 py-2.5 bg-white border-b border-g200 flex-wrap mt-0">
         <div className="flex gap-[1px] bg-g100 border border-g200 rounded p-[2px]">

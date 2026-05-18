@@ -20,7 +20,8 @@ import {
   Receipt,
   Paperclip,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isInDateRange } from '../lib/utils';
+import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 
@@ -53,7 +54,9 @@ function groupLogsByDay(logs: FollowUpLog[]) {
 }
 
 export default function FollowUps() {
-  const { data, addFollowUpLog, closeFollowUp, reopenFollowUp, openAttachmentModal, user } = useAppStore();
+  const store = useAppStore();
+  const { data, addFollowUpLog, closeFollowUp, reopenFollowUp, openAttachmentModal, user } = store;
+  const { globalDateRange, setGlobalDateRange } = store as any;
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [filterOwner, setFilterOwner] = useState<string>('All Owners');
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,6 +96,10 @@ export default function FollowUps() {
 
       const owner = item.followUp?.owner || 'Unassigned';
       const matchesOwner = filterOwner === 'All Owners' || owner === filterOwner;
+
+      // Global date range filter (next_date)
+      const nextDate = item.followUp?.next_date;
+      if (globalDateRange && !isInDateRange(nextDate, globalDateRange)) return false;
 
       return matchesSearch && matchesOwner;
     }).sort((a, b) => {
@@ -207,6 +214,7 @@ export default function FollowUps() {
     <div className="flex h-full bg-cream overflow-hidden">
       {/* Left Panel: Queue */}
       <div className="w-[380px] border-r border-g200 flex flex-col bg-white">
+        <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
         <div className="p-4 border-b border-g200">
           <div className="flex items-center justify-between mb-4">
             <div>

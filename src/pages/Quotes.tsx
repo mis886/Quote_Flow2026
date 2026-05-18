@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { Badge, Button } from '../components/ui';
+import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { QuoteStatus, Quote } from '../lib/types';
-import { formatINR } from '../lib/utils';
+import { formatINR, isInDateRange } from '../lib/utils';
 import { format } from 'date-fns';
 import { generateQuotePDF } from '../lib/pdfGenerator';
 import { SendEmailModal } from '../components/SendEmailModal';
@@ -12,7 +12,9 @@ import { FollowUpSendPrompt } from '../components/FollowUpSendPrompt';
 import { supabase } from '../lib/supabase';
 
 export function Quotes() {
-  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal, updateQuote } = useAppStore();
+  const store = useAppStore();
+  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal, updateQuote } = store;
+  const { globalDateRange, setGlobalDateRange } = store as any;
   const navigate = useNavigate();
   const [tab, setTab] = useState<'All' | QuoteStatus>('All');
   const [custFilter, setCustFilter] = useState('');
@@ -43,6 +45,9 @@ export function Quotes() {
     }
 
     if (custFilter && q.cust !== custFilter) return false;
+
+    // Global date range filter (quote date)
+    if (!isInDateRange(q.date, globalDateRange)) return false;
 
     return true;
   });
@@ -91,6 +96,8 @@ export function Quotes() {
         </div>
       </div>
 
+      <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
+
       <div className="flex items-center gap-2 px-6 py-2.5 bg-white border-b border-g200 flex-wrap mt-0">
         <div className="flex gap-[1px] bg-g100 border border-g200 rounded p-[2px]">
           <TabSelect current="All" label="All" count={statusCounts.All} />
@@ -114,9 +121,9 @@ export function Quotes() {
           />
         </div>
 
-        <select 
-          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-no-repeat bg-[right_7px_center]"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")' }}
+        <select
+          title="Filter by customer"
+          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_7px_center]"
           value={custFilter}
           onChange={(e) => setCustFilter(e.target.value)}
         >
