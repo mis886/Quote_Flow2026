@@ -4,7 +4,7 @@ import { Button } from '../components/ui';
 import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
-import { formatINR } from '../lib/utils';
+import { formatINR, generateId } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import Papa from 'papaparse';
 
@@ -410,47 +410,158 @@ export function Customers() {
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         try {
-          for (const row of results.data as any[]) {
-            const customerId = `CUST_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-            const customer: Customer = {
-              id: customerId,
-              code: row.code || row.Code || '',
-              name: row.name || row.Name || row['Company Name'] || '',
-              seg: row.seg || row.Seg || row.Segment || 'Other',
-              gstin: row.gstin || row.GSTIN || '',
-              inco: row.inco || row.Incoterms || 'EXW',
-              curr: row.curr || row.Currency || 'INR',
-              pay: row.pay || row.Payment || 'Net 30',
-              tier: 'New',
-              sites: [],
-            };
-            const siteName = row.site_name || row['Site Name'] || 'HQ';
-            const city     = row.city || row.City || '';
-            const contactName = row.contact_name || row['Contact Name'];
-            if (siteName || city || contactName) {
-              const contacts = contactName ? [{
-                id: `CONT_${Math.random().toString(36).substr(2,9).toUpperCase()}`,
-                name: contactName,
-                role: row.contact_role || 'Primary Contact',
-                email: row.contact_email || row['Contact Email'] || '',
-                phone: row.contact_phone || row['Contact Phone'] || '',
-                isPrimary: true,
-              }] : [];
-              customer.sites.push({
-                id: `SITE_${Math.random().toString(36).substr(2,9).toUpperCase()}`,
-                name: siteName, city, gstin: customer.gstin, isPrimary: true, contacts,
+          const rows = results.data as Record<string, string>[];
+
+          // Flexible column accessor — case-insensitive, trimmed, first match wins
+          const col = (row: Record<string, string>, ...keys: string[]): string => {
+            for (const k of keys) {
+              const found = Object.keys(row).find(h => h.trim().toLowerCase() === k.toLowerCase());
+              if (found && row[found]?.trim()) return row[found].trim();
+            }
+            return '';
+          };
+
+          const uid = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
+
+          // Build one site from a row, appending extra fields into fullAddress
+          const buildSite = (row: Record<string, string>, isPrimary: boolean) => {
+            const address = col(row, 'Address');
+            const extras: string[] = [];
+            const transport = col(row, 'Transport');
+            if (transport) extras.push(`Transport: ${transport}`);
+            const plant = col(row, 'Plant Name', 'Plant');
+            if (plant) extras.push(`Plant: ${plant}`);
+            const lead = col(row, 'Avg transport lead time', 'Lead time');
+            if (lead) extras.push(`Lead time: ${lead} days`);
+            const remarks = col(row, 'Remarks');
+            if (remarks) extras.push(`Remarks: ${remarks}`);
+            const fullAddress = [address, ...extras].filter(Boolean).join('\n');
+
+            // Extract city from first line of address
+            const city = address.split(/[\n,]/)[0].trim() || col(row, 'City', 'city');
+
+            // Build contacts for this site
+            const contacts: any[] = [];
+            const purchaseName = col(row, 'Purchase Id', 'Purchase Name');
+            const purchasePhone = col(row, 'Purchase Ph.', 'Purchase Phone');
+            if (purchaseName || purchasePhone) {
+              contacts.push({
+                id: uid(), name: purchaseName || 'Purchase Contact',
+                role: 'Purchase', email: '', phone: purchasePhone,
+                isPrimary: contacts.length === 0,
               });
             }
-            await addCustomer(customer);
+            const storePerson = col(row, 'Store Contact Person', 'Store Contact');
+            const storeEmail = col(row, 'Store Email');
+            const storePhone = col(row, 'Store Ph.', 'Store Phone');
+            if (storePerson || storeEmail || storePhone) {
+              contacts.push({
+                id: uid(), name: storePerson || 'Store Contact',
+                role: 'Store', email: storeEmail, phone: storePhone,
+                isPrimary: contacts.length === 0,
+              });
+            }
+            const dispatchEmail = col(row, 'Email for dispatch intimation', 'Dispatch Email');
+            if (dispatchEmail) {
+              contacts.push({
+                id: uid(), name: 'Dispatch',
+                role: 'Dispatch', email: dispatchEmail, phone: '',
+                isPrimary: contacts.length === 0,
+              });
+            }
+            // Generic contact fallback
+            const contactName = col(row, 'Contact Name', 'contact_name');
+            if (contactName && contacts.length === 0) {
+              contacts.push({
+                id: uid(), name: contactName,
+                role: col(row, 'contact_role') || 'Contact',
+                email: col(row, 'Contact Email', 'contact_email'),
+                phone: col(row, 'Contact Phone', 'contact_phone'),
+                isPrimary: true,
+              });
+            }
+
+            const siteId = col(row, 'Customer ID', 'customer id')
+              ? `SITE_${col(row, 'Customer ID', 'customer id').replace(/[^A-Z0-9]/gi, '')}_${uid()}`
+              : `SITE_${uid()}`;
+
+            return {
+              id: siteId,
+              name: col(row, 'Unit', 'Site Name', 'site_name') || 'Head Office',
+              city,
+              address,
+              fullAddress,
+              gstin: col(row, 'GST No.', 'GST No', 'GSTIN', 'gstin'),
+              isPrimary,
+              contacts,
+            };
+          };
+
+          // Group rows by company name (case-insensitive)
+          const groups = new Map<string, Record<string, string>[]>();
+          for (const row of rows) {
+            const companyName = col(row, 'Company Name', 'company name', 'Company', 'name', 'Name');
+            if (!companyName) continue;
+            const key = companyName.toLowerCase().trim();
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(row);
           }
-          alert(`Imported ${(results.data as any[]).length} customers.`);
-        } catch {
-          alert('Import failed. Check console.');
+
+          const existingNames = new Set(data.customers.map(c => c.name.toLowerCase().trim()));
+          const existingIds   = data.customers.map(c => c.id);
+          const existingCodes = data.customers.map(c => c.code);
+
+          let imported = 0;
+          let skipped = 0;
+
+          for (const [, groupRows] of groups) {
+            const firstRow = groupRows[0];
+            const companyName = col(firstRow, 'Company Name', 'company name', 'Company', 'name', 'Name');
+
+            // Dedup — skip if already exists
+            if (existingNames.has(companyName.toLowerCase().trim())) {
+              skipped++;
+              continue;
+            }
+
+            // Use sheet's Customer ID if valid, else generate
+            const sheetId = col(firstRow, 'Customer ID', 'customer id', 'CUST ID');
+            const custId = (sheetId && !existingIds.includes(sheetId))
+              ? sheetId
+              : generateId('CUST', [...existingIds, ...Array.from({length: imported}, (_, i) => `CUST-0-${i}`)]);
+            const custCode = generateId('CUS', [...existingCodes, ...Array.from({length: imported}, (_, i) => `CUS-0-${i}`)]);
+
+            const sites = groupRows.map((row, idx) => buildSite(row, idx === 0));
+
+            const customer: Customer = {
+              id: custId,
+              code: custCode,
+              name: companyName,
+              seg: col(firstRow, 'Segment', 'seg', 'Seg') || 'General',
+              gstin: col(firstRow, 'GST No.', 'GST No', 'GSTIN', 'gstin'),
+              inco: col(firstRow, 'Incoterms', 'inco') || 'FOR',
+              curr: col(firstRow, 'Currency', 'curr') || 'INR',
+              pay: col(firstRow, 'Payment Terms', 'Payment', 'pay') || '',
+              tier: 'New',
+              sites,
+            };
+
+            await addCustomer(customer);
+            existingIds.push(custId);
+            existingCodes.push(custCode);
+            existingNames.add(companyName.toLowerCase().trim());
+            imported++;
+          }
+
+          alert(`Import complete: ${imported} customers added, ${skipped} skipped (already exist).`);
+        } catch (err) {
+          alert('Import failed: ' + (err as Error).message);
         } finally {
           setImporting(false);
           e.target.value = '';
