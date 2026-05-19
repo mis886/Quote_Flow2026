@@ -434,6 +434,43 @@ export default function FollowUps() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Contact details strip */}
+                  {(() => {
+                    const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                    const contacts = site?.contacts ?? [];
+                    if (contacts.length === 0) return null;
+                    return (
+                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        {contacts.map(ct => (
+                          <div key={ct.id} className="flex items-center gap-2 bg-g50 border border-g200 rounded-[4px] px-3 py-1.5">
+                            <span className="text-[11.5px] font-semibold text-blk">{ct.name}</span>
+                            {ct.role && (
+                              <span className="px-1.5 py-0.5 bg-g200 rounded text-[8px] font-bold uppercase text-g500 tracking-wide">{ct.role}</span>
+                            )}
+                            <div className="w-px h-3 bg-g300" />
+                            {ct.phone && (
+                              <a href={`tel:${ct.phone}`} className="inline-flex items-center gap-1 text-[11px] text-blk hover:text-red-mrt transition-colors">
+                                <Phone size={10} className="text-g400" />{ct.phone}
+                              </a>
+                            )}
+                            {ct.phone && (
+                              <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors">
+                                <MessageCircle size={10} />{ct.phone}
+                              </a>
+                            )}
+                            {ct.email && (
+                              <a href={`mailto:${ct.email}`} className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors">
+                                <Mail size={10} />{ct.email}
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className={cn(

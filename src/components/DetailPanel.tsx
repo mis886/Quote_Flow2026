@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../store';
 import { format } from 'date-fns';
 import { Button, Badge } from './ui';
-import { X, ArrowRight, Paperclip, Download, Loader2, Phone, MessageCircle, Mail } from 'lucide-react';
+import { X, ArrowRight, Paperclip, Download, Loader2, Phone, MessageCircle, Mail, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getS3SignedUrl } from '../lib/s3';
 import { FollowUpSummary } from './FollowUpSummary';
@@ -32,6 +32,7 @@ export function DetailPanel() {
   const { detailPanel, closeDetailPanel, openDetailPanel, data, updateEnquiry, updateQuote, updateOrder, deleteEnquiry } = useAppStore();
   const navigate = useNavigate();
   const [downloadingItemId, setDownloadingItemId] = React.useState<string | null>(null);
+  const [showLineItems, setShowLineItems] = React.useState(false);
 
   const handleDownload = async (path: string, id: string, name?: string) => {
     if (path.startsWith('mock') || downloadingItemId === id) return;
@@ -124,33 +125,42 @@ export function DetailPanel() {
           </section>
 
           <section>
-            <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-3 border-b border-red-lt pb-1">Line Items ({enq.items.length})</div>
-            <div className="bg-g100/50 border border-g200 p-2 text-black">
-              <table className="w-full text-left text-[11.5px]">
-                <thead className="text-[10px] font-mono text-g500 border-b border-g200">
-                  <tr>
-                    <th className="pb-1.5 font-bold">#</th>
-                    <th className="pb-1.5 font-bold">DESCRIPTION</th>
-                    <th className="pb-1.5 font-bold">MATERIAL</th>
-                    <th className="pb-1.5 font-bold">QTY</th>
-                    <th className="pb-1.5 font-bold">UOM</th>
-                    <th className="pb-1.5 font-bold">DWG</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enq.items.map((it, idx) => (
-                    <tr key={idx} className="border-b border-g200/50 last:border-0 hover:bg-white transition-colors">
-                      <td className="py-2 text-g500 font-mono">{it.seq}</td>
-                      <td className="py-2 font-medium">{it.desc}</td>
-                      <td className="py-2 text-g600">{it.mat || '—'}</td>
-                      <td className="py-2 font-bold">{it.qty}</td>
-                      <td className="py-2 text-g500">{it.uom}</td>
-                      <td className="py-2 text-g500">{it.drwg || '—'}</td>
+            <button
+              type="button"
+              onClick={() => setShowLineItems(v => !v)}
+              className="w-full flex items-center justify-between font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-3 border-b border-red-lt pb-1 hover:opacity-70 transition-opacity focus:outline-none"
+            >
+              Line Items ({enq.items.length})
+              <ChevronDown size={12} className={`transition-transform duration-200 ${showLineItems ? 'rotate-180' : ''}`} />
+            </button>
+            {showLineItems && (
+              <div className="bg-g100/50 border border-g200 p-2 text-black">
+                <table className="w-full text-left text-[11.5px]">
+                  <thead className="text-[10px] font-mono text-g500 border-b border-g200">
+                    <tr>
+                      <th className="pb-1.5 font-bold">#</th>
+                      <th className="pb-1.5 font-bold">DESCRIPTION</th>
+                      <th className="pb-1.5 font-bold">MATERIAL</th>
+                      <th className="pb-1.5 font-bold">QTY</th>
+                      <th className="pb-1.5 font-bold">UOM</th>
+                      <th className="pb-1.5 font-bold">DWG</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {enq.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-g200/50 last:border-0 hover:bg-white transition-colors">
+                        <td className="py-2 text-g500 font-mono">{it.seq}</td>
+                        <td className="py-2 font-medium">{it.desc}</td>
+                        <td className="py-2 text-g600">{it.mat || '—'}</td>
+                        <td className="py-2 font-bold">{it.qty}</td>
+                        <td className="py-2 text-g500">{it.uom}</td>
+                        <td className="py-2 text-g500">{it.drwg || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {enq.attachments && enq.attachments.length > 0 && (
@@ -404,21 +414,31 @@ export function DetailPanel() {
             </section>
           )}
 
-          <Section title={`Line Items (${q.items.length})`}>
-            <div className="border border-g200 rounded divide-y divide-g100 text-[12px]">
-              {q.items.map((it, i) => (
-                <div key={i} className="p-3 bg-g50 flex justify-between gap-4">
-                  <div>
-                    <div className="font-sans font-medium text-blk">{it.desc}</div>
-                    <div className="text-g500 mt-1">Material: {it.mat}</div>
+          <section>
+            <button
+              type="button"
+              onClick={() => setShowLineItems(v => !v)}
+              className="w-full flex items-center justify-between font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-3 border-b border-red-lt pb-1 hover:opacity-70 transition-opacity focus:outline-none"
+            >
+              Line Items ({q.items.length})
+              <ChevronDown size={12} className={`transition-transform duration-200 ${showLineItems ? 'rotate-180' : ''}`} />
+            </button>
+            {showLineItems && (
+              <div className="border border-g200 rounded divide-y divide-g100 text-[12px]">
+                {q.items.map((it, i) => (
+                  <div key={i} className="p-3 bg-g50 flex justify-between gap-4">
+                    <div>
+                      <div className="font-sans font-medium text-blk">{it.desc}</div>
+                      <div className="text-g500 mt-1">Material: {it.mat}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono font-bold text-blk">{it.qty} {it.uom}</div>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-mono font-bold text-blk">{it.qty} {it.uom}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Section>
+                ))}
+              </div>
+            )}
+          </section>
 
           <FollowUpSummary quote={q} />
         </div>
@@ -530,20 +550,30 @@ export function DetailPanel() {
             </section>
           )}
 
-          <Section title={`Line Items (${o.items.length})`}>
-            <div className="border border-g200 rounded divide-y divide-g100 text-[12px]">
-              {o.items.map((it, i) => (
-                <div key={i} className="p-3 bg-g50 flex justify-between gap-4">
-                  <div>
-                    <div className="font-sans font-medium text-blk">{it.desc}</div>
+          <section>
+            <button
+              type="button"
+              onClick={() => setShowLineItems(v => !v)}
+              className="w-full flex items-center justify-between font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-3 border-b border-red-lt pb-1 hover:opacity-70 transition-opacity focus:outline-none"
+            >
+              Line Items ({o.items.length})
+              <ChevronDown size={12} className={`transition-transform duration-200 ${showLineItems ? 'rotate-180' : ''}`} />
+            </button>
+            {showLineItems && (
+              <div className="border border-g200 rounded divide-y divide-g100 text-[12px]">
+                {o.items.map((it, i) => (
+                  <div key={i} className="p-3 bg-g50 flex justify-between gap-4">
+                    <div>
+                      <div className="font-sans font-medium text-blk">{it.desc}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono font-bold text-blk">{it.qty} {it.uom}</div>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-mono font-bold text-blk">{it.qty} {it.uom}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Section>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
         <div className="p-4 border-t border-g200 flex items-center justify-between bg-g100/30">
           <div className="flex items-center gap-2">
