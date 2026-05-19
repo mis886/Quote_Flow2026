@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../store';
 import { format } from 'date-fns';
 import { Button, Badge } from './ui';
-import { X, ArrowRight, Paperclip, Download, Loader2, Phone, MessageCircle, Mail, ChevronDown } from 'lucide-react';
+import { X, ArrowRight, Paperclip, Download, Loader2, Phone, MessageCircle, Mail, ChevronDown, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getS3SignedUrl } from '../lib/s3';
 import { FollowUpSummary } from './FollowUpSummary';
@@ -289,6 +289,15 @@ export function DetailPanel() {
                 closeDetailPanel();
               }
             }}>Delete</Button>
+            {(() => {
+              const custRec = data.customers.find(c => c.name === enq.cust);
+              if (!custRec) return null;
+              return (
+                <Button variant="secondary" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }}>
+                  <ExternalLink size={13} className="mr-1" />Customer
+                </Button>
+              );
+            })()}
             <Button variant="secondary" onClick={closeDetailPanel}>Close</Button>
           </div>
         </div>
@@ -486,6 +495,15 @@ export function DetailPanel() {
               const sig = unitSig ?? data.signatories.find(s => s.is_default);
               generateQuotePDF(q, cust, data.settings, sig, true, unit);
             }}>PDF</Button>
+            {(() => {
+              const custRec = data.customers.find(c => c.name === q.cust);
+              if (!custRec) return null;
+              return (
+                <Button variant="secondary" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }}>
+                  <ExternalLink size={13} className="mr-1" />Customer
+                </Button>
+              );
+            })()}
             <Button variant="secondary" onClick={closeDetailPanel}>Close</Button>
           </div>
         </div>
