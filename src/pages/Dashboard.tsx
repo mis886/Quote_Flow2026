@@ -3,10 +3,24 @@ import { useAppStore } from '../store';
 import { formatINR, cn, getThisWeekRange } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight, Calendar, ChevronLeft } from 'lucide-react';
 
 type Period = '30d' | 'quarter' | 'year';
-type DashTab = 'overview' | 'this-week';
+type DashTab = 'overview' | 'this-week' | 'calendar';
+
+type CalendarEventType = 'followup' | 'overdue-enq' | 'order-dlv' | 'quote-pending';
+
+type CalendarEvent = {
+  id: string;
+  type: CalendarEventType;
+  label: string;
+  sublabel: string;
+  contact?: string;
+  color: 'purple' | 'red' | 'teal' | 'orange';
+  onClick: () => void;
+};
+
+type CalendarDayMap = Record<string, CalendarEvent[]>;
 
 type ActivityItem = {
   ts: string;
@@ -18,6 +32,27 @@ type ActivityItem = {
   refType: string;
 };
 
+function getOffsetWeekRange(offset: number) {
+  const { start: baseStart } = getThisWeekRange();
+  const start = new Date(baseStart);
+  start.setDate(start.getDate() + offset * 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  return { start, end, days };
+}
+
+function dateKey(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return dt.toISOString().slice(0, 10);
+}
+
 export function Dashboard() {
   // @ts-ignore - Assuming globalDateRange is added to the store
   const { data, openDetailPanel, user, globalDateRange } = useAppStore();
@@ -25,6 +60,7 @@ export function Dashboard() {
   const [period, setPeriod] = useState<Period>('30d');
   const [activeTab, setActiveTab] = useState<DashTab>('overview');
   const [expandedMdo, setExpandedMdo] = useState<Record<string, boolean>>({});
+  const [calendarWeekOffset, setCalendarWeekOffset] = useState<number>(0);
 
   const userName = user?.email ? user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ') : 'User';
   const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
@@ -308,6 +344,93 @@ export function Dashboard() {
 
   const toggleMdo = (key: string) => setExpandedMdo(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // ── Calendar computations ──────────────────────────────────────────────────
+  const calendarEvents = useMemo<CalendarDayMap>(() => {
+    const map: CalendarDayMap = {};
+    const addEvent = (key: string, evt: CalendarEvent) => {
+      if (!map[key]) map[key] = [];
+      map[key].push(evt);
+    };
+
+    // Purple — follow-ups due (with contact details via quote→customer join)
+    data.followups.forEach(fu => {
+      if (!fu.next_date || fu.status === 'closed') return;
+      const key = fu.next_date.slice(0, 10);
+      const quote = data.quotes.find(q => q.id === fu.quote_id);
+      const cust = quote ? data.customers.find(c => c.name === quote.cust) : undefined;
+      const site = cust?.sites.find(s => s.isPrimary) ?? cust?.sites[0];
+      const contact = site?.contacts.find(ct => ct.isPrimary) ?? site?.contacts[0];
+      const contactLine = contact
+        ? [contact.name, contact.phone].filter(Boolean).join(' · ')
+        : fu.owner || 'Team';
+      addEvent(key, {
+        id: fu.id,
+        type: 'followup',
+        label: fu.quote_id,
+        sublabel: quote?.cust || fu.owner || 'Team',
+        contact: contactLine,
+        color: 'purple',
+        onClick: () => openDetailPanel('quote' as any, fu.quote_id),
+      });
+    });
+
+    // Red — overdue enquiries
+    const SLA_CAL: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
+    data.enquiries.forEach(e => {
+      if ((e.status !== 'New' && e.status !== 'In Review') || !e.recv) return;
+      if (e.ageH < (SLA_CAL[e.urg] ?? 48)) return;
+      const key = e.recv.slice(0, 10);
+      addEvent(key, {
+        id: e.id,
+        type: 'overdue-enq',
+        label: e.id,
+        sublabel: `${e.cust} · ${e.urg}`,
+        color: 'red',
+        onClick: () => openDetailPanel('enquiry' as any, e.id),
+      });
+    });
+
+    // Teal — order delivery deadlines
+    data.orders.forEach(o => {
+      if (!o.dlvDate || o.status !== 'Processing') return;
+      const key = o.dlvDate.slice(0, 10);
+      addEvent(key, {
+        id: o.id,
+        type: 'order-dlv',
+        label: o.id,
+        sublabel: o.cust,
+        color: 'teal',
+        onClick: () => openDetailPanel('order' as any, o.id),
+      });
+    });
+
+    // Orange — quotes awaiting decision (sent 7+ days ago)
+    const sevenDaysAgo = Date.now() - 7 * 24 * 3_600_000;
+    data.quotes.forEach(q => {
+      if (q.status !== 'Sent' || !q.date) return;
+      if (new Date(q.date).getTime() > sevenDaysAgo) return;
+      const key = q.date.slice(0, 10);
+      addEvent(key, {
+        id: q.id,
+        type: 'quote-pending',
+        label: q.id,
+        sublabel: q.cust,
+        color: 'orange',
+        onClick: () => openDetailPanel('quote' as any, q.id),
+      });
+    });
+
+    return map;
+  }, [data.followups, data.enquiries, data.orders, data.quotes, data.customers]);
+
+  const { start: calWeekStart, end: calWeekEnd, days: calDays } = useMemo(
+    () => getOffsetWeekRange(calendarWeekOffset),
+    [calendarWeekOffset]
+  );
+
+  const calWeekLabel = `${calWeekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${calWeekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const todayKey = dateKey(new Date());
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-y-auto">
       <div className="pt-5 px-[30px] shrink-0">
@@ -374,6 +497,19 @@ export function Dashboard() {
                 {activityFeed.length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('calendar')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] font-bold tracking-[1.5px] uppercase border-b-2 -mb-px transition-colors focus:outline-none',
+              activeTab === 'calendar'
+                ? 'border-red-mrt text-red-mrt'
+                : 'border-transparent text-g400 hover:text-g600'
+            )}
+          >
+            <Calendar size={12} />
+            Calendar
           </button>
         </div>
       </div>
@@ -573,6 +709,115 @@ export function Dashboard() {
               </MdoSection>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'calendar' && (
+        <div className="px-[30px] pb-6 flex flex-col gap-4">
+
+          {/* Navigation bar */}
+          <div className="flex items-center justify-between shrink-0">
+            <button
+              type="button"
+              onClick={() => setCalendarWeekOffset(o => o - 1)}
+              className="flex items-center gap-1.5 h-8 px-3 font-mono text-[10px] font-bold tracking-[1.5px] uppercase text-g600 bg-white border border-g200 rounded-[3px] hover:border-g400 transition-colors focus:outline-none"
+            >
+              <ChevronLeft size={12} />
+              Prev Week
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase text-g500">
+                {calWeekLabel}
+              </span>
+              {calendarWeekOffset !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCalendarWeekOffset(0)}
+                  className="font-mono text-[9px] font-bold tracking-[1px] uppercase text-red-mrt hover:opacity-70 focus:outline-none"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCalendarWeekOffset(o => o + 1)}
+              className="flex items-center gap-1.5 h-8 px-3 font-mono text-[10px] font-bold tracking-[1.5px] uppercase text-g600 bg-white border border-g200 rounded-[3px] hover:border-g400 transition-colors focus:outline-none"
+            >
+              Next Week
+              <ChevronRight size={12} />
+            </button>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-5 flex-wrap">
+            {(
+              [
+                { color: 'purple', label: 'Follow-up due' },
+                { color: 'red',    label: 'Overdue enquiry' },
+                { color: 'teal',   label: 'Order delivery' },
+                { color: 'orange', label: 'Quote awaiting PO' },
+              ] as { color: CalendarEvent['color']; label: string }[]
+            ).map(({ color, label }) => (
+              <div key={color} className="flex items-center gap-1.5">
+                <div className={cn('w-2 h-2 rounded-full', CAL_PILL_COLORS[color].dot)} />
+                <span className="font-mono text-[9px] text-g500">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop 7-column grid */}
+          <div className="hidden md:grid grid-cols-7 border border-g200 rounded-[8px] overflow-hidden shadow-sm">
+            {calDays.map(day => {
+              const key = dateKey(day);
+              return (
+                <CalendarDayColumn
+                  key={key}
+                  date={day}
+                  events={calendarEvents[key] ?? []}
+                  isToday={key === todayKey}
+                />
+              );
+            })}
+          </div>
+
+          {/* Mobile list view */}
+          <div className="md:hidden flex flex-col gap-3">
+            {calDays.map(day => {
+              const key = dateKey(day);
+              const events = calendarEvents[key] ?? [];
+              const isToday = key === todayKey;
+              const dayLabel = day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+              return (
+                <div key={key} className={cn('bg-white border border-g200 rounded-[8px] overflow-hidden', isToday && 'border-red-mrt/40')}>
+                  <div className={cn('px-4 py-2 border-b border-g200 font-mono text-[10px] font-bold tracking-[1.5px] uppercase', isToday ? 'text-red-mrt bg-red-50' : 'text-g500')}>
+                    {dayLabel}
+                  </div>
+                  {events.length === 0 ? (
+                    <div className="px-4 py-3 text-[11px] text-g300 italic">No events</div>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-g100">
+                      {events.map((evt, i) => {
+                        const c = CAL_PILL_COLORS[evt.color];
+                        return (
+                          <button key={i} type="button" onClick={evt.onClick}
+                            className="flex items-start gap-3 px-4 py-2.5 hover:bg-g50 focus:outline-none text-left">
+                            <div className={cn('w-2 h-2 rounded-full shrink-0 mt-1', c.dot)} />
+                            <div>
+                              <div className="font-mono text-[10.5px] font-bold text-blk">{evt.label}</div>
+                              <div className="text-[11px] text-g500">{evt.sublabel}</div>
+                              {evt.contact && <div className="text-[10.5px] text-g400">{evt.contact}</div>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
         </div>
       )}
 
@@ -953,6 +1198,60 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
             )}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+const CAL_PILL_COLORS: Record<CalendarEvent['color'], { pill: string; dot: string }> = {
+  purple: { pill: 'bg-purple-50 border border-purple-200 text-purple-700', dot: 'bg-purple-500' },
+  red:    { pill: 'bg-red-50 border border-red-200 text-red-700',          dot: 'bg-red-500'    },
+  teal:   { pill: 'bg-teal-50 border border-teal-200 text-teal-700',       dot: 'bg-teal-500'   },
+  orange: { pill: 'bg-orange-50 border border-orange-200 text-orange-700', dot: 'bg-orange-500' },
+};
+
+function CalendarDayColumn({ date, events, isToday }: {
+  date: Date;
+  events: CalendarEvent[];
+  isToday: boolean;
+}) {
+  const dayName = date.toLocaleDateString('en-GB', { weekday: 'short' });
+  const dayNum  = date.getDate();
+  const monthShort = date.toLocaleDateString('en-GB', { month: 'short' });
+
+  return (
+    <div className={cn('flex flex-col min-h-[420px] border-r border-g200 last:border-r-0', isToday ? 'bg-red-50/40' : 'bg-white')}>
+      <div className={cn('flex flex-col items-center py-2 border-b border-g200 shrink-0', isToday ? 'bg-red-50' : '')}>
+        <span className={cn('font-mono text-[9px] font-bold tracking-[1.5px] uppercase', isToday ? 'text-red-mrt' : 'text-g400')}>
+          {dayName}
+        </span>
+        <span className={cn('font-serif text-[20px] leading-none font-bold mt-0.5', isToday ? 'text-red-mrt' : 'text-blk')}>
+          {dayNum}
+        </span>
+        <span className="font-mono text-[8px] text-g300 mt-0.5">{monthShort}</span>
+      </div>
+      <div className="flex flex-col gap-1 p-1.5 overflow-y-auto">
+        {events.length === 0 && (
+          <div className="text-[9px] text-g300 text-center mt-4 select-none">—</div>
+        )}
+        {events.map((evt, i) => {
+          const c = CAL_PILL_COLORS[evt.color];
+          return (
+            <button
+              key={`${evt.type}-${evt.id}-${i}`}
+              type="button"
+              onClick={evt.onClick}
+              className={cn('w-full text-left px-2 py-1 rounded-[4px] flex items-start gap-1.5 transition-opacity hover:opacity-75 focus:outline-none', c.pill)}
+            >
+              <div className={cn('w-1.5 h-1.5 rounded-full mt-[3px] shrink-0', c.dot)} />
+              <div className="min-w-0">
+                <div className="font-mono text-[9px] font-bold truncate leading-tight">{evt.label}</div>
+                <div className="text-[8.5px] text-g500 truncate leading-tight">{evt.sublabel}</div>
+                {evt.contact && <div className="text-[8px] text-g400 truncate leading-tight">{evt.contact}</div>}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
