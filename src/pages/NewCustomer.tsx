@@ -4,7 +4,58 @@ import { useAppStore } from '../store';
 import { Button } from '../components/ui';
 import { Customer, Site, Contact } from '../lib/types';
 import { generateId } from '../lib/utils';
-import { Plus, Trash2, MapPin, User, Mail, Phone } from 'lucide-react';
+import { Plus, Trash2, MapPin, User, Mail, Phone, Wand2 } from 'lucide-react';
+
+function hasMixedContent(text: string) {
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch)/i.test(text);
+}
+
+function parseMixedAddress(raw: string): {
+  cleanAddress: string;
+  transporter: string;
+  leadTimeNote: string;
+  dispatchHint: string;
+} {
+  const lines = raw.split('\n');
+  const kept: string[] = [];
+  let transporter = '';
+  let leadTime = '';
+  const dispatchLines: string[] = [];
+  const transporterRx = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
+  const leadTimeRx    = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
+  const plantRx       = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
+  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b)/i;
+  let inDispatch = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { if (!inDispatch) kept.push(''); continue; }
+    if (transporterRx.test(trimmed)) {
+      transporter = trimmed.replace(transporterRx, '').trim();
+      inDispatch = false;
+    } else if (leadTimeRx.test(trimmed)) {
+      leadTime = trimmed.replace(leadTimeRx, '').trim();
+      inDispatch = false;
+    } else if (plantRx.test(trimmed)) {
+      const plantVal = trimmed.replace(plantRx, '').trim();
+      leadTime = leadTime ? `${leadTime} (Plant: ${plantVal})` : `Plant: ${plantVal}`;
+      inDispatch = false;
+    } else if (dispatchStartRx.test(trimmed)) {
+      inDispatch = true;
+      dispatchLines.push(trimmed);
+    } else if (inDispatch) {
+      dispatchLines.push(trimmed);
+    } else {
+      kept.push(line);
+    }
+  }
+  return {
+    cleanAddress: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
+    transporter,
+    leadTimeNote: leadTime,
+    dispatchHint: dispatchLines.join('\n').trim(),
+  };
+}
 
 export function NewCustomer() {
   const [searchParams] = useSearchParams();
@@ -24,6 +75,7 @@ export function NewCustomer() {
     { id: 'S1', name: 'Main Office', city: '', contacts: [{ id: 'C1', name: '', role: 'Purchase', email: '', isPrimary: true }] }
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [parsePreview, setParsePreview] = useState<Record<number, ReturnType<typeof parseMixedAddress> | null>>({});
 
   useEffect(() => {
     if (editId) {
@@ -251,13 +303,62 @@ export function NewCustomer() {
 
                 <div className="p-4 space-y-4">
                   <div>
-                    <label className={labelCls}>Full Address / Postal Address</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className={labelCls}>Full Address / Postal Address</label>
+                      {hasMixedContent(site.fullAddress || site.address || '') && !parsePreview[sIdx] && (
+                        <button
+                          type="button"
+                          title="Detect and split transporter, lead time, dispatch address from this text"
+                          onClick={() => {
+                            const raw = site.fullAddress || site.address || '';
+                            setParsePreview(p => ({ ...p, [sIdx]: parseMixedAddress(raw) }));
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold text-sW border border-sW/40 rounded px-2 py-0.5 hover:border-sW hover:bg-sW/5 transition-colors"
+                        >
+                          <Wand2 size={10} /> Parse &amp; Split
+                        </button>
+                      )}
+                    </div>
                     <textarea
                       value={site.fullAddress || ''}
-                      onChange={e => updateSite(sIdx, 'fullAddress', e.target.value)}
+                      onChange={e => { updateSite(sIdx, 'fullAddress', e.target.value); setParsePreview(p => ({ ...p, [sIdx]: null })); }}
                       placeholder="Complete corporate address for this site..."
                       className="w-full font-sans text-xs bg-g50 border border-g300 rounded-[3px] p-2 outline-none focus:border-red-mrt h-14 resize-none transition-all focus:bg-white"
                     />
+                    {parsePreview[sIdx] && (() => {
+                      const pv = parsePreview[sIdx]!;
+                      return (
+                        <div className="mt-2 bg-sW/5 border border-sW/30 rounded-[4px] p-3 space-y-1.5 text-[11px]">
+                          <div className="font-bold text-sW text-[10px] uppercase tracking-wide mb-2">Parsed — review before applying</div>
+                          <div><span className="text-g500 font-bold">Address: </span><span className="text-blk whitespace-pre-wrap">{pv.cleanAddress || '—'}</span></div>
+                          {pv.dispatchHint && <div><span className="text-g500 font-bold">Dispatch hint: </span><span className="text-blk whitespace-pre-wrap">{pv.dispatchHint}</span></div>}
+                          {pv.transporter && <div><span className="text-g500 font-bold">Transporter: </span><span className="text-blk">{pv.transporter}</span></div>}
+                          {pv.leadTimeNote && <div><span className="text-g500 font-bold">Lead time: </span><span className="text-blk">{pv.leadTimeNote}</span></div>}
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSite(sIdx, 'fullAddress', pv.cleanAddress);
+                                if (pv.transporter && !site.transporter) updateSite(sIdx, 'transporter', pv.transporter);
+                                if (pv.leadTimeNote && !site.leadTimeNote) updateSite(sIdx, 'leadTimeNote', pv.leadTimeNote);
+                                if (pv.dispatchHint && !site.dispatchAddress) updateSite(sIdx, 'dispatchAddress', pv.dispatchHint);
+                                setParsePreview(pv2 => ({ ...pv2, [sIdx]: null }));
+                              }}
+                              className="px-3 py-1 bg-sW text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity"
+                            >
+                              Apply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setParsePreview(pv2 => ({ ...pv2, [sIdx]: null }))}
+                              className="px-3 py-1 bg-g100 text-g500 text-[10px] font-bold rounded hover:bg-g200 transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label className={labelCls}>Dispatch / Delivery Address</label>
