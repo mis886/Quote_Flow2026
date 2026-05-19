@@ -23,18 +23,17 @@ function hasMixedContent(text: string) {
 }
 
 function titleCaseAddress(text: string): string {
-  const upperWords = new Set(['UP', 'PO', 'PIN', 'TEL', 'PH', 'MOB', 'GST', 'GSTIN', 'DTDC', 'EXW', 'FOB', 'NH', 'GT']);
   const lowerWords = new Set(['of', 'and', 'the', 'in', 'at', 'by', 'to', 'for', 'a', 'an', 'via', 'near']);
   return text.split('\n').map(line => {
     const trimmed = line.trim();
     if (!trimmed) return line;
     return trimmed.split(/\s+/).map((word, i) => {
-      const clean = word.replace(/[^a-zA-Z]/g, '');
-      if (!clean) return word;
-      if (upperWords.has(clean.toUpperCase())) return word.toUpperCase();
-      if (i > 0 && lowerWords.has(clean.toLowerCase())) return word.toLowerCase();
-      if (/^[A-Z]{2,5}$/.test(clean)) return word;
-      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      const letters = word.replace(/[^a-zA-Z]/g, '');
+      if (!letters) return word;
+      // Only fix words that are entirely lowercase — leave ALL-CAPS, Mixed-Case, XII, LTD. etc untouched
+      if (letters !== letters.toLowerCase()) return word;
+      if (i > 0 && lowerWords.has(letters)) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
     }).join(' ');
   }).join('\n');
 }
