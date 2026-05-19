@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../store';
 import { format } from 'date-fns';
 import { Button, Badge } from './ui';
-import { X, ArrowRight, Paperclip, Download, Loader2 } from 'lucide-react';
+import { X, ArrowRight, Paperclip, Download, Loader2, Phone, MessageCircle, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getS3SignedUrl } from '../lib/s3';
 import { FollowUpSummary } from './FollowUpSummary';
@@ -316,6 +316,57 @@ export function DetailPanel() {
               <InfoItem label="Currency" value={q.curr} />
             </Grid>
           </Section>
+
+          {(() => {
+            const custRec = data.customers.find(c => c.name === q.cust);
+            const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+            const contacts = site?.contacts ?? [];
+            if (!custRec || contacts.length === 0) return null;
+            return (
+              <Section title="Customer Contact">
+                <div className="border border-g200 rounded-[4px] divide-y divide-g100 overflow-hidden">
+                  {contacts.map(ct => (
+                    <div key={ct.id} className="px-3 py-2.5 bg-g50 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12.5px] font-semibold text-blk">{ct.name}</span>
+                        {ct.role && (
+                          <span className="px-1.5 py-0.5 bg-g200 rounded text-[8.5px] font-bold uppercase text-g600 tracking-wide">
+                            {ct.role}
+                          </span>
+                        )}
+                        {ct.isPrimary && (
+                          <span className="px-1.5 py-0.5 bg-red-50 border border-red-200 rounded text-[8px] font-bold uppercase text-red-700 tracking-wide">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        {ct.phone && (
+                          <a href={`tel:${ct.phone}`} className="inline-flex items-center gap-1 text-[11px] text-blk hover:text-red-mrt transition-colors">
+                            <Phone size={10} className="text-g400 shrink-0" />
+                            {ct.phone}
+                          </a>
+                        )}
+                        {ct.phone && (
+                          <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors">
+                            <MessageCircle size={10} className="shrink-0" />
+                            {ct.phone}
+                          </a>
+                        )}
+                        {ct.email && (
+                          <a href={`mailto:${ct.email}`} className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors">
+                            <Mail size={10} className="shrink-0" />
+                            {ct.email}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            );
+          })()}
 
           {q.enqRef && (
             <Section title="Linked Enquiry">

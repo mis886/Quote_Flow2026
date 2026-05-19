@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store';
 import { Quote, FollowUpLog } from '../lib/types';
 import { format, parseISO, isBefore, isToday, startOfDay } from 'date-fns';
-import { Phone, ChevronRight, CheckCircle2, Plus, X } from 'lucide-react';
+import { Phone, ChevronRight, CheckCircle2, Plus, X, ChevronDown, MessageCircle, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 
@@ -14,6 +14,11 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
   const status = followUp?.status ?? 'open';
 
   const [showForm, setShowForm] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+
+  const custRec = data.customers.find(c => c.name === quote.cust);
+  const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+  const allContacts = site?.contacts ?? [];
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
   const [note, setNote] = useState('');
   const [nextDate, setNextDate] = useState('');
@@ -73,9 +78,16 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
   return (
     <section>
       <div className="mb-[12px] pb-[7px] border-b border-g200 mt-8 flex items-center justify-between gap-3">
-        <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt">
+        <button
+          type="button"
+          onClick={() => setShowContact(v => !v)}
+          className="inline-flex items-center gap-1.5 font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt hover:opacity-70 transition-opacity focus:outline-none"
+        >
           Follow-Up · {followUp?.logs?.length ?? 0} log{(followUp?.logs?.length ?? 0) === 1 ? '' : 's'}
-        </span>
+          {allContacts.length > 0 && (
+            <ChevronDown size={10} className={cn('transition-transform duration-200', showContact && 'rotate-180')} />
+          )}
+        </button>
         <div className="flex items-center gap-2">
           {showForm ? (
             <button
@@ -102,6 +114,44 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
           </Link>
         </div>
       </div>
+
+      {showContact && allContacts.length > 0 && (
+        <div className="mb-3 border border-g200 rounded-[4px] divide-y divide-g100 overflow-hidden">
+          {allContacts.map(ct => (
+            <div key={ct.id} className="px-3 py-2.5 bg-g50 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[12px] font-semibold text-blk">{ct.name}</span>
+                {ct.role && (
+                  <span className="px-1.5 py-0.5 bg-g200 rounded text-[8.5px] font-bold uppercase text-g600 tracking-wide">
+                    {ct.role}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                {ct.phone && (
+                  <a href={`tel:${ct.phone}`} className="inline-flex items-center gap-1 text-[11px] text-blk hover:text-red-mrt transition-colors">
+                    <Phone size={10} className="text-g400 shrink-0" />
+                    {ct.phone}
+                  </a>
+                )}
+                {ct.phone && (
+                  <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors">
+                    <MessageCircle size={10} className="shrink-0" />
+                    {ct.phone}
+                  </a>
+                )}
+                {ct.email && (
+                  <a href={`mailto:${ct.email}`} className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors">
+                    <Mail size={10} className="shrink-0" />
+                    {ct.email}
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2.5">
