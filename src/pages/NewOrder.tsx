@@ -123,6 +123,7 @@ export function NewOrder() {
         if (o.pan) setPan(o.pan);
         if (o.hsn) setDefaultHsn(o.hsn);
         if (o.poFileName) setExistingPoFileName(o.poFileName);
+        if (o.shipToAddress) setShipAddr(o.shipToAddress);
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === o.authorizedPerson?.name);
         if (matched) setSelectedSigId(matched.id);
       }
@@ -212,6 +213,7 @@ export function NewOrder() {
     customPoint: customPoint || undefined,
     pan: pan || undefined,
     hsn: defaultHsn || undefined,
+    shipToAddress: shipAddr || undefined,
   });
 
   // Persist the order (with PO upload if any). Returns the orderPayload used,

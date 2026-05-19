@@ -134,7 +134,8 @@ export function generateQuotePDF(
       const lines = doc.splitTextToSize(part, cw - 30) as string[];
       lines.forEach((l) => { y += 5; doc.text(l, mx, y); });
     });
-    if (customer?.gstin) { y += 5; doc.text('GSTIN: ' + customer.gstin, mx, y); }
+    const quoteGstin = primarySite?.gstin || customer?.gstin;
+    if (quoteGstin) { y += 5; doc.text('GSTIN: ' + quoteGstin, mx, y); }
   }
 
   // ── Customer Reference (their doc no.) ──────────────────────────────────
@@ -413,7 +414,19 @@ export function generatePIPDF(
   y += 5; doc.text(order.cust, mx, y);
   if (primaryContact?.name) { y += 5; doc.text('Attn: ' + primaryContact.name, mx, y); }
   if (primarySite?.city) { y += 5; doc.text(primarySite.city, mx, y); }
-  if (customer?.gstin) { y += 5; doc.text('GSTIN: ' + customer.gstin, mx, y); }
+  const billGstin = primarySite?.gstin || customer?.gstin;
+  if (billGstin) { y += 5; doc.text('GSTIN: ' + billGstin, mx, y); }
+
+  // ── Ship To ──────────────────────────────────────────────────────────────
+  if (order.shipToAddress) {
+    y += 7;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
+    doc.text('Ship To:', mx, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    y += 5;
+    const shipLines = doc.splitTextToSize(order.shipToAddress, cw / 2 - 4) as string[];
+    shipLines.forEach((l) => { doc.text(l, mx, y); y += 4.5; });
+  }
 
   // PO details on right
   let ry = y - 15;

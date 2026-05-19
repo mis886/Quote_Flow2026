@@ -137,6 +137,7 @@ export interface Order {
   customPoint?: string;
   pan?: string;
   hsn?: string;
+  shipToAddress?: string;
   sheetsExportedAt?: string;
 }
 
