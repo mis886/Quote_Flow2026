@@ -19,7 +19,6 @@ export function NewCustomer() {
   const [inco, setInco] = useState('Ex-Works');
   const [curr, setCurr] = useState('INR');
   const [pay, setPay] = useState('30 days');
-  const [gstin, setGstin] = useState('');
   const [pan, setPan] = useState('');
   const [sites, setSites] = useState<Site[]>([
     { id: 'S1', name: 'Main Office', city: '', contacts: [{ id: 'C1', name: '', role: 'Purchase', email: '', isPrimary: true }] }
@@ -37,7 +36,6 @@ export function NewCustomer() {
         setInco(cust.inco || 'Ex-Works');
         setCurr(cust.curr || 'INR');
         setPay(cust.pay || '30 days');
-        setGstin(cust.gstin || '');
         setPan(cust.pan || '');
         setSites(cust.sites || []);
       }
@@ -80,7 +78,7 @@ export function NewCustomer() {
     if (!validate()) return;
     const cust: Customer = {
       id, code: code.trim().toUpperCase(), name: name.trim(),
-      seg, inco, curr, pay, gstin: gstin.trim().toUpperCase(), pan: pan.trim().toUpperCase() || undefined, sites
+      seg, inco, curr, pay, gstin: '', pan: pan.trim().toUpperCase() || undefined, sites
     };
     if (editId) await updateCustomer(editId, cust);
     else await addCustomer(cust);
@@ -152,24 +150,14 @@ export function NewCustomer() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Primary GSTIN</label>
-                <input
-                  type="text" value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())}
-                  className={inputCls + ' font-mono'}
-                  placeholder="09AABCM1234A1Z5"
-                />
-              </div>
-              <div>
-                <label className={labelCls}>PAN No.</label>
-                <input
-                  type="text" value={pan} onChange={e => setPan(e.target.value.toUpperCase())}
-                  className={inputCls + ' font-mono'}
-                  placeholder="AABCM1234A"
-                  maxLength={10}
-                />
-              </div>
+            <div>
+              <label className={labelCls}>PAN No.</label>
+              <input
+                type="text" value={pan} onChange={e => setPan(e.target.value.toUpperCase())}
+                className={inputCls + ' font-mono'}
+                placeholder="AABCM1234A"
+                maxLength={10}
+              />
             </div>
           </div>
 
@@ -249,6 +237,12 @@ export function NewCustomer() {
                     onChange={e => updateSite(sIdx, 'state', e.target.value)}
                     placeholder="State"
                     className="bg-white border border-g300 rounded px-2 py-1 text-xs w-28 outline-none focus:border-red-mrt"
+                  />
+                  <input
+                    type="text" value={site.gstin || ''}
+                    onChange={e => updateSite(sIdx, 'gstin', e.target.value.toUpperCase())}
+                    placeholder="GSTIN"
+                    className="bg-white border border-g300 rounded px-2 py-1 text-xs font-mono w-44 outline-none focus:border-red-mrt"
                   />
                   <button type="button" onClick={() => removeSite(sIdx)} className="text-g400 hover:text-red-mrt transition-colors p-1" title="Remove site">
                     <Trash2 size={15} />

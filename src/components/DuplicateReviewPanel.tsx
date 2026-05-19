@@ -155,6 +155,7 @@ function GroupCard({
             {group.map(c => {
               const isP = c.id === primaryId;
               const hasGstin = !!c.gstin?.trim();
+              const siteGstins = (c.sites ?? []).filter(s => s.gstin?.trim());
               return (
                 <tr
                   key={c.id}
@@ -189,9 +190,17 @@ function GroupCard({
                     {hasGstin ? (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono text-[11px] text-blk">{c.gstin}</span>
-                        <span className="px-1 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[8px] font-bold rounded uppercase">
-                          GSTIN
-                        </span>
+                        <span className="px-1 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[8px] font-bold rounded uppercase">GSTIN</span>
+                      </div>
+                    ) : siteGstins.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {siteGstins.map(s => (
+                          <div key={s.id} className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] text-blk">{s.gstin}</span>
+                            <span className="text-g400 text-[9px]">({s.name})</span>
+                            <span className="px-1 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[8px] font-bold rounded uppercase">GSTIN</span>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <span className="text-g300">—</span>
@@ -253,7 +262,10 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
     const init: Record<string, string> = {};
     for (const g of initialGroups) {
       const key = normalizeName(g[0].name);
-      init[key] = g.find(c => c.gstin?.trim())?.id ?? g[0].id;
+      init[key] =
+        g.find(c => c.gstin?.trim())?.id
+        ?? g.find(c => c.sites.some(s => s.gstin?.trim()))?.id
+        ?? g[0].id;
     }
     return init;
   });

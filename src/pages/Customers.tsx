@@ -187,7 +187,19 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
 
           {/* GSTIN / payment / inco */}
           <div className="px-5 py-3 border-b border-g100 grid grid-cols-2 gap-2 text-[11.5px]">
-            <div><span className="text-g400">GSTIN: </span><span className="font-mono font-bold text-blk">{customer.gstin || '—'}</span></div>
+            {customer.sites.some(s => s.gstin?.trim()) ? (
+              <div className="col-span-2 space-y-1">
+                <div className="text-g400 text-[10px] font-bold uppercase tracking-wide">GSTIN</div>
+                {customer.sites.filter(s => s.gstin?.trim()).map(s => (
+                  <div key={s.id} className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-blk text-[11px]">{s.gstin}</span>
+                    <span className="text-g400 text-[10px]">({s.name})</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="col-span-2"><span className="text-g400">GSTIN: </span><span className="text-g300">—</span></div>
+            )}
             <div><span className="text-g400">Payment: </span><span className="font-bold text-blk">{customer.pay || '—'}</span></div>
             <div><span className="text-g400">Incoterms: </span><span className="font-bold text-blk">{customer.inco || '—'}</span></div>
             <div><span className="text-g400">Currency: </span><span className="font-bold text-blk">{customer.curr || 'INR'}</span></div>
@@ -578,7 +590,8 @@ export function Customers() {
       const q = searchQuery.toLowerCase();
       const nameMatch  = c.name?.toLowerCase().includes(q);
       const codeMatch  = c.code?.toLowerCase().includes(q);
-      const gstinMatch = c.gstin?.toLowerCase().includes(q);
+      const gstinMatch = c.gstin?.toLowerCase().includes(q)
+        || c.sites.some(s => s.gstin?.toLowerCase().includes(q));
       if (!nameMatch && !codeMatch && !gstinMatch) return false;
     }
     if (segFilter && c.seg !== segFilter) return false;

@@ -334,6 +334,13 @@ export function DetailPanel() {
             if (!custRec || contacts.length === 0) return null;
             return (
               <Section title="Customer Contact">
+                {site?.gstin && (
+                  <div className="mb-2 px-3 py-1.5 bg-g50 border border-g200 rounded-[4px] flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-g400">GSTIN</span>
+                    <span className="font-mono text-[11.5px] font-bold text-blk">{site.gstin}</span>
+                    <span className="text-[10px] text-g400">· {site.name}</span>
+                  </div>
+                )}
                 <div className="border border-g200 rounded-[4px] divide-y divide-g100 overflow-hidden">
                   {contacts.map(ct => (
                     <div key={ct.id} className="px-3 py-2.5 bg-g50 flex flex-col gap-1.5">
@@ -445,6 +452,7 @@ export function DetailPanel() {
         <div className="p-4 border-t border-g200 flex items-center justify-between bg-g100/30">
           <div className="flex items-center gap-2">
             <select
+              title="Quote status"
               value={q.status}
               onChange={async (e) => {
                 await updateQuote(q.id, { status: e.target.value as any });
@@ -501,7 +509,7 @@ export function DetailPanel() {
             </div>
             <h2 className="font-serif text-2xl text-blk">{o.cust}</h2>
           </div>
-          <button onClick={closeDetailPanel} className="text-g500 hover:text-blk p-1 border border-g300 rounded hover:bg-g100 transition-colors">
+          <button type="button" title="Close" onClick={closeDetailPanel} className="text-g500 hover:text-blk p-1 border border-g300 rounded hover:bg-g100 transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -578,6 +586,7 @@ export function DetailPanel() {
         <div className="p-4 border-t border-g200 flex items-center justify-between bg-g100/30">
           <div className="flex items-center gap-2">
             <select
+              title="Order status"
               value={o.status}
               onChange={async (e) => {
                 await updateOrder(o.id, { status: e.target.value as any });

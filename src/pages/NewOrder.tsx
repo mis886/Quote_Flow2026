@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { generateId, formatINR, parseQuoteTerms } from '../lib/utils';
 import { OrderItem, Order, AuthorizedSignatory, OrderStatus } from '../lib/types';
 import { Button } from '../components/ui';
+import { CustomerSearch } from '../components/CustomerSearch';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { uploadToS3 } from '../lib/s3';
 import { Upload } from 'lucide-react';
@@ -390,11 +391,12 @@ export function NewOrder() {
                 <div className="p-[12px_16px] grid grid-cols-2 gap-[10px]">
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Customer <span className="text-red-mrt">*</span></label>
-                    <select value={custName} onChange={e => { setCustName(e.target.value); setSiteId(''); setContactId(''); setErrors({ ...errors, custName: '' }); }}
-                      className={selectCls.replace('border-g300', errors.custName ? 'border-red-mrt' : 'border-g300')}>
-                      <option value="">Select Customer...</option>
-                      {data.customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
+                    <CustomerSearch
+                      customers={data.customers}
+                      value={custName}
+                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setErrors({ ...errors, custName: '' }); }}
+                      error={!!errors.custName}
+                    />
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
