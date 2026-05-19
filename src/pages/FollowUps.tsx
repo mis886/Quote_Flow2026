@@ -44,8 +44,12 @@ function getOffsetWeekRange(offset: number) {
 }
 
 function dateKey(d: Date | string): string {
-  const dt = typeof d === 'string' ? new Date(d) : d;
-  return dt.toISOString().slice(0, 10);
+  if (typeof d === 'string') return d.slice(0, 10);
+  // Use local date parts to avoid UTC offset shifting the date (e.g. IST = UTC+5:30)
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 const CHANNEL_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string }> = {
