@@ -38,17 +38,27 @@ function titleCaseAddress(text: string): string {
   }).join('\n');
 }
 
-function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string } {
+function extractPhones(value: string): string[] {
+  return value
+    .replace(/(?:\+91|0091)[\s\-]*/g, '')
+    .split(/[,;\/]+/)
+    .map(p => p.replace(/[^\d]/g, '').trim())
+    .filter(p => p.length >= 7);
+}
+
+function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string; phones: string[] } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
   let siteName = '';
   const dispatchLines: string[] = [];
+  const phones: string[] = [];
   const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
   const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
+  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
   for (const line of lines) {
     const trimmed = line.trim();
@@ -56,6 +66,7 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
     else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
     else if (plantRx.test(trimmed)) { siteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
+    else if (phoneRx.test(trimmed)) { phones.push(...extractPhones(trimmed.replace(phoneRx, '').trim())); inDispatch = false; }
     else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
     else if (inDispatch) { dispatchLines.push(trimmed); }
     else { kept.push(line); }
@@ -66,6 +77,7 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     leadTimeNote: leadTime,
     dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
     siteName,
+    phones,
   };
 }
 
@@ -953,6 +965,9 @@ export function Customers() {
                       {fix.parsed.leadTimeNote && (
                         <div><span className="font-bold text-g500">→ Lead time: </span><span className="text-blk">{fix.parsed.leadTimeNote}</span>{fix.currentLeadTime && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
                       )}
+                      {fix.parsed.phones.length > 0 && (
+                        <div><span className="font-bold text-g500">→ Phone(s): </span><span className="text-blk font-mono">{fix.parsed.phones.join(', ')}</span><span className="text-g400 text-[10px] ml-1">(→ primary contact)</span></div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -985,6 +1000,16 @@ export function Customers() {
                         const updatedSites = cust.sites.map(s => {
                           const fix = fixes.find(f => f.siteId === s.id);
                           if (!fix) return s;
+                          const updatedContacts = [...s.contacts];
+                          if (fix.parsed.phones.length > 0) {
+                            const pIdx = updatedContacts.findIndex(c => c.isPrimary);
+                            const target = pIdx >= 0 ? pIdx : 0;
+                            if (updatedContacts[target] && !updatedContacts[target].phone) {
+                              updatedContacts[target] = { ...updatedContacts[target], phone: fix.parsed.phones.join(', ') };
+                            } else if (updatedContacts[target]) {
+                              updatedContacts.push({ id: 'C' + Date.now() + Math.random(), name: 'Phone', role: 'Purchase', email: '', phone: fix.parsed.phones.join(', ') });
+                            }
+                          }
                           return {
                             ...s,
                             fullAddress: fix.parsed.cleanAddress,
@@ -992,6 +1017,7 @@ export function Customers() {
                             transporter: s.transporter || fix.parsed.transporter || s.transporter,
                             leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
                             dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,
+                            contacts: updatedContacts,
                           };
                         });
                         await updateCustomer(custId, { sites: updatedSites });

@@ -27,12 +27,22 @@ function titleCaseAddress(text: string): string {
   }).join('\n');
 }
 
+function extractPhones(value: string): string[] {
+  // Strip country code prefix (+91-, 0091-, etc.) then split on comma/semicolon
+  return value
+    .replace(/(?:\+91|0091)[\s\-]*/g, '')
+    .split(/[,;\/]+/)
+    .map(p => p.replace(/[^\d]/g, '').trim())
+    .filter(p => p.length >= 7);
+}
+
 function parseMixedAddress(raw: string): {
   cleanAddress: string;
   transporter: string;
   leadTimeNote: string;
   dispatchHint: string;
   siteName: string;
+  phones: string[];
 } {
   const lines = raw.split('\n');
   const kept: string[] = [];
@@ -40,10 +50,12 @@ function parseMixedAddress(raw: string): {
   let leadTime = '';
   let siteName = '';
   const dispatchLines: string[] = [];
+  const phones: string[] = [];
   const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
   const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
+  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
 
   for (const line of lines) {
@@ -57,6 +69,10 @@ function parseMixedAddress(raw: string): {
       inDispatch = false;
     } else if (plantRx.test(trimmed)) {
       siteName = trimmed.replace(plantRx, '').trim();
+      inDispatch = false;
+    } else if (phoneRx.test(trimmed)) {
+      const val = trimmed.replace(phoneRx, '').trim();
+      phones.push(...extractPhones(val));
       inDispatch = false;
     } else if (dispatchStartRx.test(trimmed)) {
       inDispatch = true;
@@ -73,6 +89,7 @@ function parseMixedAddress(raw: string): {
     leadTimeNote: leadTime,
     dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
     siteName,
+    phones,
   };
 }
 
@@ -354,6 +371,7 @@ export function NewCustomer() {
                           {pv.dispatchHint && <div><span className="text-g500 font-bold">Dispatch hint: </span><span className="text-blk whitespace-pre-wrap">{pv.dispatchHint}</span></div>}
                           {pv.transporter && <div><span className="text-g500 font-bold">Transporter: </span><span className="text-blk">{pv.transporter}</span></div>}
                           {pv.leadTimeNote && <div><span className="text-g500 font-bold">Lead time: </span><span className="text-blk">{pv.leadTimeNote}</span></div>}
+                          {pv.phones.length > 0 && <div><span className="text-g500 font-bold">Phone(s): </span><span className="text-blk font-mono">{pv.phones.join(', ')}</span></div>}
                           <div className="flex gap-2 pt-2">
                             <button
                               type="button"
@@ -363,6 +381,18 @@ export function NewCustomer() {
                                 if (pv.transporter && !site.transporter) updateSite(sIdx, 'transporter', pv.transporter);
                                 if (pv.leadTimeNote && !site.leadTimeNote) updateSite(sIdx, 'leadTimeNote', pv.leadTimeNote);
                                 if (pv.dispatchHint && !site.dispatchAddress) updateSite(sIdx, 'dispatchAddress', pv.dispatchHint);
+                                if (pv.phones.length > 0) {
+                                  // Fill primary contact's phone if empty, otherwise add a new contact row
+                                  const s = [...sites];
+                                  const primaryIdx = s[sIdx].contacts.findIndex(c => c.isPrimary);
+                                  const target = primaryIdx >= 0 ? primaryIdx : 0;
+                                  if (!s[sIdx].contacts[target]?.phone) {
+                                    s[sIdx].contacts[target] = { ...s[sIdx].contacts[target], phone: pv.phones.join(', ') };
+                                  } else {
+                                    s[sIdx].contacts.push({ id: 'C' + Date.now(), name: 'Phone', role: 'Purchase', email: '', phone: pv.phones.join(', ') });
+                                  }
+                                  setSites(s);
+                                }
                                 setParsePreview(pv2 => ({ ...pv2, [sIdx]: null }));
                               }}
                               className="px-3 py-1 bg-sW text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity"
