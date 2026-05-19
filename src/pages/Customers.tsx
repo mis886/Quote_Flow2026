@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Button } from '../components/ui';
-import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin } from 'lucide-react';
+import { DuplicateReviewPanel } from '../components/DuplicateReviewPanel';
+import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
 import { formatINR, generateId } from '../lib/utils';
@@ -399,12 +400,14 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
 
 export function Customers() {
   const { data, addCustomer, updateCustomer } = useAppStore();
+  const { deleteCustomer } = useAppStore() as any;
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [segFilter, setSegFilter] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [importing, setImporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -599,6 +602,9 @@ export function Customers() {
             <p className="text-xs text-g500 mt-1 font-light">{data.customers.length} customers · Click a row to view profile & history</p>
           </div>
           <div className="flex items-center gap-2 mt-1 shrink-0">
+            <Button variant="secondary" className="gap-2" onClick={() => setShowDuplicates(true)}>
+              <Copy size={14} className="stroke-2" /> Find Duplicates
+            </Button>
             <Button variant="dark" className="gap-2 relative" disabled={importing}>
               <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleImport} title="Import CSV" />
               {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} className="stroke-2" />}
@@ -737,6 +743,16 @@ export function Customers() {
         <CustomerPanel
           customer={data.customers.find(c => c.id === selectedCustomer.id) ?? selectedCustomer}
           onClose={() => setSelectedCustomer(null)}
+        />
+      )}
+
+      {/* Duplicate review overlay */}
+      {showDuplicates && (
+        <DuplicateReviewPanel
+          customers={data.customers}
+          updateCustomer={updateCustomer}
+          deleteCustomer={deleteCustomer}
+          onClose={() => setShowDuplicates(false)}
         />
       )}
     </div>
