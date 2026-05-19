@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Button } from '../components/ui';
 import { DuplicateReviewPanel } from '../components/DuplicateReviewPanel';
-import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck } from 'lucide-react';
+import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck, Wand2, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
 import { formatINR, generateId } from '../lib/utils';
@@ -16,6 +16,71 @@ function computeRating(c: Customer): number {
   const o = (c.ratingOrders  ?? 0) * 4;
   const t = (c.ratingTrend   ?? 0) * 3;
   return p + o + t;
+}
+
+function hasMixedContent(text: string) {
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch)/i.test(text);
+}
+
+function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string } {
+  const lines = raw.split('\n');
+  const kept: string[] = [];
+  let transporter = '';
+  let leadTime = '';
+  const dispatchLines: string[] = [];
+  const transporterRx = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
+  const leadTimeRx    = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
+  const plantRx       = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
+  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b)/i;
+  let inDispatch = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { if (!inDispatch) kept.push(''); continue; }
+    if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
+    else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
+    else if (plantRx.test(trimmed)) { const v = trimmed.replace(plantRx, '').trim(); leadTime = leadTime ? `${leadTime} (Plant: ${v})` : `Plant: ${v}`; inDispatch = false; }
+    else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
+    else if (inDispatch) { dispatchLines.push(trimmed); }
+    else { kept.push(line); }
+  }
+  return {
+    cleanAddress: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
+    transporter,
+    leadTimeNote: leadTime,
+    dispatchHint: dispatchLines.join('\n').trim(),
+  };
+}
+
+interface SiteFix {
+  customerId: string;
+  customerName: string;
+  siteId: string;
+  siteName: string;
+  parsed: ReturnType<typeof parseMixedAddress>;
+  currentTransporter: string;
+  currentLeadTime: string;
+  currentDispatch: string;
+}
+
+function detectAllFixes(customers: Customer[]): SiteFix[] {
+  const fixes: SiteFix[] = [];
+  for (const c of customers) {
+    for (const s of c.sites ?? []) {
+      const raw = s.fullAddress || s.address || '';
+      if (!raw || !hasMixedContent(raw)) continue;
+      fixes.push({
+        customerId: c.id,
+        customerName: c.name,
+        siteId: s.id,
+        siteName: s.name || s.city || s.id,
+        parsed: parseMixedAddress(raw),
+        currentTransporter: s.transporter || '',
+        currentLeadTime: s.leadTimeNote || '',
+        currentDispatch: s.dispatchAddress || '',
+      });
+    }
+  }
+  return fixes;
 }
 
 function getPrimaryContact(c: Customer): Contact | undefined {
@@ -454,6 +519,9 @@ export function Customers() {
   const [importing, setImporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [bulkFixes, setBulkFixes] = useState<SiteFix[] | null>(null);
+  const [bulkApplying, setBulkApplying] = useState(false);
+  const [bulkDone, setBulkDone] = useState(false);
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -652,6 +720,9 @@ export function Customers() {
             <Button variant="secondary" className="gap-2" onClick={() => setShowDuplicates(true)}>
               <Copy size={14} className="stroke-2" /> Find Duplicates
             </Button>
+            <Button variant="secondary" className="gap-2" onClick={() => { setBulkDone(false); setBulkFixes(detectAllFixes(data.customers)); }}>
+              <Wand2 size={14} className="stroke-2" /> Fix All Addresses
+            </Button>
             <Button variant="dark" className="gap-2 relative" disabled={importing}>
               <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleImport} title="Import CSV" />
               {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} className="stroke-2" />}
@@ -801,6 +872,129 @@ export function Customers() {
           deleteCustomer={deleteCustomer}
           onClose={() => setShowDuplicates(false)}
         />
+      )}
+
+      {/* Bulk Fix All Addresses modal */}
+      {bulkFixes !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-[8px] shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-g200 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Wand2 size={16} className="text-sW" />
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-sW">Fix All Addresses</span>
+                </div>
+                <p className="text-[12px] text-g500 mt-0.5">
+                  {bulkFixes.length === 0
+                    ? 'No mixed addresses detected — all sites are already clean.'
+                    : `${bulkFixes.length} site${bulkFixes.length > 1 ? 's' : ''} with mixed address content detected`}
+                </p>
+              </div>
+              <button type="button" title="Close" onClick={() => setBulkFixes(null)} className="text-g400 hover:text-blk p-1">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {bulkDone ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CheckCircle2 size={36} className="text-emerald-500 mb-3" />
+                  <div className="font-bold text-blk text-[15px]">All done!</div>
+                  <div className="text-g500 text-[12px] mt-1">Address fields have been split and saved.</div>
+                </div>
+              ) : bulkFixes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CheckCircle2 size={36} className="text-emerald-400 mb-3" />
+                  <div className="text-g500 text-[13px]">Nothing to fix — all site addresses look clean.</div>
+                </div>
+              ) : (
+                bulkFixes.map((fix, i) => (
+                  <div key={fix.siteId} className="border border-g200 rounded-[6px] overflow-hidden">
+                    <div className="bg-g50 px-3 py-2 flex items-center gap-2">
+                      <MapPin size={12} className="text-g400" />
+                      <span className="font-bold text-[12px] text-blk">{fix.customerName}</span>
+                      <span className="text-g400 text-[11px]">· {fix.siteName}</span>
+                      <span className="ml-auto text-[10px] text-g400 font-mono">#{i + 1}</span>
+                    </div>
+                    <div className="px-3 py-2.5 space-y-1.5 text-[11px]">
+                      <div>
+                        <span className="font-bold text-g500">Clean address: </span>
+                        <span className="text-blk whitespace-pre-wrap">{fix.parsed.cleanAddress || '—'}</span>
+                      </div>
+                      {fix.parsed.dispatchHint && (
+                        <div><span className="font-bold text-g500">→ Dispatch: </span><span className="text-blk whitespace-pre-wrap">{fix.parsed.dispatchHint}</span>{fix.currentDispatch && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
+                      )}
+                      {fix.parsed.transporter && (
+                        <div><span className="font-bold text-g500">→ Transporter: </span><span className="text-blk">{fix.parsed.transporter}</span>{fix.currentTransporter && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
+                      )}
+                      {fix.parsed.leadTimeNote && (
+                        <div><span className="font-bold text-g500">→ Lead time: </span><span className="text-blk">{fix.parsed.leadTimeNote}</span>{fix.currentLeadTime && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {!bulkDone && bulkFixes.length > 0 && (
+              <div className="px-5 py-3 border-t border-g200 flex items-center justify-between shrink-0 bg-g50">
+                <p className="text-[11px] text-g400">Existing non-empty fields will not be overwritten.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setBulkFixes(null)}
+                    className="px-4 py-2 text-[11px] font-bold bg-white border border-g300 rounded text-g500 hover:bg-g100 transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkApplying}
+                    onClick={async () => {
+                      setBulkApplying(true);
+                      // Group fixes by customer
+                      const byCustomer = new Map<string, SiteFix[]>();
+                      for (const fix of bulkFixes) {
+                        if (!byCustomer.has(fix.customerId)) byCustomer.set(fix.customerId, []);
+                        byCustomer.get(fix.customerId)!.push(fix);
+                      }
+                      for (const [custId, fixes] of byCustomer) {
+                        const cust = data.customers.find(c => c.id === custId);
+                        if (!cust) continue;
+                        const updatedSites = cust.sites.map(s => {
+                          const fix = fixes.find(f => f.siteId === s.id);
+                          if (!fix) return s;
+                          return {
+                            ...s,
+                            fullAddress: fix.parsed.cleanAddress,
+                            transporter: s.transporter || fix.parsed.transporter || s.transporter,
+                            leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
+                            dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,
+                          };
+                        });
+                        await updateCustomer(custId, { sites: updatedSites });
+                      }
+                      setBulkApplying(false);
+                      setBulkDone(true);
+                    }}
+                    className="px-5 py-2 text-[11px] font-bold bg-sW text-white rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition-opacity"
+                  >
+                    {bulkApplying ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    {bulkApplying ? 'Applying…' : `Apply to ${bulkFixes.length} site${bulkFixes.length > 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            )}
+            {bulkDone && (
+              <div className="px-5 py-3 border-t border-g200 flex justify-end shrink-0 bg-g50">
+                <button type="button" onClick={() => setBulkFixes(null)}
+                  className="px-4 py-2 text-[11px] font-bold bg-white border border-g300 rounded text-blk hover:bg-g100 transition-colors">
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
