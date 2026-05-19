@@ -19,35 +19,54 @@ function computeRating(c: Customer): number {
 }
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch)/i.test(text);
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address)/i.test(text);
 }
 
-function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string } {
+function titleCaseAddress(text: string): string {
+  const upperWords = new Set(['UP', 'PO', 'PIN', 'TEL', 'PH', 'MOB', 'GST', 'GSTIN', 'DTDC', 'EXW', 'FOB', 'NH', 'GT']);
+  const lowerWords = new Set(['of', 'and', 'the', 'in', 'at', 'by', 'to', 'for', 'a', 'an', 'via', 'near']);
+  return text.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    return trimmed.split(/\s+/).map((word, i) => {
+      const clean = word.replace(/[^a-zA-Z]/g, '');
+      if (!clean) return word;
+      if (upperWords.has(clean.toUpperCase())) return word.toUpperCase();
+      if (i > 0 && lowerWords.has(clean.toLowerCase())) return word.toLowerCase();
+      if (/^[A-Z]{2,5}$/.test(clean)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  }).join('\n');
+}
+
+function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
+  let siteName = '';
   const dispatchLines: string[] = [];
-  const transporterRx = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
-  const leadTimeRx    = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
-  const plantRx       = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
-  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b)/i;
+  const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
+  const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
+  const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
+  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
   let inDispatch = false;
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) { if (!inDispatch) kept.push(''); continue; }
     if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
     else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
-    else if (plantRx.test(trimmed)) { const v = trimmed.replace(plantRx, '').trim(); leadTime = leadTime ? `${leadTime} (Plant: ${v})` : `Plant: ${v}`; inDispatch = false; }
+    else if (plantRx.test(trimmed)) { siteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
     else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
     else if (inDispatch) { dispatchLines.push(trimmed); }
     else { kept.push(line); }
   }
   return {
-    cleanAddress: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
-    transporter,
+    cleanAddress: titleCaseAddress(kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()),
+    transporter: titleCaseAddress(transporter),
     leadTimeNote: leadTime,
-    dispatchHint: dispatchLines.join('\n').trim(),
+    dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
+    siteName,
   };
 }
 
@@ -55,7 +74,7 @@ interface SiteFix {
   customerId: string;
   customerName: string;
   siteId: string;
-  siteName: string;
+  currentSiteName: string;
   parsed: ReturnType<typeof parseMixedAddress>;
   currentTransporter: string;
   currentLeadTime: string;
@@ -72,7 +91,7 @@ function detectAllFixes(customers: Customer[]): SiteFix[] {
         customerId: c.id,
         customerName: c.name,
         siteId: s.id,
-        siteName: s.name || s.city || s.id,
+        currentSiteName: s.name || s.city || s.id,
         parsed: parseMixedAddress(raw),
         currentTransporter: s.transporter || '',
         currentLeadTime: s.leadTimeNote || '',
@@ -915,7 +934,7 @@ export function Customers() {
                     <div className="bg-g50 px-3 py-2 flex items-center gap-2">
                       <MapPin size={12} className="text-g400" />
                       <span className="font-bold text-[12px] text-blk">{fix.customerName}</span>
-                      <span className="text-g400 text-[11px]">· {fix.siteName}</span>
+                      <span className="text-g400 text-[11px]">· {fix.currentSiteName}</span>
                       <span className="ml-auto text-[10px] text-g400 font-mono">#{i + 1}</span>
                     </div>
                     <div className="px-3 py-2.5 space-y-1.5 text-[11px]">
@@ -923,6 +942,9 @@ export function Customers() {
                         <span className="font-bold text-g500">Clean address: </span>
                         <span className="text-blk whitespace-pre-wrap">{fix.parsed.cleanAddress || '—'}</span>
                       </div>
+                      {fix.parsed.siteName && (
+                        <div><span className="font-bold text-g500">→ Site name: </span><span className="text-blk">{fix.parsed.siteName}</span>{fix.currentSiteName && fix.currentSiteName !== (data.customers.find(c=>c.id===fix.customerId)?.sites.find(s=>s.id===fix.siteId)?.city) && <span className="text-amber-600 text-[10px] ml-1">(site already named — will skip)</span>}</div>
+                      )}
                       {fix.parsed.dispatchHint && (
                         <div><span className="font-bold text-g500">→ Dispatch: </span><span className="text-blk whitespace-pre-wrap">{fix.parsed.dispatchHint}</span>{fix.currentDispatch && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
                       )}
@@ -967,6 +989,7 @@ export function Customers() {
                           return {
                             ...s,
                             fullAddress: fix.parsed.cleanAddress,
+                            name: s.name || fix.parsed.siteName || s.name,
                             transporter: s.transporter || fix.parsed.transporter || s.transporter,
                             leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
                             dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,

@@ -7,7 +7,24 @@ import { generateId } from '../lib/utils';
 import { Plus, Trash2, MapPin, User, Mail, Phone, Wand2 } from 'lucide-react';
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch)/i.test(text);
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address)/i.test(text);
+}
+
+function titleCaseAddress(text: string): string {
+  const upperWords = new Set(['UP', 'PO', 'PIN', 'TEL', 'PH', 'MOB', 'GST', 'GSTIN', 'DTDC', 'EXW', 'FOB', 'NH', 'GT']);
+  const lowerWords = new Set(['of', 'and', 'the', 'in', 'at', 'by', 'to', 'for', 'a', 'an', 'via', 'near']);
+  return text.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    return trimmed.split(/\s+/).map((word, i) => {
+      const clean = word.replace(/[^a-zA-Z]/g, '');
+      if (!clean) return word;
+      if (upperWords.has(clean.toUpperCase())) return word.toUpperCase();
+      if (i > 0 && lowerWords.has(clean.toLowerCase())) return word.toLowerCase();
+      if (/^[A-Z]{2,5}$/.test(clean)) return word; // preserve existing abbreviations
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  }).join('\n');
 }
 
 function parseMixedAddress(raw: string): {
@@ -15,16 +32,18 @@ function parseMixedAddress(raw: string): {
   transporter: string;
   leadTimeNote: string;
   dispatchHint: string;
+  siteName: string;
 } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
+  let siteName = '';
   const dispatchLines: string[] = [];
-  const transporterRx = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
-  const leadTimeRx    = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
-  const plantRx       = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
-  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b)/i;
+  const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
+  const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
+  const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
+  const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
   let inDispatch = false;
 
   for (const line of lines) {
@@ -37,8 +56,7 @@ function parseMixedAddress(raw: string): {
       leadTime = trimmed.replace(leadTimeRx, '').trim();
       inDispatch = false;
     } else if (plantRx.test(trimmed)) {
-      const plantVal = trimmed.replace(plantRx, '').trim();
-      leadTime = leadTime ? `${leadTime} (Plant: ${plantVal})` : `Plant: ${plantVal}`;
+      siteName = trimmed.replace(plantRx, '').trim();
       inDispatch = false;
     } else if (dispatchStartRx.test(trimmed)) {
       inDispatch = true;
@@ -50,10 +68,11 @@ function parseMixedAddress(raw: string): {
     }
   }
   return {
-    cleanAddress: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
-    transporter,
+    cleanAddress: titleCaseAddress(kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()),
+    transporter: titleCaseAddress(transporter),
     leadTimeNote: leadTime,
-    dispatchHint: dispatchLines.join('\n').trim(),
+    dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
+    siteName,
   };
 }
 
@@ -331,6 +350,7 @@ export function NewCustomer() {
                         <div className="mt-2 bg-sW/5 border border-sW/30 rounded-[4px] p-3 space-y-1.5 text-[11px]">
                           <div className="font-bold text-sW text-[10px] uppercase tracking-wide mb-2">Parsed — review before applying</div>
                           <div><span className="text-g500 font-bold">Address: </span><span className="text-blk whitespace-pre-wrap">{pv.cleanAddress || '—'}</span></div>
+                          {pv.siteName && <div><span className="text-g500 font-bold">Site name: </span><span className="text-blk">{pv.siteName}</span></div>}
                           {pv.dispatchHint && <div><span className="text-g500 font-bold">Dispatch hint: </span><span className="text-blk whitespace-pre-wrap">{pv.dispatchHint}</span></div>}
                           {pv.transporter && <div><span className="text-g500 font-bold">Transporter: </span><span className="text-blk">{pv.transporter}</span></div>}
                           {pv.leadTimeNote && <div><span className="text-g500 font-bold">Lead time: </span><span className="text-blk">{pv.leadTimeNote}</span></div>}
@@ -339,6 +359,7 @@ export function NewCustomer() {
                               type="button"
                               onClick={() => {
                                 updateSite(sIdx, 'fullAddress', pv.cleanAddress);
+                                if (pv.siteName && !site.name) updateSite(sIdx, 'name', pv.siteName);
                                 if (pv.transporter && !site.transporter) updateSite(sIdx, 'transporter', pv.transporter);
                                 if (pv.leadTimeNote && !site.leadTimeNote) updateSite(sIdx, 'leadTimeNote', pv.leadTimeNote);
                                 if (pv.dispatchHint && !site.dispatchAddress) updateSite(sIdx, 'dispatchAddress', pv.dispatchHint);
