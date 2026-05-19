@@ -136,17 +136,14 @@ export function Dashboard() {
   const quoteValInPrev   = quotesInPrevPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
   const quoteValTrendRaw = pctTrend(quoteValInPeriod, quoteValInPrev);
 
-  // Win rate in period
-  const closedInPeriod = data.enquiries.filter(e => {
-    return (e.status === 'Won' || e.status === 'Lost') && isWithinCurrentPeriod(e.recv);
-  });
-  const wonInPeriod = closedInPeriod.filter(e => e.status === 'Won');
-  const winRateInPeriod = closedInPeriod.length ? Math.round((wonInPeriod.length / closedInPeriod.length) * 100) : 0;
-  const closedInPrev = data.enquiries.filter(e => {
-    return (e.status === 'Won' || e.status === 'Lost') && isWithinPrevPeriod(e.recv);
-  });
-  const winRatePrevPeriod = closedInPrev.length ? Math.round(closedInPrev.filter(e => e.status === 'Won').length / closedInPrev.length * 100) : 0;
-  const winRateTrendRaw = pctTrend(winRateInPeriod, winRatePrevPeriod);
+  // Quote-to-Order conversion rate
+  const ordersInPeriod = data.orders.filter(o => isWithinCurrentPeriod(o.poDate));
+  const ordersWithQuoteInPeriod = ordersInPeriod.filter(o => !!o.quoteRef);
+  const q2oRate = quotesInPeriod.length ? Math.round((ordersWithQuoteInPeriod.length / quotesInPeriod.length) * 100) : 0;
+  const ordersInPrev = data.orders.filter(o => isWithinPrevPeriod(o.poDate));
+  const ordersWithQuoteInPrev = ordersInPrev.filter(o => !!o.quoteRef);
+  const q2oRatePrev = quotesInPrevPeriod.length ? Math.round((ordersWithQuoteInPrev.length / quotesInPrevPeriod.length) * 100) : 0;
+  const q2oTrendRaw = pctTrend(q2oRate, q2oRatePrev);
 
   // E2Q trend in period
   const currentE2Q: number[] = [];
@@ -844,10 +841,10 @@ export function Dashboard() {
             icon={<IndianRupee size={16} strokeWidth={2} />}
           />
           <StatCard
-            label="Win Rate"
-            value={`${winRateInPeriod}%`}
-            trend={getTrendStr(winRateTrendRaw)} trendColor={getTrendColor(winRateTrendRaw)}
-            sub={closedInPeriod.length > 0 ? `${wonInPeriod.length}/${closedInPeriod.length} closed` : 'No closed deals'}
+            label="Q→O Conversion"
+            value={`${q2oRate}%`}
+            trend={getTrendStr(q2oTrendRaw)} trendColor={getTrendColor(q2oTrendRaw)}
+            sub={quotesInPeriod.length > 0 ? `${ordersWithQuoteInPeriod.length} orders from ${quotesInPeriod.length} quotes` : 'No quotes in period'}
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
           />
