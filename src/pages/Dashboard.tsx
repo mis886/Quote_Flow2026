@@ -136,13 +136,11 @@ export function Dashboard() {
   const quoteValInPrev   = quotesInPrevPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
   const quoteValTrendRaw = pctTrend(quoteValInPeriod, quoteValInPrev);
 
-  // Quote-to-Order conversion rate
-  const ordersInPeriod = data.orders.filter(o => isWithinCurrentPeriod(o.poDate));
-  const ordersWithQuoteInPeriod = ordersInPeriod.filter(o => !!o.quoteRef);
-  const q2oRate = quotesInPeriod.length ? Math.round((ordersWithQuoteInPeriod.length / quotesInPeriod.length) * 100) : 0;
-  const ordersInPrev = data.orders.filter(o => isWithinPrevPeriod(o.poDate));
-  const ordersWithQuoteInPrev = ordersInPrev.filter(o => !!o.quoteRef);
-  const q2oRatePrev = quotesInPrevPeriod.length ? Math.round((ordersWithQuoteInPrev.length / quotesInPrevPeriod.length) * 100) : 0;
+  // Quote-to-Order conversion rate — count quotes in period that are Won (have a linked order)
+  const wonQuotesInPeriod = quotesInPeriod.filter(q => q.status === 'Won');
+  const wonQuotesInPrev   = quotesInPrevPeriod.filter(q => q.status === 'Won');
+  const q2oRate     = quotesInPeriod.length     ? Math.round((wonQuotesInPeriod.length / quotesInPeriod.length) * 100)     : 0;
+  const q2oRatePrev = quotesInPrevPeriod.length ? Math.round((wonQuotesInPrev.length   / quotesInPrevPeriod.length) * 100) : 0;
   const q2oTrendRaw = pctTrend(q2oRate, q2oRatePrev);
 
   // E2Q trend in period
@@ -844,7 +842,7 @@ export function Dashboard() {
             label="Q→O Conversion"
             value={`${q2oRate}%`}
             trend={getTrendStr(q2oTrendRaw)} trendColor={getTrendColor(q2oTrendRaw)}
-            sub={quotesInPeriod.length > 0 ? `${ordersWithQuoteInPeriod.length} orders from ${quotesInPeriod.length} quotes` : 'No quotes in period'}
+            sub={quotesInPeriod.length > 0 ? `${wonQuotesInPeriod.length} won from ${quotesInPeriod.length} quotes` : 'No quotes in period'}
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
           />
