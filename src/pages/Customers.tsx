@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Button } from '../components/ui';
 import { DuplicateReviewPanel } from '../components/DuplicateReviewPanel';
-import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy } from 'lucide-react';
+import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
 import { formatINR, generateId } from '../lib/utils';
@@ -233,6 +233,40 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
                 </div>
               </div>
               {primaryContact.email && <div className="text-[11px] text-g400 mt-1 font-mono">{primaryContact.email}</div>}
+            </div>
+          )}
+
+          {/* Sites & Logistics */}
+          {customer.sites.some(s => s.dispatchAddress || s.transporter || s.leadTimeNote) && (
+            <div className="px-5 py-3 border-b border-g100">
+              <div className="font-mono text-[8px] font-bold uppercase tracking-[1.5px] text-g400 mb-2 flex items-center gap-1.5">
+                <Truck size={10} /> Sites &amp; Logistics
+              </div>
+              <div className="space-y-2">
+                {customer.sites.filter(s => s.dispatchAddress || s.transporter || s.leadTimeNote).map(s => (
+                  <div key={s.id} className="text-[11.5px] bg-g50 border border-g100 rounded-[3px] px-3 py-2 space-y-1">
+                    <div className="font-semibold text-blk flex items-center gap-1.5">
+                      <MapPin size={9} className="text-red-mrt" /> {s.name}
+                      {s.city && <span className="text-g400 font-normal">· {s.city}</span>}
+                    </div>
+                    {s.dispatchAddress && (
+                      <div className="text-g500 text-[10.5px] whitespace-pre-wrap">
+                        <span className="font-bold text-g400 uppercase tracking-wide text-[9px]">Dispatch: </span>{s.dispatchAddress}
+                      </div>
+                    )}
+                    {s.transporter && (
+                      <div className="text-g500 text-[10.5px]">
+                        <span className="font-bold text-g400 uppercase tracking-wide text-[9px]">Transporter: </span>{s.transporter}
+                      </div>
+                    )}
+                    {s.leadTimeNote && (
+                      <div className="text-g500 text-[10.5px]">
+                        <span className="font-bold text-g400 uppercase tracking-wide text-[9px]">Note: </span>{s.leadTimeNote}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

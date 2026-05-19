@@ -260,6 +260,37 @@ export function NewCustomer() {
                     />
                   </div>
                   <div>
+                    <label className={labelCls}>Dispatch / Delivery Address</label>
+                    <textarea
+                      value={site.dispatchAddress || ''}
+                      onChange={e => updateSite(sIdx, 'dispatchAddress', e.target.value)}
+                      placeholder="Where goods are physically delivered (e.g. c/o courier, warehouse address)..."
+                      className="w-full font-sans text-xs bg-g50 border border-g300 rounded-[3px] p-2 outline-none focus:border-red-mrt h-14 resize-none transition-all focus:bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Preferred Transporter</label>
+                      <input
+                        type="text"
+                        value={site.transporter || ''}
+                        onChange={e => updateSite(sIdx, 'transporter', e.target.value)}
+                        placeholder="e.g. Shiv Road Carriers"
+                        className="w-full font-sans text-xs bg-white border border-g300 rounded-[3px] p-2 outline-none focus:border-red-mrt"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Lead Time / Delivery Note</label>
+                      <input
+                        type="text"
+                        value={site.leadTimeNote || ''}
+                        onChange={e => updateSite(sIdx, 'leadTimeNote', e.target.value)}
+                        placeholder="e.g. For dispatched items only"
+                        className="w-full font-sans text-xs bg-white border border-g300 rounded-[3px] p-2 outline-none focus:border-red-mrt"
+                      />
+                    </div>
+                  </div>
+                  <div>
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-mono text-[9px] font-bold tracking-[1px] uppercase text-g500 flex items-center gap-1.5">
                         <User size={10} /> Contact Persons at this site

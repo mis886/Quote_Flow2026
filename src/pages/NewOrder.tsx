@@ -154,7 +154,7 @@ export function NewOrder() {
     if (siteId) {
       const site = sites.find((s: any) => s.id === siteId);
       if (site) {
-        if (!editOrderId && !quoteRef) setShipAddr(site.address || '');
+        if (!editOrderId && !quoteRef) setShipAddr((site as any).dispatchAddress || site.address || (site as any).fullAddress || '');
         const contacts = site.contacts ?? [];
         if (contactId) { const ct = contacts.find((c: any) => c.id === contactId); if (ct) { setContact(ct.name); setEmail(ct.email); } }
         else { const pc = contacts.find((ct: any) => ct.isPrimary) || contacts[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }

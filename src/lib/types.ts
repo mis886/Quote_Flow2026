@@ -44,6 +44,9 @@ export interface Site {
   country?: string;
   address?: string;
   fullAddress?: string;
+  dispatchAddress?: string;
+  transporter?: string;
+  leadTimeNote?: string;
   gstin?: string;
   isPrimary?: boolean;
   contacts: Contact[];
