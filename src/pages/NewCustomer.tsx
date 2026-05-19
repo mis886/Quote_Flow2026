@@ -7,7 +7,7 @@ import { generateId } from '../lib/utils';
 import { Plus, Trash2, MapPin, User, Mail, Phone, Wand2 } from 'lucide-react';
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address)/i.test(text);
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*:|mob(?:ile)?\s*(?:no)?\.?\s*[:\-–]|ph(?:one)?\s*(?:no)?\.?\s*[:\-–]|tel(?:ephone)?\s*(?:no)?\.?\s*[:\-–]|\b\d{10,}\b|\b\d{5,}[\s\-]\d{5,}\b|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])/i.test(text);
 }
 
 function titleCaseAddress(text: string): string {
@@ -28,12 +28,25 @@ function titleCaseAddress(text: string): string {
 }
 
 function extractPhones(value: string): string[] {
-  // Strip country code prefix (+91-, 0091-, etc.) then split on comma/semicolon
   return value
     .replace(/(?:\+91|0091)[\s\-]*/g, '')
     .split(/[,;\/]+/)
     .map(p => p.replace(/[^\d]/g, '').trim())
-    .filter(p => p.length >= 7);
+    .filter(p => p.length >= 10);
+}
+
+function isBarePhone(line: string): boolean {
+  // Match lines that are purely phone numbers (digits, spaces, dashes, parens, commas between numbers)
+  // e.g. "7830018788", "05862-258545", "9512360026, 7710274547"
+  const stripped = line.replace(/(?:\+91|0091)[\s\-]*/g, '');
+  // Must contain no letters, and have at least one group of 10+ contiguous digits
+  return !/[a-zA-Z]/.test(stripped) && /\d{10,}|\d{5,}[\s\-]\d{5,}/.test(stripped);
+}
+
+function extractGstin(line: string): string {
+  // GSTIN: 15-char alphanumeric matching the standard pattern
+  const m = line.match(/\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})\b/);
+  return m ? m[1] : '';
 }
 
 function parseMixedAddress(raw: string): {
@@ -43,12 +56,14 @@ function parseMixedAddress(raw: string): {
   dispatchHint: string;
   siteName: string;
   phones: string[];
+  gstin: string;
 } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
   let siteName = '';
+  let gstin = '';
   const dispatchLines: string[] = [];
   const phones: string[] = [];
   const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
@@ -56,6 +71,7 @@ function parseMixedAddress(raw: string): {
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
   const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
+  const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
 
   for (const line of lines) {
@@ -70,9 +86,14 @@ function parseMixedAddress(raw: string): {
     } else if (plantRx.test(trimmed)) {
       siteName = trimmed.replace(plantRx, '').trim();
       inDispatch = false;
+    } else if (gstinLabelRx.test(trimmed)) {
+      gstin = trimmed.replace(gstinLabelRx, '').trim().toUpperCase();
+      inDispatch = false;
     } else if (phoneRx.test(trimmed)) {
-      const val = trimmed.replace(phoneRx, '').trim();
-      phones.push(...extractPhones(val));
+      phones.push(...extractPhones(trimmed.replace(phoneRx, '').trim()));
+      inDispatch = false;
+    } else if (isBarePhone(trimmed)) {
+      phones.push(...extractPhones(trimmed));
       inDispatch = false;
     } else if (dispatchStartRx.test(trimmed)) {
       inDispatch = true;
@@ -80,7 +101,16 @@ function parseMixedAddress(raw: string): {
     } else if (inDispatch) {
       dispatchLines.push(trimmed);
     } else {
-      kept.push(line);
+      // Check for bare GSTIN pattern anywhere in an address line
+      const bareGstin = extractGstin(trimmed);
+      if (bareGstin && !gstin) {
+        gstin = bareGstin;
+        // Keep the rest of the line (without the GSTIN) if there's other content
+        const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
+        if (rest) kept.push(rest);
+      } else {
+        kept.push(line);
+      }
     }
   }
   return {
@@ -90,6 +120,7 @@ function parseMixedAddress(raw: string): {
     dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
     siteName,
     phones,
+    gstin,
   };
 }
 
@@ -371,6 +402,7 @@ export function NewCustomer() {
                           {pv.dispatchHint && <div><span className="text-g500 font-bold">Dispatch hint: </span><span className="text-blk whitespace-pre-wrap">{pv.dispatchHint}</span></div>}
                           {pv.transporter && <div><span className="text-g500 font-bold">Transporter: </span><span className="text-blk">{pv.transporter}</span></div>}
                           {pv.leadTimeNote && <div><span className="text-g500 font-bold">Lead time: </span><span className="text-blk">{pv.leadTimeNote}</span></div>}
+                          {pv.gstin && <div><span className="text-g500 font-bold">GSTIN: </span><span className="text-blk font-mono">{pv.gstin}</span></div>}
                           {pv.phones.length > 0 && <div><span className="text-g500 font-bold">Phone(s): </span><span className="text-blk font-mono">{pv.phones.join(', ')}</span></div>}
                           <div className="flex gap-2 pt-2">
                             <button
@@ -381,6 +413,7 @@ export function NewCustomer() {
                                 if (pv.transporter && !site.transporter) updateSite(sIdx, 'transporter', pv.transporter);
                                 if (pv.leadTimeNote && !site.leadTimeNote) updateSite(sIdx, 'leadTimeNote', pv.leadTimeNote);
                                 if (pv.dispatchHint && !site.dispatchAddress) updateSite(sIdx, 'dispatchAddress', pv.dispatchHint);
+                                if (pv.gstin && !site.gstin) updateSite(sIdx, 'gstin', pv.gstin);
                                 if (pv.phones.length > 0) {
                                   // Fill primary contact's phone if empty, otherwise add a new contact row
                                   const s = [...sites];

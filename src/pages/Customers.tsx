@@ -19,7 +19,7 @@ function computeRating(c: Customer): number {
 }
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address)/i.test(text);
+  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*:|mob(?:ile)?\s*(?:no)?\.?\s*[:\-–]|ph(?:one)?\s*(?:no)?\.?\s*[:\-–]|tel(?:ephone)?\s*(?:no)?\.?\s*[:\-–]|\b\d{10,}\b|\b\d{5,}[\s\-]\d{5,}\b|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])/i.test(text);
 }
 
 function titleCaseAddress(text: string): string {
@@ -43,15 +43,26 @@ function extractPhones(value: string): string[] {
     .replace(/(?:\+91|0091)[\s\-]*/g, '')
     .split(/[,;\/]+/)
     .map(p => p.replace(/[^\d]/g, '').trim())
-    .filter(p => p.length >= 7);
+    .filter(p => p.length >= 10);
 }
 
-function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string; phones: string[] } {
+function isBarePhone(line: string): boolean {
+  const stripped = line.replace(/(?:\+91|0091)[\s\-]*/g, '');
+  return !/[a-zA-Z]/.test(stripped) && /\d{10,}|\d{5,}[\s\-]\d{5,}/.test(stripped);
+}
+
+function extractGstin(line: string): string {
+  const m = line.match(/\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})\b/);
+  return m ? m[1] : '';
+}
+
+function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string; phones: string[]; gstin: string } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
   let siteName = '';
+  let gstin = '';
   const dispatchLines: string[] = [];
   const phones: string[] = [];
   const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
@@ -59,6 +70,7 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
   const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
+  const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
   for (const line of lines) {
     const trimmed = line.trim();
@@ -66,10 +78,19 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
     else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
     else if (plantRx.test(trimmed)) { siteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
+    else if (gstinLabelRx.test(trimmed)) { gstin = trimmed.replace(gstinLabelRx, '').trim().toUpperCase(); inDispatch = false; }
     else if (phoneRx.test(trimmed)) { phones.push(...extractPhones(trimmed.replace(phoneRx, '').trim())); inDispatch = false; }
+    else if (isBarePhone(trimmed)) { phones.push(...extractPhones(trimmed)); inDispatch = false; }
     else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
     else if (inDispatch) { dispatchLines.push(trimmed); }
-    else { kept.push(line); }
+    else {
+      const bareGstin = extractGstin(trimmed);
+      if (bareGstin && !gstin) {
+        gstin = bareGstin;
+        const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
+        if (rest) kept.push(rest);
+      } else { kept.push(line); }
+    }
   }
   return {
     cleanAddress: titleCaseAddress(kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()),
@@ -78,6 +99,7 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
     siteName,
     phones,
+    gstin,
   };
 }
 
@@ -965,6 +987,9 @@ export function Customers() {
                       {fix.parsed.leadTimeNote && (
                         <div><span className="font-bold text-g500">→ Lead time: </span><span className="text-blk">{fix.parsed.leadTimeNote}</span>{fix.currentLeadTime && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
                       )}
+                      {fix.parsed.gstin && (
+                        <div><span className="font-bold text-g500">→ GSTIN: </span><span className="text-blk font-mono">{fix.parsed.gstin}</span>{fix.currentDispatch && <span className="text-amber-600 text-[10px] ml-1">(field not empty — will skip)</span>}</div>
+                      )}
                       {fix.parsed.phones.length > 0 && (
                         <div><span className="font-bold text-g500">→ Phone(s): </span><span className="text-blk font-mono">{fix.parsed.phones.join(', ')}</span><span className="text-g400 text-[10px] ml-1">(→ primary contact)</span></div>
                       )}
@@ -1017,6 +1042,7 @@ export function Customers() {
                             transporter: s.transporter || fix.parsed.transporter || s.transporter,
                             leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
                             dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,
+                            gstin: s.gstin || fix.parsed.gstin || s.gstin,
                             contacts: updatedContacts,
                           };
                         });
