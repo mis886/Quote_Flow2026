@@ -83,7 +83,18 @@ export function DetailPanel() {
               <Badge status={enq.urg} />
               <Badge status={enq.status as any} />
             </div>
-            <h2 className="font-serif text-2xl text-blk">{enq.cust}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif text-2xl text-blk">{enq.cust}</h2>
+              {(() => {
+                const custRec = data.customers.find(c => c.name === enq.cust);
+                if (!custRec) return null;
+                return (
+                  <button type="button" title="Edit Customer" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }} className="text-g400 hover:text-red-mrt transition-colors p-0.5">
+                    <ExternalLink size={14} />
+                  </button>
+                );
+              })()}
+            </div>
           </div>
           <button onClick={closeDetailPanel} className="text-g500 hover:text-blk p-1 border border-g300 rounded hover:bg-g100 transition-colors">
             <X size={16} />
@@ -289,15 +300,6 @@ export function DetailPanel() {
                 closeDetailPanel();
               }
             }}>Delete</Button>
-            {(() => {
-              const custRec = data.customers.find(c => c.name === enq.cust);
-              if (!custRec) return null;
-              return (
-                <Button variant="secondary" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }}>
-                  <ExternalLink size={13} className="mr-1" />Customer
-                </Button>
-              );
-            })()}
             <Button variant="secondary" onClick={closeDetailPanel}>Close</Button>
           </div>
         </div>
@@ -319,7 +321,18 @@ export function DetailPanel() {
               <span className="font-mono text-sm font-bold text-sQ">{q.id}</span>
               <Badge status={q.status as any} />
             </div>
-            <h2 className="font-serif text-2xl text-blk">{q.cust}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif text-2xl text-blk">{q.cust}</h2>
+              {(() => {
+                const custRec = data.customers.find(c => c.name === q.cust);
+                if (!custRec) return null;
+                return (
+                  <button type="button" title="Edit Customer" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }} className="text-g400 hover:text-red-mrt transition-colors p-0.5">
+                    <ExternalLink size={14} />
+                  </button>
+                );
+              })()}
+            </div>
           </div>
           <button onClick={closeDetailPanel} className="text-g500 hover:text-blk p-1 border border-g300 rounded hover:bg-g100 transition-colors">
             <X size={16} />
@@ -495,15 +508,6 @@ export function DetailPanel() {
               const sig = unitSig ?? data.signatories.find(s => s.is_default);
               generateQuotePDF(q, cust, data.settings, sig, true, unit);
             }}>PDF</Button>
-            {(() => {
-              const custRec = data.customers.find(c => c.name === q.cust);
-              if (!custRec) return null;
-              return (
-                <Button variant="secondary" onClick={() => { closeDetailPanel(); navigate(`/customers/new?id=${custRec.id}`); }}>
-                  <ExternalLink size={13} className="mr-1" />Customer
-                </Button>
-              );
-            })()}
             <Button variant="secondary" onClick={closeDetailPanel}>Close</Button>
           </div>
         </div>
