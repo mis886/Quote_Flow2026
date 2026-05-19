@@ -19,11 +19,34 @@ import {
   FileText,
   Receipt,
   Paperclip,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { cn, isInDateRange } from '../lib/utils';
+import { cn, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
+
+function getOffsetWeekRange(offset: number) {
+  const { start: baseStart } = getThisWeekRange();
+  const start = new Date(baseStart);
+  start.setDate(start.getDate() + offset * 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  return { start, end, days };
+}
+
+function dateKey(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return dt.toISOString().slice(0, 10);
+}
 
 const CHANNEL_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string }> = {
   Called:    { icon: '📞', color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
@@ -61,6 +84,8 @@ export default function FollowUps() {
   const [filterOwner, setFilterOwner] = useState<string>('All Owners');
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
+  const [viewTab, setViewTab] = useState<'queue' | 'thisweek' | 'calendar'>('queue');
+  const [calWeekOffset, setCalWeekOffset] = useState(0);
 
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
   const [note, setNote] = useState('');
@@ -121,6 +146,41 @@ export default function FollowUps() {
     }),
     [data.quotes, data.followups]
   );
+
+  const thisWeekQueue = useMemo(() => {
+    const { start, end } = getOffsetWeekRange(0);
+    return followUpQueue.filter(item => {
+      const d = item.followUp?.next_date;
+      if (!d) return false;
+      const dt = parseISO(d);
+      return dt >= start && dt <= end;
+    });
+  }, [followUpQueue]);
+
+  const { days: calDays } = useMemo(() => getOffsetWeekRange(calWeekOffset), [calWeekOffset]);
+
+  const calWeekLabel = useMemo(() => {
+    const s = calDays[0], e = calDays[6];
+    return `${format(s, 'dd MMM')} – ${format(e, 'dd MMM yyyy')}`;
+  }, [calDays]);
+
+  const calEventMap = useMemo(() => {
+    const allItems = data.quotes.filter(q => q.status !== 'Lost').map(quote => {
+      const followUp = data.followups.find(f => f.quote_id === quote.id);
+      return { quote, followUp };
+    }).filter(item => (item.followUp?.status ?? 'open') === 'open');
+    const map: Record<string, typeof allItems> = {};
+    for (const item of allItems) {
+      const d = item.followUp?.next_date;
+      if (!d) continue;
+      const key = dateKey(d);
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    }
+    return map;
+  }, [data.quotes, data.followups]);
+
+  const todayKey = dateKey(new Date());
 
   const selectedItem = followUpQueue.find(item => item.quote.id === selectedQuoteId) || followUpQueue[0];
 
@@ -238,27 +298,48 @@ export default function FollowUps() {
             </div>
           </div>
 
-          {/* Active / Closed tabs */}
+          {/* View tabs */}
           <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
-            <button
-              onClick={() => { setQueueTab('open'); setSelectedQuoteId(null); }}
-              className={cn(
-                "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
-                queueTab === 'open' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
-              )}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => { setQueueTab('closed'); setSelectedQuoteId(null); }}
-              className={cn(
-                "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
-                queueTab === 'closed' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
-              )}
-            >
-              Closed
-            </button>
+            {(['queue', 'thisweek', 'calendar'] as const).map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setViewTab(tab)}
+                className={cn(
+                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                  viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
+                )}
+              >
+                {tab === 'queue' ? 'Queue' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+              </button>
+            ))}
           </div>
+
+          {/* Active / Closed sub-tabs — hidden in calendar view */}
+          {viewTab !== 'calendar' && (
+            <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
+              <button
+                type="button"
+                onClick={() => { setQueueTab('open'); setSelectedQuoteId(null); }}
+                className={cn(
+                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                  queueTab === 'open' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
+                )}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => { setQueueTab('closed'); setSelectedQuoteId(null); }}
+                className={cn(
+                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                  queueTab === 'closed' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
+                )}
+              >
+                Closed
+              </button>
+            </div>
+          )}
 
           <div className="space-y-2">
             <div className="relative">
@@ -274,6 +355,7 @@ export default function FollowUps() {
             <div className="flex items-center gap-2">
               <Filter className="text-g400" size={14} />
               <select
+                title="Filter by owner"
                 className="flex-1 bg-g50 border border-g200 rounded-[4px] px-2 py-1 text-[11px] font-medium"
                 value={filterOwner}
                 onChange={e => setFilterOwner(e.target.value)}
@@ -284,10 +366,24 @@ export default function FollowUps() {
           </div>
         </div>
 
+        {viewTab === 'calendar' ? (
+          <FUCalWeekGrid
+            days={calDays}
+            eventMap={calEventMap}
+            selectedQuoteId={selectedQuoteId}
+            onSelect={id => setSelectedQuoteId(id)}
+            todayKey={todayKey}
+            weekLabel={calWeekLabel}
+            onPrev={() => setCalWeekOffset(o => o - 1)}
+            onNext={() => setCalWeekOffset(o => o + 1)}
+            onToday={() => setCalWeekOffset(0)}
+          />
+        ) : (
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {followUpQueue.map(({ quote, followUp, priority }) => (
+          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority }) => (
             <button
               key={quote.id}
+              type="button"
               onClick={() => setSelectedQuoteId(quote.id)}
               className={cn(
                 "w-full text-left p-3 rounded-[6px] border transition-all duration-200 group relative",
@@ -345,7 +441,14 @@ export default function FollowUps() {
               </div>
             </button>
           ))}
-          {followUpQueue.length === 0 && (
+          {viewTab === 'thisweek' && thisWeekQueue.length === 0 && (
+            <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
+              <Calendar className="mx-auto text-g300 mb-2" size={24} />
+              <div className="text-[12px] font-bold text-g500">No follow-ups due this week</div>
+              <div className="text-[10px] text-g400">Check Queue or Calendar for other items</div>
+            </div>
+          )}
+          {viewTab === 'queue' && followUpQueue.length === 0 && (
             <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
               <Users className="mx-auto text-g300 mb-2" size={24} />
               <div className="text-[12px] font-bold text-g500">
@@ -355,6 +458,7 @@ export default function FollowUps() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Right Panel: Detail & Log Activity */}
@@ -704,6 +808,85 @@ export default function FollowUps() {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface FUCalWeekGridProps {
+  days: Date[];
+  eventMap: Record<string, { quote: Quote; followUp: FollowUp | undefined }[]>;
+  selectedQuoteId: string | null;
+  onSelect: (id: string) => void;
+  todayKey: string;
+  weekLabel: string;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+}
+
+function FUCalWeekGrid({ days, eventMap, selectedQuoteId, onSelect, todayKey, weekLabel, onPrev, onNext, onToday }: FUCalWeekGridProps) {
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Nav bar */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-g200 bg-white shrink-0">
+        <button type="button" onClick={onPrev} title="Previous week" className="p-1 rounded hover:bg-g100 text-g500 hover:text-blk transition-colors">
+          <ChevronLeft size={14} />
+        </button>
+        <div className="text-[11px] font-mono font-bold text-blk">{weekLabel}</div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={onToday} className="text-[10px] font-bold text-red-mrt uppercase tracking-wide hover:underline px-2">
+            Today
+          </button>
+          <button type="button" onClick={onNext} title="Next week" className="p-1 rounded hover:bg-g100 text-g500 hover:text-blk transition-colors">
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* 7-column grid */}
+      <div className="grid grid-cols-7 flex-1 overflow-y-auto divide-x divide-g100 border-t border-g100">
+        {days.map(day => {
+          const key = dateKey(day);
+          const items = eventMap[key] ?? [];
+          const isTodayCol = key === todayKey;
+          return (
+            <div key={key} className={cn('flex flex-col min-h-[160px]', isTodayCol && 'bg-red-lt/20')}>
+              {/* Day header */}
+              <div className={cn(
+                'px-1 py-1.5 text-center border-b border-g100 shrink-0',
+                isTodayCol ? 'bg-red-mrt text-white' : 'bg-g50 text-blk'
+              )}>
+                <div className="text-[8px] font-bold uppercase tracking-wide opacity-70">{format(day, 'EEE')}</div>
+                <div className="text-[15px] font-mono font-bold leading-none mt-0.5">{format(day, 'd')}</div>
+                <div className="text-[8px] opacity-60">{format(day, 'MMM')}</div>
+              </div>
+              {/* Pills */}
+              <div className="flex-1 p-1 space-y-1 overflow-y-auto">
+                {items.map(({ quote, followUp }) => (
+                  <button
+                    key={quote.id}
+                    type="button"
+                    onClick={() => onSelect(quote.id)}
+                    className={cn(
+                      'w-full text-left px-1.5 py-1 rounded text-[10px] border leading-snug transition-colors',
+                      'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100',
+                      selectedQuoteId === quote.id && 'ring-1 ring-purple-500'
+                    )}
+                  >
+                    <div className="font-bold truncate">{quote.cust}</div>
+                    <div className="font-mono opacity-60 truncate text-[9px]">{quote.id}</div>
+                    {followUp?.next_time && (
+                      <div className="opacity-60 text-[9px] flex items-center gap-0.5 mt-0.5">
+                        <Clock size={8} />{followUp.next_time}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
