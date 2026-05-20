@@ -134,8 +134,8 @@ export function generateQuotePDF(
       const lines = doc.splitTextToSize(part, cw - 30) as string[];
       lines.forEach((l) => { y += 5; doc.text(l, mx, y); });
     });
-    const quoteGstin = primarySite?.gstin || customer?.gstin;
-    if (quoteGstin) { y += 5; doc.text('GSTIN: ' + quoteGstin, mx, y); }
+    // const quoteGstin = primarySite?.gstin || customer?.gstin;
+    // if (quoteGstin) { y += 5; doc.text('GSTIN: ' + quoteGstin, mx, y); }
   }
 
   // ── Customer Reference (their doc no.) ──────────────────────────────────
