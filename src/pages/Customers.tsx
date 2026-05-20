@@ -756,7 +756,7 @@ export function Customers() {
     if (segFilter && c.seg !== segFilter) return false;
     if (tierFilter && (c.tier ?? 'New') !== tierFilter) return false;
     return true;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 
   const segments = Array.from(new Set(data.customers.map(c => c.seg).filter(Boolean))).sort();
 
