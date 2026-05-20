@@ -570,6 +570,7 @@ export function Customers() {
   const [tierFilter, setTierFilter] = useState('');
   const [importing, setImporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [bulkFixes, setBulkFixes] = useState<SiteFix[] | null>(null);
   const [bulkApplying, setBulkApplying] = useState(false);
@@ -817,24 +818,26 @@ export function Customers() {
           <table className="w-full border-collapse text-[12.5px]">
             <thead className="bg-g100">
               <tr>
-                {['Company', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
+                {['Company', 'Sites', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
                   <th key={h} className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredCustomers.length === 0 ? (
-                <tr><td colSpan={8} className="text-center p-8 text-g400 text-[13px]">No customers match</td></tr>
+                <tr><td colSpan={9} className="text-center p-8 text-g400 text-[13px]">No customers match</td></tr>
               ) : filteredCustomers.map(c => {
                 const contact = getPrimaryContact(c);
                 const rating  = computeRating(c);
                 const nextProd = (c.nextOrders ?? [])[0];
                 const moreNext = (c.nextOrders ?? []).length - 1;
 
+                const isExpanded = expandedRow === c.id;
                 return (
-                  <tr key={c.id}
-                    className="border-b border-g100 last:border-b-0 hover:bg-g50/60 cursor-pointer transition-colors"
-                    onClick={() => setSelectedCustomer(c)}
+                  <React.Fragment key={c.id}>
+                  <tr
+                    className={`transition-colors cursor-pointer border-b border-g100 last:border-b-0 hover:bg-red-mrt/5 ${isExpanded ? 'bg-red-mrt/5' : ''}`}
+                    onClick={() => setExpandedRow(isExpanded ? null : c.id)}
                   >
                     {/* Company */}
                     <td className="px-[13px] py-[11px] align-middle">
@@ -845,6 +848,19 @@ export function Customers() {
                           <TierBadge tier={c.tier} />
                         </div>
                       </div>
+                    </td>
+
+                    {/* Sites count */}
+                    <td className="px-[13px] py-[11px] align-middle">
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-blk">
+                        <MapPin size={10} className="text-red-mrt" />
+                        {c.sites.length}
+                      </span>
+                      {c.sites.length > 0 && (
+                        <div className="text-[9.5px] text-g400 mt-0.5">
+                          {c.sites.find(s => s.isPrimary)?.city || c.sites[0]?.city || ''}
+                        </div>
+                      )}
                     </td>
 
                     {/* Primary contact */}
@@ -901,6 +917,54 @@ export function Customers() {
                       </div>
                     </td>
                   </tr>
+
+                  {isExpanded && (
+                    <tr className="bg-red-mrt/[0.02] border-b-2 border-red-mrt">
+                      <td colSpan={9} className="p-0">
+                        <div className="p-[10px_16px]">
+                          <div className="text-[9px] font-mono font-bold uppercase tracking-[1.5px] text-red-mrt mb-2 flex items-center gap-1.5">
+                            <MapPin size={10} /> Sites ({c.sites.length})
+                          </div>
+                          {c.sites.length === 0 ? (
+                            <div className="text-[12px] text-g400 py-2">No sites linked to this customer.</div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {c.sites.map(s => (
+                                <div key={s.id} className="bg-white border border-g200 rounded-[3px] px-3 py-2.5 text-[11.5px] space-y-1">
+                                  <div className="flex items-center gap-1.5 font-semibold text-blk">
+                                    <MapPin size={9} className="text-red-mrt shrink-0" />
+                                    {s.name}
+                                    {s.isPrimary && (
+                                      <span className="px-1 py-0.5 bg-red-50 border border-red-200 text-[8px] font-bold uppercase text-red-700 rounded">Primary</span>
+                                    )}
+                                  </div>
+                                  {(s.city || s.state) && (
+                                    <div className="text-g500">{[s.city, s.state].filter(Boolean).join(', ')}</div>
+                                  )}
+                                  {s.gstin && (
+                                    <div className="font-mono text-[10.5px] text-g600">GSTIN: {s.gstin}</div>
+                                  )}
+                                  {s.transporter && (
+                                    <div className="text-g500">Transport: {s.transporter}</div>
+                                  )}
+                                  {s.leadTimeNote && (
+                                    <div className="text-g500">Lead time: {s.leadTimeNote}</div>
+                                  )}
+                                  {s.contacts.length > 0 && (
+                                    <div className="text-[10.5px] text-g400 pt-0.5 border-t border-g100">
+                                      {s.contacts.length} contact{s.contacts.length > 1 ? 's' : ''}
+                                      {s.contacts.find(ct => ct.isPrimary)?.name ? ` · ${s.contacts.find(ct => ct.isPrimary)!.name}` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
