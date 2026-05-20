@@ -201,7 +201,7 @@ export function NewCustomer() {
     };
     if (editId) await updateCustomer(editId, cust);
     else await addCustomer(cust);
-    navigate('/customers');
+    navigate(-1);
   };
 
   const inputCls = 'w-full font-sans text-sm bg-white border border-g300 rounded-[3px] p-2 outline-none focus:border-red-mrt focus:ring-4 focus:ring-red-lt transition-all';

@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { Button } from '../components/ui';
 import { DuplicateReviewPanel } from '../components/DuplicateReviewPanel';
 import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck, Wand2, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
 import { formatINR, generateId } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -565,9 +565,13 @@ export function Customers() {
   const { data, addCustomer, updateCustomer } = useAppStore();
   const { deleteCustomer } = useAppStore() as any;
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [segFilter, setSegFilter] = useState('');
-  const [tierFilter, setTierFilter] = useState('');
+  const [params, setParams] = useSearchParams();
+  const searchQuery = params.get('q') ?? '';
+  const segFilter   = params.get('seg') ?? '';
+  const tierFilter  = params.get('tier') ?? '';
+  const setSearchQuery = (v: string) => setParams(p => { const n = new URLSearchParams(p); v ? n.set('q', v) : n.delete('q'); return n; }, { replace: true });
+  const setSegFilter   = (v: string) => setParams(p => { const n = new URLSearchParams(p); v ? n.set('seg', v) : n.delete('seg'); return n; }, { replace: true });
+  const setTierFilter  = (v: string) => setParams(p => { const n = new URLSearchParams(p); v ? n.set('tier', v) : n.delete('tier'); return n; }, { replace: true });
   const [importing, setImporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -795,6 +799,11 @@ export function Customers() {
           <input type="text" placeholder="Company, code, GSTIN…" value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400" />
+          {searchQuery && (
+            <button type="button" title="Clear search" onClick={() => setSearchQuery('')} className="text-g400 hover:text-blk transition-colors shrink-0">
+              <X size={11} />
+            </button>
+          )}
         </div>
 
         <select title="Filter by segment" value={segFilter} onChange={e => setSegFilter(e.target.value)}
@@ -808,6 +817,13 @@ export function Customers() {
           <option value="">All Tiers</option>
           {(['New','Bronze','Silver','Gold'] as CustomerTier[]).map(t => <option key={t}>{t}</option>)}
         </select>
+
+        {(searchQuery || segFilter || tierFilter) && (
+          <button type="button" onClick={() => setParams({}, { replace: true })}
+            className="flex items-center gap-1 font-mono text-[10px] text-g500 hover:text-red-mrt border border-g200 hover:border-red-lt rounded px-2 h-7 transition-colors whitespace-nowrap">
+            <X size={10} /> Clear filters
+          </button>
+        )}
 
         <div className="ml-auto font-mono text-[10px] text-g500">{filteredCustomers.length} records</div>
       </div>
