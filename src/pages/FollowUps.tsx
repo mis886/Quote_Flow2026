@@ -21,7 +21,9 @@ import {
   Paperclip,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
@@ -81,6 +83,7 @@ function groupLogsByDay(logs: FollowUpLog[]) {
 }
 
 export default function FollowUps() {
+  const navigate = useNavigate();
   const store = useAppStore();
   const { data, addFollowUpLog, closeFollowUp, reopenFollowUp, openAttachmentModal, user } = store;
   const { globalDateRange, setGlobalDateRange } = store as any;
@@ -521,7 +524,18 @@ export default function FollowUps() {
                       </button>
                     )}
                   </div>
-                  <h1 className="text-3xl font-serif text-blk italic truncate mb-4">{selectedItem.quote.cust}</h1>
+                  <div className="flex items-center gap-2 mb-4">
+                    <h1 className="text-3xl font-serif text-blk italic truncate">{selectedItem.quote.cust}</h1>
+                    {(() => {
+                      const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                      if (!custRec) return null;
+                      return (
+                        <button type="button" title="Edit Customer" onClick={() => navigate(`/customers/new?id=${custRec.id}`)} className="text-g400 hover:text-red-mrt transition-colors p-0.5 shrink-0">
+                          <ExternalLink size={14} />
+                        </button>
+                      );
+                    })()}
+                  </div>
 
                   <div className="flex flex-wrap gap-6 items-center">
                     <div className="flex flex-col">
