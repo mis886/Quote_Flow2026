@@ -834,14 +834,14 @@ export function Customers() {
           <table className="w-full border-collapse text-[12.5px]">
             <thead className="bg-g100">
               <tr>
-                {['Company', 'Sites', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
+                {['Company', 'Sites', 'GSTIN', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
                   <th key={h} className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredCustomers.length === 0 ? (
-                <tr><td colSpan={9} className="text-center p-8 text-g400 text-[13px]">No customers match</td></tr>
+                <tr><td colSpan={10} className="text-center p-8 text-g400 text-[13px]">No customers match</td></tr>
               ) : filteredCustomers.map(c => {
                 const contact = getPrimaryContact(c);
                 const rating  = computeRating(c);
@@ -877,6 +877,16 @@ export function Customers() {
                           {c.sites.find(s => s.isPrimary)?.city || c.sites[0]?.city || ''}
                         </div>
                       )}
+                    </td>
+
+                    {/* GSTIN */}
+                    <td className="px-[13px] py-[11px] align-middle">
+                      {(() => {
+                        const g = c.gstin?.trim() || c.sites.find(s => s.isPrimary)?.gstin?.trim() || c.sites[0]?.gstin?.trim();
+                        return g
+                          ? <span className="font-mono text-[10px] text-g600">{g}</span>
+                          : <span className="text-g300">—</span>;
+                      })()}
                     </td>
 
                     {/* Primary contact */}
@@ -936,7 +946,7 @@ export function Customers() {
 
                   {isExpanded && (
                     <tr className="bg-red-mrt/[0.02] border-b-2 border-red-mrt">
-                      <td colSpan={9} className="p-0">
+                      <td colSpan={10} className="p-0">
                         <div className="p-[10px_16px]">
                           <div className="text-[9px] font-mono font-bold uppercase tracking-[1.5px] text-red-mrt mb-2 flex items-center gap-1.5">
                             <MapPin size={10} /> Sites ({c.sites.length})

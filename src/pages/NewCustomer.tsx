@@ -137,6 +137,7 @@ export function NewCustomer() {
   const [inco, setInco] = useState('Ex-Works');
   const [curr, setCurr] = useState('INR');
   const [pay, setPay] = useState('30 days');
+  const [gstin, setGstin] = useState('');
   const [pan, setPan] = useState('');
   const [sites, setSites] = useState<Site[]>([
     { id: 'S1', name: 'Main Office', city: '', contacts: [{ id: 'C1', name: '', role: 'Purchase', email: '', isPrimary: true }] }
@@ -155,6 +156,7 @@ export function NewCustomer() {
         setInco(cust.inco || 'Ex-Works');
         setCurr(cust.curr || 'INR');
         setPay(cust.pay || '30 days');
+        setGstin(cust.gstin || '');
         setPan(cust.pan || '');
         setSites(cust.sites || []);
       }
@@ -197,7 +199,7 @@ export function NewCustomer() {
     if (!validate()) return;
     const cust: Customer = {
       id, code: code.trim().toUpperCase(), name: name.trim(),
-      seg, inco, curr, pay, gstin: '', pan: pan.trim().toUpperCase() || undefined, sites
+      seg, inco, curr, pay, gstin: gstin.trim().toUpperCase(), pan: pan.trim().toUpperCase() || undefined, sites
     };
     if (editId) await updateCustomer(editId, cust);
     else await addCustomer(cust);
@@ -267,6 +269,17 @@ export function NewCustomer() {
                 <option>Export</option>
                 <option>General</option>
               </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>Company GSTIN</label>
+              <input
+                type="text" value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())}
+                className={inputCls + ' font-mono uppercase'}
+                placeholder="27AABCF5171D1ZW"
+                maxLength={15}
+              />
+              <p className="text-[10px] text-g400 mt-1">Company-level GSTIN — for Ex-Works customers or single GSTIN covering all sites</p>
             </div>
 
             <div>

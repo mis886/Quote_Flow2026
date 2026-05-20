@@ -13,30 +13,67 @@ export function normalizeName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\./g, '')
-    .replace(/,/g, '')
+    // Strip legal suffix AND everything that follows (unit name, city, distillery, district etc.)
+    .replace(/\b(pvt\.?\s*ltd\.?|private\s+limited|limited|ltd\.?|llp|inc\.?|corp\.?|&\s*co\.?)\b.*/i, '')
+    // Strip dash-separated suffix for names without legal suffix (e.g. "DCM Shriram - Meerut")
+    .replace(/\s*[-–—]\s*.+$/, '')
+    // Strip any remaining bare legal suffixes
     .replace(/\bprivate\s+limited\b/g, '')
     .replace(/\bpvt\.?\s*ltd\.?\b/g, '')
     .replace(/\bpvt\b/g, '')
     .replace(/\blimited\b/g, '')
-    .replace(/\bltd\b/g, '')
+    .replace(/\bltd\.?\b/g, '')
     .replace(/\bllp\b/g, '')
-    .replace(/\b&\s*co\b/g, '')
-    .replace(/\binc\b/g, '')
-    .replace(/\bcorp\b/g, '')
+    .replace(/\b&\s*co\.?\b/g, '')
+    .replace(/\binc\.?\b/g, '')
+    .replace(/\bcorp\.?\b/g, '')
+    .replace(/\./g, '')
+    .replace(/,/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return dp[m][n];
+}
+
+function nameSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  return 1 - levenshtein(a, b) / Math.max(a.length, b.length);
+}
+
 export function detectDuplicateGroups(customers: Customer[]): Customer[][] {
-  const buckets = new Map<string, Customer[]>();
-  for (const c of customers) {
-    const key = normalizeName(c.name);
-    if (!key) continue;
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key)!.push(c);
+  const norms = customers.map(c => ({ c, norm: normalizeName(c.name) }));
+  const groups: Customer[][] = [];
+  const assigned = new Set<string>();
+
+  for (let i = 0; i < norms.length; i++) {
+    if (assigned.has(norms[i].c.id)) continue;
+    const group: Customer[] = [norms[i].c];
+    assigned.add(norms[i].c.id);
+    for (let j = i + 1; j < norms.length; j++) {
+      if (assigned.has(norms[j].c.id)) continue;
+      const a = norms[i].norm, b = norms[j].norm;
+      const isExact = !!a && a === b;
+      // Fuzzy match for typos (≥0.85 similarity) — only for names longer than 4 chars to avoid false positives
+      const isFuzzy = a.length > 4 && b.length > 4 && nameSimilarity(a, b) >= 0.85;
+      if (isExact || isFuzzy) {
+        group.push(norms[j].c);
+        assigned.add(norms[j].c.id);
+      }
+    }
+    if (group.length >= 2) groups.push(group);
   }
-  return Array.from(buckets.values()).filter(g => g.length >= 2);
+
+  return groups;
 }
 
 export function mergeSites(group: Customer[], primaryId: string): Site[] {
