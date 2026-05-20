@@ -222,7 +222,7 @@ export function NewCustomer() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => navigate('/customers')}>Cancel</Button>
+            <Button variant="secondary" onClick={() => navigate(-1)}>Cancel</Button>
             <Button variant="primary" onClick={handleSave}>Save Record</Button>
           </div>
         </div>
