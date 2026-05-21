@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId, formatINR } from '../lib/utils';
+import { generateId, formatINR, localDateStr } from '../lib/utils';
 import { QuoteItem, Quote, AuthorizedSignatory, QuoteStatus } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
@@ -21,7 +21,7 @@ const defaultTnc = (): TncState => ({
   pnf: 'Extra @ 2%',
   freight: 'Courier charges extra at actuals',
   payment: '30 days',
-  validity: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+  validity: localDateStr(new Date(Date.now() + 30 * 86400000)),
   taxes: 'GST Extra as applicable, 18% at present',
 });
 
@@ -51,8 +51,8 @@ export function NewQuote() {
   const [step, setStep] = useState(1);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [validity, setValidity] = useState(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+  const [date, setDate] = useState(localDateStr(new Date()));
+  const [validity, setValidity] = useState(localDateStr(new Date(Date.now() + 30 * 86400000)));
   const [custName, setCustName] = useState('');
   const [siteId, setSiteId] = useState('');
   const [contactId, setContactId] = useState('');

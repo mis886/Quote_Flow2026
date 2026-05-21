@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId } from '../lib/utils';
+import { generateId, localDateStr, localDateTimeStr } from '../lib/utils';
 import { Enquiry, LineItem, Urgency } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
@@ -25,7 +25,7 @@ export function NewEnquiry() {
     [...new Set(data.enquiries.flatMap(e => e.items.map(i => i.drwg ?? '').filter(Boolean)))].sort(),
     [data.enquiries]);
 
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
+  const [date, setDate] = useState(localDateTimeStr(new Date()));
   const [src, setSrc] = useState('');
   const [custName, setCustName] = useState('');
   const [custEnqDocNo, setCustEnqDocNo] = useState('');
@@ -39,7 +39,7 @@ export function NewEnquiry() {
   const [drawingDocs, setDrawingDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
   
   const [assigned, setAssigned] = useState('Akki');
-  const [reqDate, setReqDate] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+  const [reqDate, setReqDate] = useState(localDateStr(new Date(Date.now() + 86400000)));
   const [notes, setNotes] = useState('');
   
   const [urgency, setUrgency] = useState<Urgency>('Normal');
@@ -56,7 +56,7 @@ export function NewEnquiry() {
       const e = data.enquiries.find(x => x.id === editId);
       if (e) {
         setEnqId(e.id);
-        setDate(new Date(e.recv).toISOString().slice(0, 16));
+        setDate(localDateTimeStr(new Date(e.recv)));
         setSrc(e.src);
         setCustName(e.cust);
         setCustEnqDocNo(e.custEnqDocNo || '');

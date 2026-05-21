@@ -5,6 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Returns YYYY-MM-DD in local time (avoids UTC offset shift from toISOString) */
+export function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Returns YYYY-MM-DDTHH:mm in local time for datetime-local inputs */
+export function localDateTimeStr(d: Date): string {
+  return `${localDateStr(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export const formatINR = (value: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -40,7 +53,7 @@ export function addWorkingHours(from: Date, hours: number): { date: string; time
     if (day !== 0 && h >= 9 && h < 18) remaining--;
   }
   return {
-    date: d.toISOString().slice(0, 10),
+    date: localDateStr(d),
     time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
   };
 }
@@ -123,7 +136,7 @@ export function isInDateRange(
 
 export function resolveDateRange(preset: string): { startDate: string; endDate: string } {
   const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const iso = localDateStr;
 
   if (preset === 'today') {
     const s = iso(now);

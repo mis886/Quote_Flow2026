@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId, formatINR, parseQuoteTerms } from '../lib/utils';
+import { generateId, formatINR, parseQuoteTerms, localDateStr } from '../lib/utils';
 import { OrderItem, Order, AuthorizedSignatory, OrderStatus } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
@@ -53,8 +53,8 @@ export function NewOrder() {
   const [poNo, setPoNo] = useState('');
   const [poFile, setPoFile] = useState<File | null>(null);
   const [existingPoFileName, setExistingPoFileName] = useState<string | null>(null);
-  const [poDate, setPoDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dlvDate, setDlvDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+  const [poDate, setPoDate] = useState(localDateStr(new Date()));
+  const [dlvDate, setDlvDate] = useState(localDateStr(new Date(Date.now() + 30 * 86400000)));
   const [dlvTerms, setDlvTerms] = useState('EXW - Ex Works');
   const [customDlvTerms, setCustomDlvTerms] = useState('');
   const [dlvPriority, setDlvPriority] = useState('Standard');
