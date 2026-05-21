@@ -62,8 +62,9 @@ export function detectDuplicateGroups(customers: Customer[]): Customer[][] {
     for (let j = i + 1; j < norms.length; j++) {
       if (assigned.has(norms[j].c.id)) continue;
       const a = norms[i].norm, b = norms[j].norm;
-      const isExact = !!a && a === b;
-      // Fuzzy match for typos (≥0.85 similarity) — only for names longer than 4 chars to avoid false positives
+      // Gate: first 4 letters must match before any further comparison
+      if (!a || !b || a.slice(0, 4) !== b.slice(0, 4)) continue;
+      const isExact = a === b;
       const isFuzzy = a.length > 4 && b.length > 4 && nameSimilarity(a, b) >= 0.85;
       if (isExact || isFuzzy) {
         group.push(norms[j].c);
