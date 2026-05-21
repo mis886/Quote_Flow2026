@@ -39,16 +39,18 @@ function titleCaseAddress(text: string): string {
 }
 
 function extractPhones(value: string): string[] {
-  return value
-    .replace(/(?:\+91|0091)[\s\-]*/g, '')
-    .split(/[,;\/]+/)
-    .map(p => p.replace(/[^\d]/g, '').trim())
-    .filter(p => p.length >= 10);
+  // Extract all digit groups of 7+ digits (covers mobile 10, STD 8-11, intl)
+  const cleaned = value.replace(/(?:\+91|0091)[\s\-]*/g, '');
+  const matches = cleaned.match(/\d[\d\s\-]{5,}\d/g) ?? [];
+  return matches
+    .map(m => m.replace(/[^\d]/g, ''))
+    .filter(p => p.length >= 7);
 }
 
 function isBarePhone(line: string): boolean {
   const stripped = line.replace(/(?:\+91|0091)[\s\-]*/g, '');
-  return !/[a-zA-Z]/.test(stripped) && /\d{10,}|\d{5,}[\s\-]\d{5,}/.test(stripped);
+  // No letters, and contains a number sequence of 7+ digits
+  return !/[a-zA-Z]/.test(stripped) && /\d[\d\s\-]{5,}\d/.test(stripped);
 }
 
 function extractGstin(line: string): string {
@@ -69,7 +71,8 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
   const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
-  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
+  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|phn?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|tele\.?\s*fax\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?|p\s*[:\-–]\s*\+?\d)\s*[:\-–\s]\s*/i;
+  const noteLineRx      = /^(?:bill\s+wala|builty?\s+(?:ki\s+)?(?:photo\s+)?(?:send|attach|bhejna)|no\s+need\s+to\s+send|courier\s+plant\s+mein|paid\b|k\.?\s*a\.?\s*[:.\s]|attn\s*[:.\s]|attention\s*[:.\s]|the\s+(?:purchase|store|accounts?|works?|billing)\s+(?:dept\.?|department|manager|officer)|(?:sr\.?\s*|jr\.?\s*)?(?:manager|officer|executive|head|director|gm|agm|dgm)\s*[(\-,]|(?:mr|ms|mrs|dr|shri|sh)\.?\s+[a-z])/i;
   const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
   for (const line of lines) {
@@ -83,6 +86,7 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     else if (isBarePhone(trimmed)) { phones.push(...extractPhones(trimmed)); inDispatch = false; }
     else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
     else if (inDispatch) { dispatchLines.push(trimmed); }
+    else if (noteLineRx.test(trimmed)) { leadTime = leadTime ? leadTime + '\n' + trimmed : trimmed; inDispatch = false; }
     else {
       const bareGstin = extractGstin(trimmed);
       if (bareGstin && !gstin) {
