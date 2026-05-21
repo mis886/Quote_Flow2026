@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { generateId, formatINR, localDateStr } from '../lib/utils';
@@ -7,6 +7,7 @@ import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 import { generateQuotePDF } from '../lib/pdfGenerator';
 import { SendEmailModal } from '../components/SendEmailModal';
+import { Copy, Upload, X, AlertCircle } from 'lucide-react';
 
 const STEPS = ['Form', 'Preview'];
 
@@ -77,6 +78,14 @@ export function NewQuote() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [savedQuote, setSavedQuote] = useState<Quote | null>(null);
+
+  // Copy from quote
+  const [showCopyQuote, setShowCopyQuote] = useState(false);
+  // PDF upload
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<QuoteItem[] | null>(null);
 
   // Auto-load default signatory
   useEffect(() => {
@@ -167,6 +176,80 @@ export function NewQuote() {
   };
   const addItem = () => setItems([...items, { seq: items.length + 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0 }]);
   const removeItem = (idx: number) => { if (items.length === 1) return; setItems(items.filter((_, i) => i !== idx).map((it, i) => ({ ...it, seq: i + 1 }))); };
+
+  // Copy items from an existing quote
+  const copyFromQuote = (srcQuote: Quote) => {
+    const copied = srcQuote.items.map((it, idx) => ({ ...it, seq: idx + 1 }));
+    setItems(copied);
+    setShowCopyQuote(false);
+  };
+
+  // Extract line items from a PDF using pdfjs-dist
+  const handlePdfUpload = async (file: File) => {
+    setPdfError(null);
+    setPdfParsing(true);
+    setPdfPreview(null);
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const pageLines: { y: number; text: string }[] = [];
+        for (const item of content.items as any[]) {
+          if (!item.str?.trim()) continue;
+          const y = Math.round(item.transform[5]);
+          const existing = pageLines.find(l => Math.abs(l.y - y) < 4);
+          if (existing) existing.text += ' ' + item.str;
+          else pageLines.push({ y, text: item.str });
+        }
+        pageLines.sort((a, b) => b.y - a.y);
+        fullText += pageLines.map(l => l.text).join('\n') + '\n';
+      }
+      const extracted = parsePdfTextToItems(fullText);
+      if (extracted.length === 0) {
+        setPdfError('Could not detect line items in this PDF. Try the "Copy from quote" option instead.');
+      } else {
+        setPdfPreview(extracted);
+      }
+    } catch (err: any) {
+      setPdfError('Failed to read PDF: ' + (err?.message ?? 'unknown error'));
+    } finally {
+      setPdfParsing(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
+  };
+
+  // Heuristic parser: look for numbered rows with description + qty + price pattern
+  const parsePdfTextToItems = (text: string): QuoteItem[] => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const results: QuoteItem[] = [];
+    // Match lines starting with a row number: "1 ", "1.", "1)"
+    const rowRx = /^(\d{1,3})[.):\s]\s+(.+)/;
+    const numRx = /[\d,]+(?:\.\d+)?/g;
+    for (const line of lines) {
+      const m = line.match(rowRx);
+      if (!m) continue;
+      const seq = parseInt(m[1], 10);
+      if (seq < 1 || seq > 99) continue;
+      const rest = m[2];
+      // Extract all numbers from this line
+      const nums = [...rest.matchAll(numRx)].map(x => parseFloat(x[0].replace(/,/g, '')));
+      // Heuristic: last number is total/price, second-last is qty if >0
+      const unitPrice = nums.length >= 1 ? nums[nums.length - 1] : 0;
+      const qty = nums.length >= 2 ? nums[nums.length - 2] : 1;
+      // Description = everything before the first number-like token
+      const desc = rest.replace(/[\d,]+(?:\.\d+)?.*$/, '').trim() || rest;
+      // Try to detect HSN: 4-8 digit standalone number
+      const hsnMatch = rest.match(/\b(\d{4,8})\b/);
+      const hsn = hsnMatch ? hsnMatch[1] : '40169930';
+      results.push({ seq, desc, mat: '', hsn, qty: qty || 1, uom: 'pcs', unitPrice, gst: 18, total: (qty || 1) * unitPrice });
+    }
+    return results;
+  };
 
   const subTotal = items.reduce((s, i) => s + i.total, 0);
   const gstTotal = items.reduce((s, i) => s + i.total * i.gst / 100, 0);
@@ -398,10 +481,96 @@ export function NewQuote() {
 
             {/* Line Items */}
             <div className="bg-white border border-g200">
-              <div className="p-[11px_16px] border-b border-g200 flex items-center justify-between">
+              <div className="p-[11px_16px] border-b border-g200 flex items-center justify-between gap-2">
                 <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-g500">Line Items <span className="text-red-mrt">*</span></span>
-                {errors.items && <span className="text-red-mrt text-[11px] font-medium">{errors.items}</span>}
+                <div className="flex items-center gap-2 ml-auto">
+                  {errors.items && <span className="text-red-mrt text-[11px] font-medium">{errors.items}</span>}
+                  {/* Copy from existing quote */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCopyQuote(v => !v)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] border border-g300 text-[11px] font-medium text-g600 hover:border-red-mrt hover:text-red-mrt transition-colors"
+                  >
+                    <Copy size={11} /> Copy from Quote
+                  </button>
+                  {/* Upload PDF */}
+                  <button
+                    type="button"
+                    onClick={() => { setPdfError(null); setPdfPreview(null); pdfInputRef.current?.click(); }}
+                    disabled={pdfParsing}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] border border-g300 text-[11px] font-medium text-g600 hover:border-red-mrt hover:text-red-mrt transition-colors disabled:opacity-50"
+                  >
+                    <Upload size={11} /> {pdfParsing ? 'Reading PDF…' : 'Upload PDF'}
+                  </button>
+                  <input ref={pdfInputRef} type="file" accept="application/pdf" title="Upload quote PDF" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); }} />
+                </div>
               </div>
+
+              {/* Copy-from-quote panel */}
+              {showCopyQuote && (() => {
+                const custQuotes = data.quotes.filter(q => q.cust === custName && q.items.length > 0);
+                const allQuotes = data.quotes.filter(q => q.items.length > 0);
+                const list = custQuotes.length > 0 ? custQuotes : allQuotes;
+                return (
+                  <div className="border-b border-g200 bg-g50 p-3">
+                    <div className="text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-2">
+                      {custQuotes.length > 0 ? `Quotes for ${custName}` : 'All Quotes'} — click to copy line items
+                    </div>
+                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                      {list.map(q => (
+                        <button
+                          key={q.id}
+                          type="button"
+                          onClick={() => copyFromQuote(q)}
+                          className="flex items-center justify-between gap-3 px-3 py-2 rounded-[4px] bg-white border border-g200 hover:border-red-mrt hover:bg-red-50 text-left transition-colors"
+                        >
+                          <span className="font-mono text-[10.5px] font-bold text-red-mrt shrink-0">{q.id}</span>
+                          <span className="text-[11px] text-g600 truncate flex-1">{q.cust} — {q.items.length} item{q.items.length !== 1 ? 's' : ''}: {q.items.map(i => i.desc).filter(Boolean).join(', ')}</span>
+                          <span className="text-[10px] text-g400 shrink-0">{q.date}</span>
+                        </button>
+                      ))}
+                      {list.length === 0 && <div className="text-[11px] text-g400 px-2 py-1">No quotes found.</div>}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* PDF error */}
+              {pdfError && (
+                <div className="border-b border-red-200 bg-red-50 px-4 py-2.5 flex items-start gap-2">
+                  <AlertCircle size={13} className="text-red-mrt mt-0.5 shrink-0" />
+                  <span className="text-[11px] text-red-700">{pdfError}</span>
+                  <button type="button" title="Dismiss" onClick={() => setPdfError(null)} className="ml-auto text-g400 hover:text-blk"><X size={12} /></button>
+                </div>
+              )}
+
+              {/* PDF preview — confirm before applying */}
+              {pdfPreview && (
+                <div className="border-b border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-[0.5px]">PDF extracted {pdfPreview.length} items — review & confirm</span>
+                    <button type="button" title="Discard PDF preview" onClick={() => setPdfPreview(null)} className="text-g400 hover:text-blk"><X size={12} /></button>
+                  </div>
+                  <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto mb-2">
+                    {pdfPreview.map((it, i) => (
+                      <div key={i} className="flex gap-3 text-[11px] px-2 py-1 bg-white rounded border border-amber-100">
+                        <span className="font-mono text-g400 w-4 shrink-0">{it.seq}.</span>
+                        <span className="flex-1 truncate text-blk">{it.desc}</span>
+                        <span className="text-g500 shrink-0">Qty: {it.qty}</span>
+                        <span className="text-g500 font-mono shrink-0">₹{it.unitPrice.toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => { setItems(pdfPreview); setPdfPreview(null); }} className="px-3 py-1.5 bg-red-mrt text-white rounded-[4px] text-[11px] font-bold hover:bg-red-700 transition-colors">
+                      Use These Items
+                    </button>
+                    <button type="button" onClick={() => setPdfPreview(null)} className="px-3 py-1.5 border border-g300 text-g600 rounded-[4px] text-[11px] font-medium hover:bg-g100 transition-colors">
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <datalist id="qt-desc-list">{descSuggestions.map(s => <option key={s} value={s} />)}</datalist>
                 <datalist id="qt-mat-list">{matSuggestions.map(s => <option key={s} value={s} />)}</datalist>
