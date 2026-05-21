@@ -71,8 +71,12 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
   const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
-  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|phn?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|tele\.?\s*fax\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?|p\s*[:\-–]\s*\+?\d)\s*[:\-–\s]\s*/i;
+  const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|phn?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?(?:\.?\s*fax)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?|t\s*[:\-–]|m\s*[:\-–]|p\s*[:\-–]\s*\+?\d)\s*[:\-–\s]\s*/i;
+  // Inline phone patterns to strip from the end/middle of address lines
+  const inlinePhoneRx   = /[\s,;|]+(?:mob(?:ile)?|phn?|ph(?:one)?|tel(?:ephone)?|tele\.?\s*fax|contact|m|t)\s*[:\-–.]\s*[\d\s\-+(),]{7,}/gi;
   const noteLineRx      = /^(?:bill\s+wala|builty?\s+(?:ki\s+)?(?:photo\s+)?(?:send|attach|bhejna)|no\s+need\s+to\s+send|courier\s+plant\s+mein|paid\b|k\.?\s*a\.?\s*[:.\s]|attn\s*[:.\s]|attention\s*[:.\s]|the\s+(?:purchase|store|accounts?|works?|billing)\s+(?:dept\.?|department|manager|officer)|(?:sr\.?\s*|jr\.?\s*)?(?:manager|officer|executive|head|director|gm|agm|dgm)\s*[(\-,]|(?:mr|ms|mrs|dr|shri|sh)\.?\s+[a-z])/i;
+  // Phone-first lines: starts with digits then has a name after
+  const phoneFirstRx    = /^(\d[\d\s\-]{6,}\d)\s+([a-zA-Z].{2,})$/;
   const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
   for (const line of lines) {
@@ -88,12 +92,27 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
     else if (inDispatch) { dispatchLines.push(trimmed); }
     else if (noteLineRx.test(trimmed)) { leadTime = leadTime ? leadTime + '\n' + trimmed : trimmed; inDispatch = false; }
     else {
-      const bareGstin = extractGstin(trimmed);
-      if (bareGstin && !gstin) {
-        gstin = bareGstin;
-        const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
-        if (rest) kept.push(rest);
-      } else { kept.push(line); }
+      // Phone-first line: "9720567160 Surendra Ji" → extract phone, move name to note
+      const phoneFirst = phoneFirstRx.exec(trimmed);
+      if (phoneFirst) {
+        phones.push(...extractPhones(phoneFirst[1]));
+        leadTime = leadTime ? leadTime + '\n' + phoneFirst[2].trim() : phoneFirst[2].trim();
+        inDispatch = false;
+      } else {
+        const bareGstin = extractGstin(trimmed);
+        if (bareGstin && !gstin) {
+          gstin = bareGstin;
+          const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
+          if (rest) kept.push(rest);
+        } else {
+          // Strip inline phone fragments from address lines (e.g. "Pin: 261 001 Ph: 05862-258545")
+          const cleaned = trimmed.replace(inlinePhoneRx, (match) => {
+            phones.push(...extractPhones(match));
+            return '';
+          }).trim();
+          if (cleaned) kept.push(cleaned);
+        }
+      }
     }
   }
   return {
