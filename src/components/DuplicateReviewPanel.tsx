@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Customer, Site } from '../lib/types';
 import { Button } from './ui';
 import { cn } from '../lib/utils';
@@ -319,7 +319,7 @@ function GroupCard({
 // ── DuplicateReviewPanel ──────────────────────────────────────────────────────
 
 export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer, onClose }: Props) {
-  const initialGroups = detectDuplicateGroups(customers);
+  const initialGroups = useMemo(() => detectDuplicateGroups(customers), []);
 
   const [groups, setGroups] = useState<Customer[][]>(initialGroups);
 
@@ -356,6 +356,22 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
   }, [onClose]);
 
   const activeGroups = groups.filter(g => !skipped.has(normalizeName(g[0].name)));
+
+  const handleToggleSelected = useCallback((groupKey: string, id: string, groupMembers: Customer[]) => {
+    setGroupSelections(prevSel => {
+      const cur = new Set(prevSel[groupKey] ?? groupMembers.map(c => c.id));
+      cur.has(id) ? cur.delete(id) : cur.add(id);
+      // If primary got unchecked, reassign to first still-checked record
+      setPrimarySelections(prevPrim => {
+        if (!cur.has(prevPrim[groupKey])) {
+          const first = groupMembers.find(c => cur.has(c.id));
+          return first ? { ...prevPrim, [groupKey]: first.id } : prevPrim;
+        }
+        return prevPrim;
+      });
+      return { ...prevSel, [groupKey]: cur };
+    });
+  }, []);
 
   async function handleMerge(group: Customer[], groupKey: string) {
     const selectedIds = groupSelections[groupKey] ?? new Set(group.map(c => c.id));
@@ -445,17 +461,7 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
                 isMerging={merging.has(groupKey)}
                 error={mergeError[groupKey] ?? ''}
                 onSelectPrimary={id => setPrimarySelections(prev => ({ ...prev, [groupKey]: id }))}
-                onToggleSelected={id => setGroupSelections(prev => {
-                  const cur = new Set(prev[groupKey] ?? group.map(c => c.id));
-                  cur.has(id) ? cur.delete(id) : cur.add(id);
-                  // If primary was unchecked, reassign primary to first remaining selected
-                  const nextPrimary = primarySelections[groupKey];
-                  if (!cur.has(nextPrimary)) {
-                    const first = group.find(c => cur.has(c.id));
-                    if (first) setPrimarySelections(p => ({ ...p, [groupKey]: first.id }));
-                  }
-                  return { ...prev, [groupKey]: cur };
-                })}
+                onToggleSelected={id => handleToggleSelected(groupKey, id, group)}
                 onMerge={() => handleMerge(group, groupKey)}
                 onSkip={() => setSkipped(prev => new Set([...prev, groupKey]))}
               />
