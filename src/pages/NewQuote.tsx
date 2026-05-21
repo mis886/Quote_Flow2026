@@ -530,7 +530,7 @@ export function NewQuote() {
             <div className="bg-white border border-g200">
               <div className="p-[11px_16px] border-b border-g200 flex items-center justify-between gap-2">
                 <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-g500">Line Items <span className="text-red-mrt">*</span></span>
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="hidden flex items-center gap-2 ml-auto">
                   {errors.items && <span className="text-red-mrt text-[11px] font-medium">{errors.items}</span>}
                   {/* Copy from existing quote */}
                   <button
