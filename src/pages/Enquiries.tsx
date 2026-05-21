@@ -40,7 +40,7 @@ export function Enquiries() {
     if (urgFilter && e.urg !== urgFilter) return false;
 
     // Global date range filter (recv date)
-    if (!isInDateRange(e.recv?.slice(0, 10), globalDateRange)) return false;
+    if (!isInDateRange(e.recv, globalDateRange)) return false;
 
     return true;
   });
