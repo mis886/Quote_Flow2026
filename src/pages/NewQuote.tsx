@@ -223,31 +223,78 @@ export function NewQuote() {
     }
   };
 
-  // Heuristic parser: look for numbered rows with description + qty + price pattern
+  // Parse PDF text into line items — handles MRT quote format:
+  // "[seq] [qty] [uom] [description] Rs. X,XXX=00 [uom]"
   const parsePdfTextToItems = (text: string): QuoteItem[] => {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const results: QuoteItem[] = [];
-    // Match lines starting with a row number: "1 ", "1.", "1)"
-    const rowRx = /^(\d{1,3})[.):\s]\s+(.+)/;
-    const numRx = /[\d,]+(?:\.\d+)?/g;
+
+    // Normalise price strings: "1,880=00" or "1,880.00" → "1880"
+    const parsePrice = (s: string): number => {
+      // Replace trailing =XX (paise with = sign) with .XX, strip commas/Rs./spaces
+      const clean = s.replace(/=(\d{2})$/, '.$1').replace(/[,\s]/g, '').replace(/^[Rrs.]+/i, '');
+      return parseFloat(clean) || 0;
+    };
+
+    // Known T&C keywords — skip lines that are terms rows, not item rows
+    const tncKeywords = /delivery|lead\s*time|packing|freight|payment|validity|taxes|forwarding|gst\s*extra/i;
+
+    // UOM words to recognise
+    const uomRx = /\b(nos?|pcs?|sets?|kgs?|mtrs?|mtr|meters?|pairs?|rolls?|lengths?|units?)\b/i;
+
+    // MRT format: line starts with seq number, then qty+uom, then desc, then Rs. price, then uom
+    // e.g. "1 1 Nos Rubber seat as per drawing-Siliconed Butyl Rs. 1,880=00 Nos"
+    const mrtRx = /^(\d{1,3})\s+(\d+(?:\.\d+)?)\s*(nos?|pcs?|sets?|kgs?|mtrs?|mtr|meters?|pairs?|rolls?|lengths?|units?)?\s+(.+?)\s+Rs\.?\s*([\d,]+=\d{2}|[\d,]+(?:\.\d+)?)\s*(nos?|pcs?|sets?|kgs?|mtrs?|meters?|pairs?|units?)?$/i;
+
+    // Generic fallback: "1. description ... price"
+    const genericRx = /^(\d{1,3})[.):\s]\s+(.+)/;
+
     for (const line of lines) {
-      const m = line.match(rowRx);
-      if (!m) continue;
-      const seq = parseInt(m[1], 10);
-      if (seq < 1 || seq > 99) continue;
-      const rest = m[2];
-      // Extract all numbers from this line
-      const nums = [...rest.matchAll(numRx)].map(x => parseFloat(x[0].replace(/,/g, '')));
-      // Heuristic: last number is total/price, second-last is qty if >0
-      const unitPrice = nums.length >= 1 ? nums[nums.length - 1] : 0;
-      const qty = nums.length >= 2 ? nums[nums.length - 2] : 1;
-      // Description = everything before the first number-like token
-      const desc = rest.replace(/[\d,]+(?:\.\d+)?.*$/, '').trim() || rest;
-      // Try to detect HSN: 4-8 digit standalone number
-      const hsnMatch = rest.match(/\b(\d{4,8})\b/);
-      const hsn = hsnMatch ? hsnMatch[1] : '40169930';
-      results.push({ seq, desc, mat: '', hsn, qty: qty || 1, uom: 'pcs', unitPrice, gst: 18, total: (qty || 1) * unitPrice });
+      if (tncKeywords.test(line)) continue;
+
+      // Try MRT-specific pattern first
+      const mm = line.match(mrtRx);
+      if (mm) {
+        const seq = parseInt(mm[1], 10);
+        const qty = parseFloat(mm[2]) || 1;
+        const uom = mm[3] || mm[6] || 'Nos';
+        const desc = mm[4].trim();
+        const unitPrice = parsePrice(mm[5]);
+        if (desc.length < 3 || tncKeywords.test(desc)) continue;
+        results.push({ seq, desc, mat: '', hsn: '40169930', qty, uom, unitPrice, gst: 18, total: qty * unitPrice });
+        continue;
+      }
+
+      // Generic fallback: seq + rest, look for Rs./price at end
+      const gm = line.match(genericRx);
+      if (!gm) continue;
+      const seq = parseInt(gm[1], 10);
+      if (seq < 1 || seq > 200) continue;
+      const rest = gm[2];
+      if (tncKeywords.test(rest)) continue;
+
+      // Normalise and extract price: Rs. X,XXX=00 or plain number at end
+      const priceMatch = rest.match(/Rs\.?\s*([\d,]+=\d{2}|[\d,]+(?:\.\d+)?)\s*(?:nos?|pcs?|sets?|kgs?)?$/i);
+      const unitPrice = priceMatch ? parsePrice(priceMatch[1]) : 0;
+
+      // Extract qty: first standalone number (possibly followed by uom)
+      const qtyMatch = rest.match(/^(\d+(?:\.\d+)?)\s*(nos?|pcs?|sets?|kgs?|mtrs?|meters?|pairs?)?/i);
+      const qty = qtyMatch ? parseFloat(qtyMatch[1]) : 1;
+      const uomMatch = rest.match(uomRx);
+      const uom = uomMatch ? uomMatch[1] : 'Nos';
+
+      // Description: strip leading qty/uom and trailing price
+      let desc = rest
+        .replace(/^(\d+(?:\.\d+)?)\s*(nos?|pcs?|sets?|kgs?|mtrs?|meters?|pairs?)?\s*/i, '')
+        .replace(/Rs\.?\s*[\d,]+=\d{2}/i, '')
+        .replace(/Rs\.?\s*[\d,]+(?:\.\d+)?/i, '')
+        .replace(/\s*(nos?|pcs?|sets?|kgs?)\s*$/i, '')
+        .trim();
+      if (!desc || desc.length < 3) continue;
+
+      results.push({ seq, desc, mat: '', hsn: '40169930', qty, uom, unitPrice, gst: 18, total: qty * unitPrice });
     }
+
     return results;
   };
 
