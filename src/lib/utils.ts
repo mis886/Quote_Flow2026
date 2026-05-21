@@ -128,7 +128,9 @@ export function isInDateRange(
 ): boolean {
   if (!range || (!range.startDate && !range.endDate)) return true;
   if (!dateStr) return false;
-  const d = dateStr.slice(0, 10);
+  // Parse to Date and extract LOCAL date parts — avoids UTC offset shifting
+  // e.g. "2026-05-19T22:53:00Z" is 2026-05-20 in IST (UTC+5:30)
+  const d = localDateStr(new Date(dateStr));
   if (range.startDate && d < range.startDate) return false;
   if (range.endDate && d > range.endDate) return false;
   return true;
