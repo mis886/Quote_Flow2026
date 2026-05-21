@@ -77,11 +77,13 @@ export function detectDuplicateGroups(customers: Customer[]): Customer[][] {
 }
 
 function siteHasData(site: Site): boolean {
-  const hasGstin = !!site.gstin?.trim();
+  const hasGstin   = !!site.gstin?.trim();
+  const hasAddress = !!(site.fullAddress?.trim() || site.address?.trim());
+  const hasName    = !!(site.name?.trim());
   const hasContact = (site.contacts ?? []).some(
     c => c.name?.trim() || c.email?.trim() || c.phone?.trim()
   );
-  return hasGstin || hasContact;
+  return hasGstin || hasAddress || hasName || hasContact;
 }
 
 function normalizeSiteName(name: string): string {
