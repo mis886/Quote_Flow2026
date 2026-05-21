@@ -56,21 +56,12 @@ function extractGstin(line: string): string {
   return m ? m[1] : '';
 }
 
-function looksLikeCompanyName(line: string, customerName: string, siteName: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-  const l = norm(line);
-  if (!l) return false;
-  // Check if any word of 4+ chars from company/site name appears in the line
-  const refWords = norm(customerName + ' ' + siteName).split(/\s+/).filter(w => w.length >= 4);
-  return refWords.some(w => l.includes(w));
-}
-
-function parseMixedAddress(raw: string, customerName = '', siteName = ''): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string; phones: string[]; gstin: string } {
+function parseMixedAddress(raw: string): { cleanAddress: string; transporter: string; leadTimeNote: string; dispatchHint: string; siteName: string; phones: string[]; gstin: string } {
   const lines = raw.split('\n');
   const kept: string[] = [];
   let transporter = '';
   let leadTime = '';
-  let extractedSiteName = '';
+  let siteName = '';
   let gstin = '';
   const dispatchLines: string[] = [];
   const phones: string[] = [];
@@ -81,14 +72,12 @@ function parseMixedAddress(raw: string, customerName = '', siteName = ''): { cle
   const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?)\s*[:\-–\s]\s*/i;
   const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
   let inDispatch = false;
-  let firstAddressLineSeen = false;
-
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) { if (!inDispatch) kept.push(''); continue; }
     if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
     else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
-    else if (plantRx.test(trimmed)) { extractedSiteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
+    else if (plantRx.test(trimmed)) { siteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
     else if (gstinLabelRx.test(trimmed)) { gstin = trimmed.replace(gstinLabelRx, '').trim().toUpperCase(); inDispatch = false; }
     else if (phoneRx.test(trimmed)) { phones.push(...extractPhones(trimmed.replace(phoneRx, '').trim())); inDispatch = false; }
     else if (isBarePhone(trimmed)) { phones.push(...extractPhones(trimmed)); inDispatch = false; }
@@ -100,16 +89,7 @@ function parseMixedAddress(raw: string, customerName = '', siteName = ''): { cle
         gstin = bareGstin;
         const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
         if (rest) kept.push(rest);
-      } else {
-        // First address line: if it doesn't relate to the company/site name, push to note
-        if (!firstAddressLineSeen && customerName && !looksLikeCompanyName(trimmed, customerName, siteName)) {
-          if (!leadTime) leadTime = trimmed;
-          else leadTime += '\n' + trimmed;
-        } else {
-          kept.push(line);
-        }
-        firstAddressLineSeen = true;
-      }
+      } else { kept.push(line); }
     }
   }
   return {
@@ -117,7 +97,7 @@ function parseMixedAddress(raw: string, customerName = '', siteName = ''): { cle
     transporter: titleCaseAddress(transporter),
     leadTimeNote: leadTime,
     dispatchHint: titleCaseAddress(dispatchLines.join('\n').trim()),
-    siteName: extractedSiteName,
+    siteName,
     phones,
     gstin,
   };
@@ -145,7 +125,7 @@ function detectAllFixes(customers: Customer[]): SiteFix[] {
         customerName: c.name,
         siteId: s.id,
         currentSiteName: s.name || s.city || s.id,
-        parsed: parseMixedAddress(raw, c.name, s.name || s.city || ''),
+        parsed: parseMixedAddress(raw),
         currentTransporter: s.transporter || '',
         currentLeadTime: s.leadTimeNote || '',
         currentDispatch: s.dispatchAddress || '',
