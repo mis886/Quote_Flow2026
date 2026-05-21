@@ -76,6 +76,18 @@ export function detectDuplicateGroups(customers: Customer[]): Customer[][] {
   return groups;
 }
 
+function siteHasData(site: Site): boolean {
+  const hasGstin = !!site.gstin?.trim();
+  const hasContact = (site.contacts ?? []).some(
+    c => c.name?.trim() || c.email?.trim() || c.phone?.trim()
+  );
+  return hasGstin || hasContact;
+}
+
+function normalizeSiteName(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 export function mergeSites(group: Customer[], primaryId: string): Site[] {
   const primary = group.find(c => c.id === primaryId)!;
   const others  = group.filter(c => c.id !== primaryId);
@@ -85,15 +97,14 @@ export function mergeSites(group: Customer[], primaryId: string): Site[] {
   const result: Site[] = [];
 
   const addSite = (site: Site) => {
-    if (site.gstin?.trim()) {
-      const key = site.gstin.trim().toUpperCase();
-      if (seenGstin.has(key)) return;
-      seenGstin.add(key);
-    } else {
-      const key = site.name.toLowerCase().trim();
-      if (seenName.has(key)) return;
-      seenName.add(key);
-    }
+    if (!siteHasData(site)) return;
+    const gstin   = site.gstin?.trim().toUpperCase() ?? '';
+    const nameKey = normalizeSiteName(site.name);
+    // Drop if GSTIN already seen, or if normalized name already seen
+    if (gstin && seenGstin.has(gstin)) return;
+    if (seenName.has(nameKey)) return;
+    if (gstin) seenGstin.add(gstin);
+    seenName.add(nameKey);
     result.push(site);
   };
 
