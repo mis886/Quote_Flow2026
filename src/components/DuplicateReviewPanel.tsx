@@ -116,9 +116,11 @@ interface GroupCardProps {
   group: Customer[];
   groupKey: string;
   primaryId: string;
+  selectedIds: Set<string>;
   isMerging: boolean;
   error: string;
   onSelectPrimary: (id: string) => void;
+  onToggleSelected: (id: string) => void;
   onMerge: () => void;
   onSkip: () => void;
 }
@@ -126,11 +128,13 @@ interface GroupCardProps {
 // ── GroupCard ─────────────────────────────────────────────────────────────────
 
 function GroupCard({
-  group, groupKey, primaryId, isMerging, error,
-  onSelectPrimary, onMerge, onSkip,
+  group, groupKey, primaryId, selectedIds, isMerging, error,
+  onSelectPrimary, onToggleSelected, onMerge, onSkip,
 }: GroupCardProps) {
   const [confirming, setConfirming] = useState(false);
-  const mergedSitePreview = mergeSites(group, primaryId);
+  const selectedGroup = group.filter(c => selectedIds.has(c.id));
+  const canMerge = selectedGroup.length >= 2;
+  const mergedSitePreview = canMerge ? mergeSites(selectedGroup, primaryId) : [];
 
   return (
     <div className="bg-white border border-g200 rounded-sm overflow-hidden shadow-sm">
@@ -146,6 +150,9 @@ function GroupCard({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-3">
+          {!canMerge && !confirming && (
+            <span className="text-[10px] text-amber-600 font-medium">Select ≥2 records to merge</span>
+          )}
           {!confirming ? (
             <>
               <Button size="sm" variant="secondary" onClick={onSkip} disabled={isMerging}>
@@ -155,12 +162,12 @@ function GroupCard({
                 size="sm"
                 variant="primary"
                 onClick={() => setConfirming(true)}
-                disabled={isMerging}
+                disabled={isMerging || !canMerge}
                 className="gap-1.5"
               >
                 {isMerging
                   ? <><Loader2 size={11} className="animate-spin" /> Merging…</>
-                  : <><GitMerge size={11} /> Merge</>
+                  : <><GitMerge size={11} /> Merge {canMerge ? `${selectedGroup.length}` : ''}</>
                 }
               </Button>
             </>
@@ -181,7 +188,8 @@ function GroupCard({
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr className="border-b border-g100">
-              <th className="w-8 px-3 py-2" />
+              <th className="w-8 px-3 py-2" title="Include in merge" />
+              <th className="w-8 px-3 py-2" title="Primary record" />
               <th className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-g500 px-3 py-2 text-left whitespace-nowrap">Customer ID</th>
               <th className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-g500 px-3 py-2 text-left">Company Name</th>
               <th className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-g500 px-3 py-2 text-left">GSTIN</th>
@@ -190,7 +198,8 @@ function GroupCard({
           </thead>
           <tbody>
             {group.map(c => {
-              const isP = c.id === primaryId;
+              const isSelected = selectedIds.has(c.id);
+              const isP = c.id === primaryId && isSelected;
               const hasGstin = !!c.gstin?.trim();
               const siteGstins = (c.sites ?? []).filter(s => s.gstin?.trim());
               return (
@@ -198,18 +207,29 @@ function GroupCard({
                   key={c.id}
                   className={cn(
                     'border-b border-g100 last:border-0 cursor-pointer transition-colors',
-                    isP ? 'bg-red-50' : 'hover:bg-g50'
+                    isP ? 'bg-red-50' : isSelected ? 'hover:bg-g50' : 'bg-white opacity-50 hover:opacity-75'
                   )}
-                  onClick={() => onSelectPrimary(c.id)}
+                  onClick={() => onToggleSelected(c.id)}
                 >
+                  <td className="px-3 py-2.5 align-middle">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelected(c.id)}
+                      onClick={e => e.stopPropagation()}
+                      className="accent-red-600 cursor-pointer"
+                      title={`Include ${c.name} in merge`}
+                    />
+                  </td>
                   <td className="px-3 py-2.5 align-middle">
                     <input
                       type="radio"
                       checked={isP}
-                      onChange={() => onSelectPrimary(c.id)}
-                      onClick={e => e.stopPropagation()}
-                      className="accent-red-600 cursor-pointer"
-                      title={`Select ${c.name} as primary`}
+                      disabled={!isSelected}
+                      onChange={() => { if (isSelected) onSelectPrimary(c.id); }}
+                      onClick={e => { e.stopPropagation(); if (isSelected) onSelectPrimary(c.id); }}
+                      className="accent-red-600 cursor-pointer disabled:opacity-30"
+                      title={isSelected ? `Set ${c.name} as primary` : 'Select this record first'}
                     />
                   </td>
                   <td className="px-3 py-2.5 align-middle">
@@ -258,23 +278,31 @@ function GroupCard({
         <span className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 shrink-0">
           Sites after merge:
         </span>
-        {mergedSitePreview.map((s, i) => (
-          <span
-            key={s.id}
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium border',
-              i === 0
-                ? 'bg-red-50 border-red-200 text-red-700'
-                : 'bg-g100 border-g200 text-g600'
-            )}
-          >
-            {i === 0 && <MapPin size={9} />}
-            {s.city || s.name}
+        {canMerge ? (
+          <>
+            {mergedSitePreview.map((s, i) => (
+              <span
+                key={s.id}
+                className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium border',
+                  i === 0
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-g100 border-g200 text-g600'
+                )}
+              >
+                {i === 0 && <MapPin size={9} />}
+                {s.city || s.name}
+              </span>
+            ))}
+            <span className="text-[10px] text-g400 ml-auto font-mono">
+              {mergedSitePreview.length} total
+            </span>
+          </>
+        ) : (
+          <span className="text-[10.5px] text-amber-600 italic">
+            Check at least 2 records above to preview merge
           </span>
-        ))}
-        <span className="text-[10px] text-g400 ml-auto font-mono">
-          {mergedSitePreview.length} total
-        </span>
+        )}
       </div>
 
       {/* Error strip */}
@@ -307,6 +335,16 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
     return init;
   });
 
+  // Per-group selection: which customer IDs are checked for merging
+  const [groupSelections, setGroupSelections] = useState<Record<string, Set<string>>>(() => {
+    const init: Record<string, Set<string>> = {};
+    for (const g of initialGroups) {
+      const key = normalizeName(g[0].name);
+      init[key] = new Set(g.map(c => c.id));
+    }
+    return init;
+  });
+
   const [skipped, setSkipped]     = useState<Set<string>>(new Set());
   const [merging, setMerging]     = useState<Set<string>>(new Set());
   const [mergeError, setMergeError] = useState<Record<string, string>>({});
@@ -320,19 +358,28 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
   const activeGroups = groups.filter(g => !skipped.has(normalizeName(g[0].name)));
 
   async function handleMerge(group: Customer[], groupKey: string) {
+    const selectedIds = groupSelections[groupKey] ?? new Set(group.map(c => c.id));
+    const selectedGroup = group.filter(c => selectedIds.has(c.id));
     const primaryId = primarySelections[groupKey];
-    const toDelete  = group.filter(c => c.id !== primaryId);
+    const toDelete = selectedGroup.filter(c => c.id !== primaryId);
 
     setMerging(prev => new Set([...prev, groupKey]));
     setMergeError(prev => ({ ...prev, [groupKey]: '' }));
 
     try {
-      const mergedSites = mergeSites(group, primaryId);
+      const mergedSites = mergeSites(selectedGroup, primaryId);
       await updateCustomer(primaryId, { sites: mergedSites });
       for (const dup of toDelete) {
         await deleteCustomer(dup.id);
       }
-      setGroups(prev => prev.filter(g => normalizeName(g[0].name) !== groupKey));
+      // Remove merged records from the group; if only 1 remains, remove the group entirely
+      const remaining = group.filter(c => !selectedIds.has(c.id) || c.id === primaryId);
+      if (remaining.length < 2) {
+        setGroups(prev => prev.filter(g => normalizeName(g[0].name) !== groupKey));
+      } else {
+        setGroups(prev => prev.map(g => normalizeName(g[0].name) === groupKey ? remaining : g));
+        setGroupSelections(prev => ({ ...prev, [groupKey]: new Set(remaining.map(c => c.id)) }));
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Merge failed. Please try again.';
       setMergeError(prev => ({ ...prev, [groupKey]: msg }));
@@ -394,9 +441,21 @@ export function DuplicateReviewPanel({ customers, updateCustomer, deleteCustomer
                 group={group}
                 groupKey={groupKey}
                 primaryId={primarySelections[groupKey]}
+                selectedIds={groupSelections[groupKey] ?? new Set(group.map(c => c.id))}
                 isMerging={merging.has(groupKey)}
                 error={mergeError[groupKey] ?? ''}
                 onSelectPrimary={id => setPrimarySelections(prev => ({ ...prev, [groupKey]: id }))}
+                onToggleSelected={id => setGroupSelections(prev => {
+                  const cur = new Set(prev[groupKey] ?? group.map(c => c.id));
+                  cur.has(id) ? cur.delete(id) : cur.add(id);
+                  // If primary was unchecked, reassign primary to first remaining selected
+                  const nextPrimary = primarySelections[groupKey];
+                  if (!cur.has(nextPrimary)) {
+                    const first = group.find(c => cur.has(c.id));
+                    if (first) setPrimarySelections(p => ({ ...p, [groupKey]: first.id }));
+                  }
+                  return { ...prev, [groupKey]: cur };
+                })}
                 onMerge={() => handleMerge(group, groupKey)}
                 onSkip={() => setSkipped(prev => new Set([...prev, groupKey]))}
               />
