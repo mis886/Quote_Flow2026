@@ -35,8 +35,8 @@ function fmtAmount(value: number, sym: string): string {
   return sym.trimEnd() + ' ' + s.replace('.', '=');
 }
 
-const TRUST_BLUE: [number, number, number] = [10, 100, 188];
-const HEAD_BORDER: [number, number, number] = [5, 60, 120];
+const TRUST_BLUE: [number, number, number] = [100, 149, 200];
+const HEAD_BORDER: [number, number, number] = [60, 100, 150];
 
 type SigPerson = { name: string; designation: string; phone?: string };
 
@@ -158,21 +158,52 @@ export function generateQuotePDF(
   });
 
   // ── Items table ──────────────────────────────────────────────────────────
-  // Columns: S.No.(15) | Qty(22) | Particulars(flex) | Rate is as per Wt(28) | Rates(30) | Per(18)
+  // "Rate is as per Weigh" col only prints if at least one item has a value
+  const showRateWtCol = quote.items.some((i) => !!(i as any).rateAsPerWeight?.trim());
   const colRateWt = 28;
-  const colParticulars = cw - 15 - 22 - colRateWt - 30 - 18;
+  const colParticulars = showRateWtCol
+    ? cw - 15 - 22 - colRateWt - 30 - 18
+    : cw - 15 - 22 - 30 - 18;
   y += 4;
+
+  const tableHead = showRateWtCol
+    ? [['S. No.', 'Quantity', 'Particulars', 'Rate is as\nper Weigh', 'Rates (' + quote.curr + ')', 'Per']]
+    : [['S. No.', 'Quantity', 'Particulars', 'Rates (' + quote.curr + ')', 'Per']];
+
+  const tableBody = quote.items.map((i) => {
+    const rateCell = (i as any).rateOverride
+      ? ((i as any).rateText?.trim() || 'Regret')
+      : fmtRate(i.unitPrice, sym);
+    if (showRateWtCol) {
+      return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), (i as any).rateAsPerWeight || '', rateCell, i.uom || 'Each'];
+    }
+    return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), rateCell, i.uom || 'Each'];
+  });
+
+  // Column index of Rates cell depends on whether rateWt col is present
+  const ratesColIdx = showRateWtCol ? 4 : 3;
+
+  const tableColStyles: Record<number, any> = showRateWtCol
+    ? {
+        0: { cellWidth: 15, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: colParticulars },
+        3: { cellWidth: colRateWt, halign: 'center' },
+        4: { cellWidth: 30, halign: 'right' },
+        5: { cellWidth: 18, halign: 'center' },
+      }
+    : {
+        0: { cellWidth: 15, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: colParticulars },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 18, halign: 'center' },
+      };
+
   autoTable(doc, {
     startY: y,
-    head: [['S. No.', 'Quantity', 'Particulars', 'Rate is as\nper Weigh', 'Rates (' + quote.curr + ')', 'Per']],
-    body: quote.items.map((i) => [
-      i.seq,
-      i.qty + ' ' + (i.uom || 'nos.'),
-      i.desc + (i.mat ? '-' + i.mat : ''),
-      (i as any).rateAsPerWeight || '',
-      (i as any).rateOverride ? ((i as any).rateText?.trim() || 'Regret') : fmtRate(i.unitPrice, sym),
-      i.uom || 'Each',
-    ]),
+    head: tableHead,
+    body: tableBody,
     theme: 'grid',
     headStyles: {
       fillColor: TRUST_BLUE,
@@ -191,16 +222,9 @@ export function generateQuotePDF(
       lineColor: [80, 80, 80],
       lineWidth: 0.35,
     },
-    columnStyles: {
-      0: { cellWidth: 15, halign: 'center' },
-      1: { cellWidth: 22, halign: 'center' },
-      2: { cellWidth: colParticulars },
-      3: { cellWidth: colRateWt, halign: 'center' },
-      4: { cellWidth: 30, halign: 'right' },
-      5: { cellWidth: 18, halign: 'center' },
-    },
+    columnStyles: tableColStyles,
     didParseCell: (data: any) => {
-      if (data.section === 'body' && data.column.index === 4) {
+      if (data.section === 'body' && data.column.index === ratesColIdx) {
         const val = data.cell.text?.[0];
         if (val === 'Regret') {
           data.cell.styles.textColor = [180, 0, 0];
