@@ -95,8 +95,11 @@ export function NewQuote() {
     if (def) { setAuthName(def.name); setAuthDesignation(def.designation); setAuthPhone(def.phone); setSelectedSigId(def.id); }
   }, [data.signatories, editId, enqRef]);
 
-  // Load / init
+  // Load / init — runs once only to avoid wiping unsaved changes on store updates
+  const initDone = useRef(false);
   useEffect(() => {
+    if (initDone.current) return;
+    initDone.current = true;
     if (editId) {
       const q = data.quotes.find(x => x.id === editId);
       if (q) {
@@ -132,7 +135,8 @@ export function NewQuote() {
       setQuoteId(generateId('MRT', data.quotes.map(q => q.id)));
       setItems([{ seq: 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0 }]);
     }
-  }, [editId, enqRef, data.enquiries, data.customers, data.quotes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-load default unit
   useEffect(() => {
