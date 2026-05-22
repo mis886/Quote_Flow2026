@@ -73,32 +73,50 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
   let gstin = '';
   const dispatchLines: string[] = [];
   const phones: string[] = [];
+
+  // Line-start patterns
   const transporterRx   = /^(?:transport(?:er)?|carrier|via transport|by transport)\s*[:\-–]\s*/i;
   const leadTimeRx      = /^(?:lead\s*time|delivery\s*(?:time|note)|l\.?t\.?)\s*[:\-–]\s*/i;
   const plantRx         = /^(?:plant|unit|location)\s*[:\-–]\s*/i;
   const dispatchStartRx = /^(?:for\s+dispatch(?:ed)?\s+items?\s+only|c\/o\b|parcel\s+address\s*[:\-–]?)/i;
+  // "To: Basti" / "To : Sitapur" lines → discard (destination city already in address)
+  const toRx            = /^to\s*[:\-–]\s*/i;
   const phoneRx         = /^(?:mob(?:ile)?\.?\s*(?:no\.?)?|phn?\.?\s*(?:no\.?)?|ph(?:one)?\.?\s*(?:no\.?)?|tel(?:ephone)?(?:\.?\s*fax)?\.?\s*(?:no\.?)?|contact\s*(?:no\.?|number)?|m\.?\s*no\.?|t\s*[:\-–]|m\s*[:\-–]|p\s*[:\-–]\s*\+?\d)\s*[:\-–\s]\s*/i;
-  // Inline phone patterns to strip from the end/middle of address lines
-  const inlinePhoneRx   = /[\s,;|]+(?:mob(?:ile)?|phn?|ph(?:one)?|tel(?:ephone)?|tele\.?\s*fax|contact|m|t)\s*[:\-–.]\s*[\d\s\-+(),]{7,}/gi;
-  const noteLineRx      = /^(?:bill\s+wala|builty?\s+(?:ki\s+)?(?:photo\s+)?(?:send|attach|bhejna)|no\s+need\s+to\s+send|courier\s+plant\s+mein|paid\b|k\.?\s*a\.?\s*[:.\s]|attn\s*[:.\s]|attention\s*[:.\s]|the\s+(?:purchase|store|accounts?|works?|billing)\s+(?:dept\.?|department|manager|officer)|(?:sr\.?\s*|jr\.?\s*)?(?:manager|officer|executive|head|director|gm|agm|dgm)\s*[(\-,]|(?:mr|ms|mrs|dr|shri|sh)\.?\s+[a-z])/i;
-  // Phone-first lines: starts with digits then has a name after
-  const phoneFirstRx    = /^(\d[\d\s\-]{6,}\d)\s+([a-zA-Z].{2,})$/;
   const gstinLabelRx    = /^(?:gst(?:in)?|uin|gst\s*no\.?)\s*[:\-–\s]\s*/i;
+  // Bare GSTIN label with no value (e.g. "India Gstin No." / "GST NO.")
+  const gstinEmptyRx    = /^(?:india\s+)?(?:gst(?:in)?|uin)\s*(?:no\.?)?\s*\.?\s*$/i;
+  const noteLineRx      = /^(?:bill\s+wala|builty?\s+(?:ki\s+)?(?:photo\s+)?(?:send|attach|bhejna)|no\s+need\s+to\s+send|courier\s+plant\s+mein|paid\b|k\.?\s*a\.?\s*[:.\s]|attn\s*[:.\s]|attention\s*[:.\s]|the\s+(?:purchase|store|accounts?|works?|billing)\s+(?:dept\.?|department|manager|officer)|(?:sr\.?\s*|jr\.?\s*)?(?:manager|officer|executive|head|director|gm|agm|dgm)\s*[(\-,]|(?:mr|ms|mrs|dr|shri|sh)\.?\s+[a-z])/i;
+  const phoneFirstRx    = /^(\d[\d\s\-]{6,}\d)\s+([a-zA-Z].{2,})$/;
+
+  // Inline patterns to strip from within a line
+  // Phone labels + digits anywhere in a line
+  const inlinePhoneRx   = /[\s,;|]+(?:mob(?:ile)?|phn?|ph(?:one)?|tel(?:ephone)?(?:\.?\s*fax)?|tele\.?\s*fax|contact\s*(?:no\.?)?|t|m)\s*[:\-–.]\s*[\+\d][\d\s\-+(),]{6,}/gi;
+  // Trailing bare phone after comma/space at end of line: ", 9201595158,9673769673"
+  const trailingPhoneRx = /[,\s]+(\+?91[\s\-]?)?\d[\d\s\-,]{8,}\d\s*$/g;
+  // Inline unit/plant embedded in middle of a line: "Sugar Unit - SHRI DATTA" / "Distillery Unit:- Rumpur"
+  const inlineUnitRx    = /\b(?:sugar\s+unit|distillery\s+unit|unit)\s*[:\-–]+\s*/i;
+
   let inDispatch = false;
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) { if (!inDispatch) kept.push(''); continue; }
+
     if (transporterRx.test(trimmed)) { transporter = trimmed.replace(transporterRx, '').trim(); inDispatch = false; }
     else if (leadTimeRx.test(trimmed)) { leadTime = trimmed.replace(leadTimeRx, '').trim(); inDispatch = false; }
-    else if (plantRx.test(trimmed)) { siteName = trimmed.replace(plantRx, '').trim(); inDispatch = false; }
-    else if (gstinLabelRx.test(trimmed)) { gstin = trimmed.replace(gstinLabelRx, '').trim().toUpperCase(); inDispatch = false; }
+    else if (plantRx.test(trimmed)) { siteName = siteName || trimmed.replace(plantRx, '').trim(); inDispatch = false; }
+    else if (toRx.test(trimmed)) { /* discard "To: City" lines */ inDispatch = false; }
+    else if (gstinEmptyRx.test(trimmed)) { /* discard bare "India Gstin No." label */ inDispatch = false; }
+    else if (gstinLabelRx.test(trimmed)) {
+      const val = trimmed.replace(gstinLabelRx, '').trim().toUpperCase();
+      if (val) gstin = gstin || val;
+      inDispatch = false;
+    }
     else if (phoneRx.test(trimmed)) { phones.push(...extractPhones(trimmed.replace(phoneRx, '').trim())); inDispatch = false; }
     else if (isBarePhone(trimmed)) { phones.push(...extractPhones(trimmed)); inDispatch = false; }
     else if (dispatchStartRx.test(trimmed)) { inDispatch = true; dispatchLines.push(trimmed); }
     else if (inDispatch) { dispatchLines.push(trimmed); }
     else if (noteLineRx.test(trimmed)) { leadTime = leadTime ? leadTime + '\n' + trimmed : trimmed; inDispatch = false; }
     else {
-      // Phone-first line: "9720567160 Surendra Ji" → extract phone, move name to note
       const phoneFirst = phoneFirstRx.exec(trimmed);
       if (phoneFirst) {
         phones.push(...extractPhones(phoneFirst[1]));
@@ -108,14 +126,25 @@ function parseMixedAddress(raw: string): { cleanAddress: string; transporter: st
         const bareGstin = extractGstin(trimmed);
         if (bareGstin && !gstin) {
           gstin = bareGstin;
-          const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '');
+          const rest = trimmed.replace(bareGstin, '').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '').trim();
           if (rest) kept.push(rest);
         } else {
-          // Strip inline phone fragments from address lines (e.g. "Pin: 261 001 Ph: 05862-258545")
-          const cleaned = trimmed.replace(inlinePhoneRx, (match) => {
-            phones.push(...extractPhones(match));
-            return '';
-          }).trim();
+          // Strip inline phone fragments, then inline unit labels, then trailing phones
+          let cleaned = trimmed
+            .replace(inlinePhoneRx, (m) => { phones.push(...extractPhones(m)); return ''; })
+            .replace(trailingPhoneRx, (m) => { phones.push(...extractPhones(m)); return ''; })
+            .trim();
+          // Extract inline unit name (e.g. "Distillery Unit:- Rumpur Road, ...")
+          const unitMatch = inlineUnitRx.exec(cleaned);
+          if (unitMatch && !siteName) {
+            siteName = cleaned.slice(unitMatch.index + unitMatch[0].length).trim();
+            cleaned = cleaned.slice(0, unitMatch.index).trim();
+          }
+          // Strip trailing "GST NO." / "Contact No. 0124..." remnants
+          cleaned = cleaned
+            .replace(/,?\s*gst\s*no\.?\s*$/i, '')
+            .replace(/,?\s*contact\s*no\.?\s*[\d\s\-.,]*$/i, '')
+            .trim();
           if (cleaned) kept.push(cleaned);
         }
       }
