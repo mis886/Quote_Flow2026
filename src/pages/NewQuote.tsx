@@ -74,6 +74,7 @@ export function NewQuote() {
   const setTncField = (k: keyof TncState, v: string) => setTnc((p: TncState) => ({ ...p, [k]: v }));
   const [sigMsg, setSigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
+  const [notes, setNotes] = useState<string[]>([]);
   const [quoteId, setQuoteId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -108,6 +109,7 @@ export function NewQuote() {
         if (q.custEnquiryDocNo) setCustEnquiryDocNo(q.custEnquiryDocNo);
         if (q.terms) { try { setTnc({ ...defaultTnc(), ...JSON.parse(q.terms) }); } catch { /**/ } }
         setItems(q.items);
+        setNotes(q.notes ?? []);
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === q.authorizedPerson?.name);
         if (matched) setSelectedSigId(matched.id);
         const c = data.customers.find(x => x.name === q.cust);
@@ -174,7 +176,7 @@ export function NewQuote() {
     if (field === 'qty' || field === 'unitPrice') ni[idx].total = Number(ni[idx].qty) * Number(ni[idx].unitPrice);
     setItems(ni);
   };
-  const addItem = () => setItems([...items, { seq: items.length + 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0 }]);
+  const addItem = () => setItems([...items, { seq: items.length + 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0, rateAsPerWeight: '', rateOverride: false, rateText: '' }]);
   const removeItem = (idx: number) => { if (items.length === 1) return; setItems(items.filter((_, i) => i !== idx).map((it, i) => ({ ...it, seq: i + 1 }))); };
 
   // Copy items from an existing quote
@@ -314,6 +316,7 @@ export function NewQuote() {
     id: quoteId, enqRef: enqRef || '', cust: custName, date, validity,
     status: editId ? quoteStatus : 'Sent',
     curr, pay, items,
+    notes: notes.filter(n => n.trim()),
     authorizedPerson: { name: authName, designation: authDesignation, phone: authPhone },
     terms: JSON.stringify(tnc),
     inco: inco === 'OVERRIDE' ? customInco : inco,
@@ -631,6 +634,7 @@ export function NewQuote() {
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border border-g400 w-24">HSN Code</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-red-mrt px-3 py-1.5 text-center border border-g400 w-16">Qty *</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border border-g400 w-24">Price Basis</th>
+                        <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border border-g400 w-28">Rate as per Weight</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-right border border-g400 w-28">Unit Rate ({curr === 'INR' ? '₹' : curr})</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border border-g400 w-20">GST %</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-right border border-g400 w-28">Amount ({curr === 'INR' ? '₹' : curr})</th>
@@ -660,8 +664,31 @@ export function NewQuote() {
                             <input list="qt-uom-list" value={item.uom} onChange={e => updateItem(idx, 'uom', e.target.value)} placeholder="uom" className="w-full bg-g50 border border-g300 rounded-[3px] px-1.5 py-[3px] font-mono text-[11px] text-blk outline-none cursor-pointer focus:border-red-mrt focus:bg-white transition-colors" />
                           </td>
                           <td className="px-3 py-[5px] border border-g400 align-middle">
-                            <input type="number" step="any" min="0" value={item.unitPrice || ''} placeholder="0.00" onChange={e => updateItem(idx, 'unitPrice', Number(e.target.value))}
-                              className="w-full bg-transparent outline-none font-mono text-[12px] text-right text-blk placeholder:text-g300" />
+                            <input type="text" value={item.rateAsPerWeight || ''} placeholder="e.g. ₹120/kg" onChange={e => updateItem(idx, 'rateAsPerWeight', e.target.value)}
+                              className="w-full bg-transparent outline-none font-mono text-[11px] text-blk placeholder:text-g300" />
+                          </td>
+                          <td className="px-[6px] py-[5px] border border-g400 align-middle">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={!!item.rateOverride}
+                                onChange={e => updateItem(idx, 'rateOverride', e.target.checked)}
+                                title="Override rate with text"
+                                className="accent-red-600 shrink-0 cursor-pointer"
+                              />
+                              {item.rateOverride ? (
+                                <input
+                                  type="text"
+                                  value={item.rateText || ''}
+                                  placeholder="Regret"
+                                  onChange={e => updateItem(idx, 'rateText', e.target.value)}
+                                  className="flex-1 bg-transparent outline-none font-mono text-[11px] text-red-mrt placeholder:text-g400 min-w-0"
+                                />
+                              ) : (
+                                <input type="number" step="any" min="0" value={item.unitPrice || ''} placeholder="0.00" onChange={e => updateItem(idx, 'unitPrice', Number(e.target.value))}
+                                  className="flex-1 bg-transparent outline-none font-mono text-[12px] text-right text-blk placeholder:text-g300 min-w-0" />
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-[5px] border border-g400 align-middle">
                             <select value={item.gst} onChange={e => updateItem(idx, 'gst', Number(e.target.value))} className="w-full bg-transparent outline-none text-[12px] text-center font-mono text-blk appearance-none cursor-pointer">
@@ -679,29 +706,53 @@ export function NewQuote() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t border-g200 bg-g50/50">
-                        <td colSpan={8} className="px-3 py-2 text-right text-[11px] text-g500">Subtotal (before tax)</td>
+                        <td colSpan={9} className="px-3 py-2 text-right text-[11px] text-g500">Subtotal (before tax)</td>
                         <td className="px-3 py-2 text-right font-mono text-[12px] font-bold text-blk">{formatINR(subTotal)}</td>
                         <td></td>
                       </tr>
                       <tr className="border-b border-g200 bg-g50/50">
-                        <td colSpan={8} className="px-3 py-2 text-right text-[11px] text-g500">GST Total</td>
+                        <td colSpan={9} className="px-3 py-2 text-right text-[11px] text-g500">GST Total</td>
                         <td className="px-3 py-2 text-right font-mono text-[12px] font-bold text-blk">{formatINR(gstTotal)}</td>
                         <td></td>
                       </tr>
                       <tr className="bg-[#1e293b]">
-                        <td colSpan={8} className="px-3 py-2.5 text-right text-[12px] font-bold text-white">Grand Total</td>
+                        <td colSpan={9} className="px-3 py-2.5 text-right text-[12px] font-bold text-white">Grand Total</td>
                         <td className="px-3 py-2.5 text-right font-mono text-[13px] font-bold text-white">{formatINR(grandTotal)}</td>
                         <td className="bg-[#1e293b]"></td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
-                <div className="p-[8px_12px]">
+                <div className="p-[8px_12px] flex items-start gap-3 flex-wrap">
                   <div className="inline-flex items-center gap-[6px] p-[7px_9px] text-red-mrt cursor-pointer text-[12px] font-semibold border border-dashed border-red-mrt/25 rounded-[3px] transition-colors hover:bg-red-lt" onClick={addItem}>
                     <svg viewBox="0 0 16 16" className="w-[13px] h-[13px] stroke-red-mrt fill-none stroke-2"><path d="M8 3v10M3 8h10"/></svg>
                     Add Another Line Item
                   </div>
+                  <div className="inline-flex items-center gap-[6px] p-[7px_9px] text-g600 cursor-pointer text-[12px] font-semibold border border-dashed border-g300 rounded-[3px] transition-colors hover:bg-g50" onClick={() => setNotes(n => [...n, ''])}>
+                    <svg viewBox="0 0 16 16" className="w-[13px] h-[13px] stroke-g500 fill-none stroke-2"><path d="M8 3v10M3 8h10"/></svg>
+                    Add Note
+                  </div>
                 </div>
+                {notes.length > 0 && (
+                  <div className="px-3 pb-3 space-y-1.5">
+                    <div className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 mb-1">Notes (printed below item table)</div>
+                    {notes.map((note, ni) => (
+                      <div key={ni} className="flex items-start gap-2">
+                        <span className="font-mono text-[11px] text-g400 mt-[7px] shrink-0">{ni + 1}.</span>
+                        <input
+                          type="text"
+                          value={note}
+                          placeholder={`Note ${ni + 1}`}
+                          onChange={e => setNotes(n => n.map((v, i) => i === ni ? e.target.value : v))}
+                          className="flex-1 bg-white border border-g300 rounded-[3px] px-2 py-[5px] text-[12px] font-sans text-blk outline-none focus:border-red-mrt placeholder:text-g300"
+                        />
+                        <button type="button" onClick={() => setNotes(n => n.filter((_, i) => i !== ni))} className="text-g400 hover:text-red-mrt mt-[5px] p-1 transition-colors" title="Remove note">
+                          <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M5.5 1h5v1h-5V1zM3 3v1h10V3H3zm1 2v9h8V5H4zm2 1h1v7H6V6zm3 0h1v7H9V6z" /></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
             </div>
 
             {/* Company Unit for PDF */}

@@ -158,17 +158,19 @@ export function generateQuotePDF(
   });
 
   // ── Items table ──────────────────────────────────────────────────────────
-  // Columns: S.No.(15) | Quantity(28) | Particulars(flex) | Rates(32) | Per(20)
-  const colParticulars = cw - 15 - 28 - 32 - 20; // ~64.2mm
+  // Columns: S.No.(15) | Qty(22) | Particulars(flex) | Rate as per Wt(28) | Rates(30) | Per(18)
+  const colRateWt = 28;
+  const colParticulars = cw - 15 - 22 - colRateWt - 30 - 18;
   y += 4;
   autoTable(doc, {
     startY: y,
-    head: [['S. No.', 'Quantity', 'Particulars', 'Rates (' + quote.curr + ')', 'Per']],
+    head: [['S. No.', 'Quantity', 'Particulars', 'Rate as per\nWeight', 'Rates (' + quote.curr + ')', 'Per']],
     body: quote.items.map((i) => [
       i.seq,
       i.qty + ' ' + (i.uom || 'nos.'),
       i.desc + (i.mat ? '-' + i.mat : ''),
-      fmtRate(i.unitPrice, sym),
+      (i as any).rateAsPerWeight || '',
+      (i as any).rateOverride ? ((i as any).rateText?.trim() || 'Regret') : fmtRate(i.unitPrice, sym),
       i.uom || 'Each',
     ]),
     theme: 'grid',
@@ -191,16 +193,56 @@ export function generateQuotePDF(
     },
     columnStyles: {
       0: { cellWidth: 15, halign: 'center' },
-      1: { cellWidth: 28, halign: 'center' },
+      1: { cellWidth: 22, halign: 'center' },
       2: { cellWidth: colParticulars },
-      3: { cellWidth: 32, halign: 'right' },
-      4: { cellWidth: 20, halign: 'center'},
+      3: { cellWidth: colRateWt, halign: 'center' },
+      4: { cellWidth: 30, halign: 'right' },
+      5: { cellWidth: 18, halign: 'center' },
+    },
+    didParseCell: (data: any) => {
+      if (data.section === 'body' && data.column.index === 4) {
+        const val = data.cell.text?.[0];
+        if (val === 'Regret') {
+          data.cell.styles.textColor = [180, 0, 0];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      }
     },
     margin: { left: mx, right: mx },
-    //alternateRowStyles: { fillColor: [248, 248, 250] },
   });
 
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 4;
+
+  // ── Notes below item table ───────────────────────────────────────────────
+  const pdfNotes = ((quote as any).notes ?? []).filter((n: string) => n.trim());
+  if (pdfNotes.length > 0) {
+    y += 2;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Note:', mx, y);
+    y += 5;
+    doc.setFontSize(9);
+    pdfNotes.forEach((note: string, idx: number) => {
+      const label = `${idx + 1}.  `;
+      const maxW = cw - doc.getTextWidth(label);
+      const lines = doc.splitTextToSize(note, maxW) as string[];
+      lines.forEach((line: string, li: number) => {
+        if (li === 0) {
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, mx, y);
+          doc.setFont('helvetica', 'normal');
+          doc.text(line, mx + doc.getTextWidth(label), y);
+        } else {
+          doc.setFont('helvetica', 'normal');
+          doc.text(line, mx + doc.getTextWidth(label), y);
+        }
+        y += 4.5;
+      });
+    });
+    y += 4;
+  } else {
+    y += 4;
+  }
 
   // ── Terms & Conditions table ─────────────────────────────────────────────
   type TncRow = { label: string; value: string };

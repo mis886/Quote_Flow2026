@@ -17,6 +17,9 @@ export interface QuoteItem extends LineItem {
   unitPrice: number;
   gst: number;
   total: number;
+  rateAsPerWeight?: string;   // text shown in "Rate as per Weight" column
+  rateOverride?: boolean;     // when true, rate cell shows rateText (or "Regret") instead of numeric
+  rateText?: string;          // custom text for rate cell when rateOverride is on
 }
 
 export interface OrderItem extends LineItem {
@@ -91,6 +94,7 @@ export interface Quote {
   curr: string;
   pay: string;
   items: QuoteItem[];
+  notes?: string[];           // numbered notes printed below item table in PDF
   attachments?: Attachment[];
   authorizedPerson?: {
     name: string;
