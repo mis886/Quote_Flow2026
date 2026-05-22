@@ -219,6 +219,7 @@ const mapEnquiryToDB = (e: any) => {
 
     if ('unitId' in q) obj.unit_id = q.unitId || null;
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
+    if ('notes' in q) obj.notes = q.notes ?? [];
 
     return obj;
   };

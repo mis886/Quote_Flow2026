@@ -455,6 +455,7 @@ export function NewOrder() {
               <div className="p-[10px_12px]">
                 <datalist id="ord-desc-list">{descSuggestions.map(s => <option key={s} value={s} />)}</datalist>
                 <datalist id="ord-mat-list">{matSuggestions.map(s => <option key={s} value={s} />)}</datalist>
+                <datalist id="ord-uom-list"><option value="pcs"/><option value="sets"/><option value="pairs"/><option value="nos"/><option value="lot"/><option value="kg"/><option value="grams"/><option value="tonnes"/><option value="litre"/><option value="ml"/><option value="metre"/><option value="mm"/><option value="ft"/><option value="sqm"/><option value="sqft"/><option value="rolls"/><option value="sheets"/><option value="boxes"/></datalist>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse border border-g400 text-[12px]">
                     <thead className="bg-g100">

@@ -625,6 +625,7 @@ export function NewQuote() {
                 <datalist id="qt-desc-list">{descSuggestions.map(s => <option key={s} value={s} />)}</datalist>
                 <datalist id="qt-mat-list">{matSuggestions.map(s => <option key={s} value={s} />)}</datalist>
                 <datalist id="qt-hsn-list">{hsnSuggestions.map(s => <option key={s} value={s} />)}</datalist>
+                <datalist id="qt-uom-list"><option value="pcs"/><option value="sets"/><option value="pairs"/><option value="nos"/><option value="lot"/><option value="kg"/><option value="grams"/><option value="tonnes"/><option value="litre"/><option value="ml"/><option value="metre"/><option value="mm"/><option value="ft"/><option value="sqm"/><option value="sqft"/><option value="rolls"/><option value="sheets"/><option value="boxes"/></datalist>
                   <table className="w-full border-collapse border border-g400 text-[12px]">
                     <thead className="bg-g100">
                       <tr>
@@ -898,8 +899,12 @@ export function NewQuote() {
                       <td className="px-4 py-2 text-blk">{item.desc || <span className="text-g300 italic">No description</span>}</td>
                       <td className="px-4 py-2 text-g500">{item.mat}</td>
                       <td className="px-4 py-2 text-g500 text-right w-24">{item.qty} {item.uom}</td>
-                      <td className="px-4 py-2 font-mono text-right w-28">{formatINR(item.unitPrice)}</td>
-                      <td className="px-4 py-2 font-mono font-bold text-right w-28 text-blk">{formatINR(item.total)}</td>
+                      <td className="px-4 py-2 font-mono text-right w-28">
+                        {item.rateOverride
+                          ? <span className="text-red-mrt font-bold">{item.rateText?.trim() || 'Regret'}</span>
+                          : formatINR(item.unitPrice)}
+                      </td>
+                      <td className="px-4 py-2 font-mono font-bold text-right w-28 text-blk">{item.rateOverride ? '—' : formatINR(item.total)}</td>
                     </tr>
                   ))}
                 </tbody>
