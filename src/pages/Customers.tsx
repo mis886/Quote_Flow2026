@@ -19,7 +19,7 @@ function computeRating(c: Customer): number {
 }
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*:|unit\s*:|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*:|mob(?:ile)?\s*(?:no)?\.?\s*[:\-–]|ph(?:one)?\s*(?:no)?\.?\s*[:\-–]|tel(?:ephone)?\s*(?:no)?\.?\s*[:\-–]|\b\d{10,}\b|\b\d{5,}[\s\-]\d{5,}\b|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])/i.test(text);
+  return /(?:transport(?:er)?|lead\s*time|plant\s*[:\-–]|unit\s*[:\-–]|location\s*[:\-–]|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*[:\-–\s]|mob(?:ile)?\.?\s*(?:no\.?)?\s*[:\-–]|phn?\.?\s*(?:no\.?)?\s*[:\-–]|ph(?:one)?\.?\s*(?:no\.?)?\s*[:\-–]|tel(?:ephone)?(?:\.?\s*fax)?\.?\s*(?:no\.?)?\s*[:\-–]|contact\s*(?:no\.?)?\s*[:\-–]|\bt\s*[:\-–]\s*\d|\bm\s*[:\-–]\s*\d|\b\d{10,}\b|\b\d{5,}[\s\-]\d{3,}\b|\b\d{3,}[\s\-]\d{3,}[\s\-]\d{4,}\b|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])/i.test(text);
 }
 
 function titleCaseAddress(text: string): string {
@@ -1126,43 +1126,48 @@ export function Customers() {
                     disabled={bulkApplying}
                     onClick={async () => {
                       setBulkApplying(true);
-                      // Group fixes by customer
-                      const byCustomer = new Map<string, SiteFix[]>();
-                      for (const fix of bulkFixes) {
-                        if (!byCustomer.has(fix.customerId)) byCustomer.set(fix.customerId, []);
-                        byCustomer.get(fix.customerId)!.push(fix);
-                      }
-                      for (const [custId, fixes] of byCustomer) {
-                        const cust = data.customers.find(c => c.id === custId);
-                        if (!cust) continue;
-                        const updatedSites = cust.sites.map(s => {
-                          const fix = fixes.find(f => f.siteId === s.id);
-                          if (!fix) return s;
-                          const updatedContacts = [...s.contacts];
-                          if (fix.parsed.phones.length > 0) {
-                            const pIdx = updatedContacts.findIndex(c => c.isPrimary);
-                            const target = pIdx >= 0 ? pIdx : 0;
-                            if (updatedContacts[target] && !updatedContacts[target].phone) {
-                              updatedContacts[target] = { ...updatedContacts[target], phone: fix.parsed.phones.join(', ') };
-                            } else if (updatedContacts[target]) {
-                              updatedContacts.push({ id: 'C' + Date.now() + Math.random(), name: 'Phone', role: 'Purchase', email: '', phone: fix.parsed.phones.join(', ') });
+                      try {
+                        // Group fixes by customer
+                        const byCustomer = new Map<string, SiteFix[]>();
+                        for (const fix of bulkFixes) {
+                          if (!byCustomer.has(fix.customerId)) byCustomer.set(fix.customerId, []);
+                          byCustomer.get(fix.customerId)!.push(fix);
+                        }
+                        for (const [custId, fixes] of byCustomer) {
+                          const cust = data.customers.find((c: Customer) => c.id === custId);
+                          if (!cust) continue;
+                          const updatedSites = cust.sites.map(s => {
+                            const fix = fixes.find(f => f.siteId === s.id);
+                            if (!fix) return s;
+                            const updatedContacts = [...s.contacts];
+                            if (fix.parsed.phones.length > 0) {
+                              const pIdx = updatedContacts.findIndex(c => c.isPrimary);
+                              const target = pIdx >= 0 ? pIdx : 0;
+                              if (updatedContacts[target] && !updatedContacts[target].phone) {
+                                updatedContacts[target] = { ...updatedContacts[target], phone: fix.parsed.phones.join(', ') };
+                              } else if (updatedContacts[target]) {
+                                updatedContacts.push({ id: 'C' + Date.now() + Math.random(), name: 'Phone', role: 'Purchase', email: '', phone: fix.parsed.phones.join(', ') });
+                              }
                             }
-                          }
-                          return {
-                            ...s,
-                            fullAddress: fix.parsed.cleanAddress,
-                            name: s.name || fix.parsed.siteName || s.name,
-                            transporter: s.transporter || fix.parsed.transporter || s.transporter,
-                            leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
-                            dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,
-                            gstin: s.gstin || fix.parsed.gstin || s.gstin,
-                            contacts: updatedContacts,
-                          };
-                        });
-                        await updateCustomer(custId, { sites: updatedSites });
+                            return {
+                              ...s,
+                              fullAddress: fix.parsed.cleanAddress,
+                              name: s.name || fix.parsed.siteName || s.name,
+                              transporter: s.transporter || fix.parsed.transporter || s.transporter,
+                              leadTimeNote: s.leadTimeNote || fix.parsed.leadTimeNote || s.leadTimeNote,
+                              dispatchAddress: s.dispatchAddress || fix.parsed.dispatchHint || s.dispatchAddress,
+                              gstin: s.gstin || fix.parsed.gstin || s.gstin,
+                              contacts: updatedContacts,
+                            };
+                          });
+                          await updateCustomer(custId, { sites: updatedSites });
+                        }
+                        setBulkDone(true);
+                      } catch (err) {
+                        alert('Failed to save: ' + (err as Error).message);
+                      } finally {
+                        setBulkApplying(false);
                       }
-                      setBulkApplying(false);
-                      setBulkDone(true);
                     }}
                     className="px-5 py-2 text-[11px] font-bold bg-sW text-white rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition-opacity"
                   >
