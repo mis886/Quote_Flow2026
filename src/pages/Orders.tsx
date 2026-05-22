@@ -275,8 +275,9 @@ export function Orders() {
                                 <button type="button" title="Export to Google Sheets" onClick={e => { e.stopPropagation(); handleExportSheets(o); }} disabled={exportingSheets === o.id} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-g200 bg-white hover:border-[#0F9D58] hover:bg-green-50 disabled:opacity-40 disabled:pointer-events-none transition-all shrink-0">{exportingSheets === o.id ? <Loader2 size={12} className="animate-spin text-g400" /> : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none"><rect x="3" y="2" width="13" height="17" rx="1.5" fill="#0F9D58"/><rect x="7" y="2" width="9" height="2.5" rx="0.8" fill="#87D8AF"/><line x1="6" y1="9.5" x2="14" y2="9.5" stroke="white" strokeWidth="1.2"/><line x1="6" y1="12.5" x2="14" y2="12.5" stroke="white" strokeWidth="1.2"/><line x1="6" y1="15.5" x2="11" y2="15.5" stroke="white" strokeWidth="1.2"/></svg>}</button>
                               )
                             )} 
-                        </td> {/* hide temporaryly to prevent unnecessary entries in google sheet otherwise its most useful button */}
-                          </div>
+                          </div> 
+                          {/* // hide temporaryly to prevent unnecessary entries in google sheet otherwise its most useful button */}
+                        </td>
                       </tr>
 
                       {isExpanded && (
