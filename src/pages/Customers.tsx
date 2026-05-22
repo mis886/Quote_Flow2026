@@ -19,7 +19,13 @@ function computeRating(c: Customer): number {
 }
 
 function hasMixedContent(text: string) {
-  return /(?:transport(?:er)?|lead\s*time|plant\s*[:\-–]|unit\s*[:\-–]|location\s*[:\-–]|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*[:\-–\s]|mob(?:ile)?\.?\s*(?:no\.?)?\s*[:\-–]|phn?\.?\s*(?:no\.?)?\s*[:\-–]|ph(?:one)?\.?\s*(?:no\.?)?\s*[:\-–]|tel(?:ephone)?(?:\.?\s*fax)?\.?\s*(?:no\.?)?\s*[:\-–]|contact\s*(?:no\.?)?\s*[:\-–]|\bt\s*[:\-–]\s*\d|\bm\s*[:\-–]\s*\d|\b\d{10,}\b|\b\d{5,}[\s\-]\d{3,}\b|\b\d{3,}[\s\-]\d{3,}[\s\-]\d{4,}\b|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z])/i.test(text);
+  // Keyword patterns (transport, lead time, plant, dispatch, phone labels, GSTIN)
+  const keywords = /(?:transport(?:er)?|lead\s*time|plant\s*[:\-–]|unit\s*[:\-–]|location\s*[:\-–]|c\/o\b|for\s+dispatch|parcel\s+address|gst(?:in)?\s*[:\-–\s]|mob(?:ile)?\.?\s*(?:no\.?)?\s*[:\-–]|phn?\.?\s*(?:no\.?)?\s*[:\-–]|ph(?:one)?\.?\s*(?:no\.?)?\s*[:\-–]|tel(?:ephone)?(?:\.?\s*fax)?\.?\s*(?:no\.?)?\s*[:\-–]|contact\s*(?:no\.?)?\s*[:\-–]|\bt\s*[:\-–]\s*\d|\bm\s*[:\-–]\s*\d)/i.test(text);
+  // Bare 10-digit mobile / long number (not PIN codes split with space)
+  const barePhone = /\b\d{10,}\b/.test(text);
+  // GSTIN pattern
+  const gstin = /[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]/.test(text);
+  return keywords || barePhone || gstin;
 }
 
 function titleCaseAddress(text: string): string {
