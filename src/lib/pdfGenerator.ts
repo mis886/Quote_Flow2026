@@ -158,13 +158,13 @@ export function generateQuotePDF(
   });
 
   // ── Items table ──────────────────────────────────────────────────────────
-  // Columns: S.No.(15) | Qty(22) | Particulars(flex) | Rate as per Wt(28) | Rates(30) | Per(18)
+  // Columns: S.No.(15) | Qty(22) | Particulars(flex) | Rate is as per Wt(28) | Rates(30) | Per(18)
   const colRateWt = 28;
   const colParticulars = cw - 15 - 22 - colRateWt - 30 - 18;
   y += 4;
   autoTable(doc, {
     startY: y,
-    head: [['S. No.', 'Quantity', 'Particulars', 'Rate as per\nWeight', 'Rates (' + quote.curr + ')', 'Per']],
+    head: [['S. No.', 'Quantity', 'Particulars', 'Rate is as\nper Weigh', 'Rates (' + quote.curr + ')', 'Per']],
     body: quote.items.map((i) => [
       i.seq,
       i.qty + ' ' + (i.uom || 'nos.'),
