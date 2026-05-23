@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getSettings, updateSettings } from '../lib/supabase';
 import { useAppStore } from '../store';
 import { hasActiveToken } from '../lib/gmail';
-import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw } from 'lucide-react';
+import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X } from 'lucide-react';
 import { UnitsManager } from '../components/UnitsManager';
 
 type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations';
@@ -50,6 +50,26 @@ export function Settings() {
   const [newName, setNewName] = useState('');
   const [newDes, setNewDes] = useState('');
   const [newPhone, setNewPhone] = useState('');
+
+  // Signatory edit
+  const [editSigId, setEditSigId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDes, setEditDes] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+
+  const startEditSig = (sig: { id: string; name: string; designation: string; phone?: string }) => {
+    setEditSigId(sig.id);
+    setEditName(sig.name);
+    setEditDes(sig.designation);
+    setEditPhone(sig.phone || '');
+    setShowSigForm(false);
+  };
+
+  const saveEditSig = async () => {
+    if (!editSigId || !editName.trim() || !editDes.trim()) return;
+    await updateSignatory(editSigId, { name: editName.trim(), designation: editDes.trim(), phone: editPhone.trim() });
+    setEditSigId(null);
+  };
 
   useEffect(() => { setTokenActive(hasActiveToken()); }, []);
 
@@ -227,6 +247,26 @@ export function Settings() {
                   {data.signatories.length === 0 ? (
                     <tr><td colSpan={5} className="px-4 py-8 text-center text-[12px] text-g400 italic">No signatories yet — add one above.</td></tr>
                   ) : data.signatories.map(sig => (
+                    editSigId === sig.id ? (
+                      <tr key={sig.id} className="bg-blue-50/40">
+                        <td className="px-3 py-2">
+                          <input value={editName} onChange={e => setEditName(e.target.value)} className={inputCls} placeholder="Name" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input value={editDes} onChange={e => setEditDes(e.target.value)} className={inputCls} placeholder="Designation" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input value={editPhone} onChange={e => setEditPhone(e.target.value)} className={inputCls} placeholder="+91 9000000000" />
+                        </td>
+                        <td className="px-3 py-2" />
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button type="button" onClick={saveEditSig} className="px-3 py-1.5 bg-blk text-white text-[11px] font-bold rounded-[3px] hover:bg-g700">Save</button>
+                            <button type="button" title="Cancel edit" onClick={() => setEditSigId(null)} className="p-1.5 text-g400 hover:text-blk rounded transition-colors"><X size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
                     <tr key={sig.id} className="hover:bg-g50 transition-colors">
                       <td className="px-4 py-3 text-[13px] font-semibold text-blk">{sig.name}</td>
                       <td className="px-4 py-3 text-[12.5px] text-g600">{sig.designation}</td>
@@ -245,11 +285,17 @@ export function Settings() {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button type="button" title="Delete signatory" onClick={() => deleteSignatory(sig.id)} className="p-1.5 text-g400 hover:text-red-mrt rounded transition-colors">
-                          <Trash2 size={13} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" title="Edit signatory" onClick={() => startEditSig(sig)} className="p-1.5 text-g400 hover:text-blk rounded transition-colors">
+                            <Pencil size={13} />
+                          </button>
+                          <button type="button" title="Delete signatory" onClick={() => deleteSignatory(sig.id)} className="p-1.5 text-g400 hover:text-red-mrt rounded transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
+                    )
                   ))}
                 </tbody>
               </table>
