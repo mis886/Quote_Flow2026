@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount } from '../lib/types';
 import { supabase, signOut, getSettings } from '../lib/supabase';
-import { fetchLabelledEmails } from '../lib/gmail';
+import { uploadToS3 } from '../lib/s3';
+import { fetchLabelledEmails, fetchEmailAttachments } from '../lib/gmail';
 import { User } from '@supabase/supabase-js';
 
 export interface GlobalDateRange {
@@ -733,6 +734,31 @@ const mapEnquiryToDB = (e: any) => {
           items: [],
           gmailMessageId: email.messageId,
         };
+
+        // Fetch and upload email attachments to storage
+        const emailAttachments: import('../lib/types').Attachment[] = [];
+        try {
+          const rawAttachments = await fetchEmailAttachments(email.messageId, email.payload, silent);
+          for (const att of rawAttachments) {
+            const attId = Math.random().toString(36).substr(2, 9);
+            const safeName = att.fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const path = `enquiries/${newEnq.id}/${attId}_${safeName}`;
+            const file = new File([att.blob], att.fileName, { type: att.mimeType });
+            const storagePath = await uploadToS3(file, path);
+            if (storagePath) {
+              emailAttachments.push({
+                id: attId,
+                fileName: att.fileName,
+                storagePath,
+                uploadedAt: new Date().toISOString(),
+              });
+            }
+          }
+        } catch {
+          // attachment fetch/upload failure should not block enquiry creation
+        }
+
+        if (emailAttachments.length) newEnq.attachments = emailAttachments;
 
         const dbPayload = { ...mapEnquiryToDB(newEnq), gmail_message_id: email.messageId };
         const { error } = await supabase.from('enquiries').insert([dbPayload]);

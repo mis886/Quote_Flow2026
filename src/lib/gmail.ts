@@ -177,6 +177,7 @@ export interface ParsedEmail {
   subject: string;
   body: string;
   date: string;
+  payload: any;
 }
 
 async function gmailGet(path: string, token: string) {
@@ -214,6 +215,60 @@ function parseFromHeader(from: string): { name: string; email: string } {
   const m = from.match(/^(.*?)\s*<([^>]+)>/);
   if (m) return { name: m[1].trim().replace(/^"|"$/g, ''), email: m[2].trim() };
   return { name: from.trim(), email: from.trim() };
+}
+
+export interface EmailAttachment {
+  fileName: string;
+  mimeType: string;
+  blob: Blob;
+}
+
+function collectAttachmentParts(payload: any): { partId: string; fileName: string; mimeType: string; attachmentId: string }[] {
+  const results: { partId: string; fileName: string; mimeType: string; attachmentId: string }[] = [];
+  if (payload.filename && payload.body?.attachmentId) {
+    results.push({
+      partId: payload.partId ?? '',
+      fileName: payload.filename,
+      mimeType: payload.mimeType ?? 'application/octet-stream',
+      attachmentId: payload.body.attachmentId,
+    });
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      results.push(...collectAttachmentParts(part));
+    }
+  }
+  return results;
+}
+
+export async function fetchEmailAttachments(messageId: string, payload: any, silent = false): Promise<EmailAttachment[]> {
+  const parts = collectAttachmentParts(payload);
+  if (!parts.length) return [];
+
+  const token = await getAccessToken(silent);
+  const attachments: EmailAttachment[] = [];
+
+  for (const part of parts) {
+    try {
+      const res = await gmailGet(
+        `/gmail/v1/users/me/messages/${messageId}/attachments/${part.attachmentId}`,
+        token,
+      );
+      const b64 = (res.data as string).replace(/-/g, '+').replace(/_/g, '/');
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      attachments.push({
+        fileName: part.fileName,
+        mimeType: part.mimeType,
+        blob: new Blob([bytes], { type: part.mimeType }),
+      });
+    } catch {
+      // skip attachment if it fails
+    }
+  }
+
+  return attachments;
 }
 
 export async function fetchLabelledEmails(
@@ -265,6 +320,7 @@ export async function fetchLabelledEmails(
         subject: parseHeader(headers, 'Subject'),
         body: extractBody(msg.payload).slice(0, 1000),
         date: parseHeader(headers, 'Date') || new Date().toISOString(),
+        payload: msg.payload,
       });
     } catch {
       // skip malformed messages
