@@ -82,6 +82,7 @@ export function NewOrder() {
   const [customPoint, setCustomPoint] = useState<string>('');
   const [pan, setPan] = useState<string>('');
   const [defaultHsn, setDefaultHsn] = useState<string>('');
+  const [showExim, setShowExim] = useState(false);
 
   // Auto-load default signatory
   useEffect(() => {
@@ -122,6 +123,7 @@ export function NewOrder() {
         if (o.customPoint) setCustomPoint(o.customPoint);
         if (o.pan) setPan(o.pan);
         if (o.hsn) setDefaultHsn(o.hsn);
+        if (o.priceBasis || o.eximCode || o.customPoint || o.pan || o.hsn) setShowExim(true);
         if (o.poFileName) setExistingPoFileName(o.poFileName);
         if (o.shipToAddress) setShipAddr(o.shipToAddress);
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === o.authorizedPerson?.name);
@@ -534,37 +536,58 @@ export function NewOrder() {
 
             {/* Export / Tax Details for PI */}
             <div className="bg-white border border-g200">
-              <div className="p-[11px_16px] border-b border-g200">
-                <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-g600">Export / Tax Details (for Proforma Invoice)</span>
-              </div>
-              <div className="p-[12px_16px] grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Price Basis (Incoterms)</label>
-                  <input type="text" value={priceBasis} onChange={e => setPriceBasis(e.target.value)} placeholder="EXW - Ex Works"
-                    className="w-full font-sans text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
+              <button
+                type="button"
+                onClick={() => setShowExim(v => !v)}
+                className="w-full flex items-center justify-between p-[11px_16px] hover:bg-g50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={showExim}
+                    onChange={e => setShowExim(e.target.checked)}
+                    onClick={e => e.stopPropagation()}
+                    className="accent-red-mrt w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-g600">Export / Tax Details (for Proforma Invoice)</span>
+                  {!showExim && (priceBasis || eximCode || customPoint || pan || defaultHsn) && (
+                    <span className="text-[9px] text-amber-600 font-bold">● has data</span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Exim Code</label>
-                  <input type="text" value={eximCode} onChange={e => setEximCode(e.target.value.toUpperCase())} placeholder="IEC0123456789"
-                    className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt uppercase" />
+                <svg viewBox="0 0 16 16" width="14" height="14" className={`fill-g400 transition-transform duration-200 ${showExim ? 'rotate-180' : ''}`}>
+                  <path d="M8 10.5L2 4.5h12z" />
+                </svg>
+              </button>
+              {showExim && (
+                <div className="p-[12px_16px] grid grid-cols-3 gap-3 border-t border-g200">
+                  <div>
+                    <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Price Basis (Incoterms)</label>
+                    <input type="text" value={priceBasis} onChange={e => setPriceBasis(e.target.value)} placeholder="EXW - Ex Works"
+                      className="w-full font-sans text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Exim Code</label>
+                    <input type="text" value={eximCode} onChange={e => setEximCode(e.target.value.toUpperCase())} placeholder="IEC0123456789"
+                      className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt uppercase" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Custom Point</label>
+                    <input type="text" value={customPoint} onChange={e => setCustomPoint(e.target.value)} placeholder="ICD Tughlakabad, New Delhi"
+                      className="w-full font-sans text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Company PAN No.</label>
+                    <input type="text" value={pan} onChange={e => setPan(e.target.value.toUpperCase())} placeholder="ABMFM1195K"
+                      className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt uppercase" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Default HSN Code</label>
+                    <input type="text" value={defaultHsn} onChange={e => setDefaultHsn(e.target.value)} placeholder="40169390"
+                      className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
+                    <div className="text-[9px] text-g400 mt-1">Used when an item row has no HSN. Override per-item in the items table.</div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Custom Point</label>
-                  <input type="text" value={customPoint} onChange={e => setCustomPoint(e.target.value)} placeholder="ICD Tughlakabad, New Delhi"
-                    className="w-full font-sans text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Company PAN No.</label>
-                  <input type="text" value={pan} onChange={e => setPan(e.target.value.toUpperCase())} placeholder="ABMFM1195K"
-                    className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt uppercase" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[4px]">Default HSN Code</label>
-                  <input type="text" value={defaultHsn} onChange={e => setDefaultHsn(e.target.value)} placeholder="40169390"
-                    className="w-full font-mono text-[13px] text-blk border border-g300 rounded-[3px] p-[7px_10px] outline-none focus:border-red-mrt" />
-                  <div className="text-[9px] text-g400 mt-1">Used when an item row has no HSN. Override per-item in the items table.</div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Company Unit & Bank Account for PI */}
