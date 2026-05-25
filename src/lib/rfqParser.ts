@@ -133,33 +133,29 @@ const COL_PATTERNS: Record<string, RegExp> = {
 };
 
 
-// Merge adjacent TextItems that belong to the same table cell.
-// Items are "adjacent" when the gap between them is smaller than a typical column gap.
-// Returns synthetic TextItems where .str is the merged cell text and x/w span the cell.
-function mergeHeaderCells(items: TextItem[]): TextItem[] {
-  if (!items.length) return [];
-  // Sort by X
-  const sorted = [...items].sort((a, b) => a.x - b.x);
+// Merge adjacent TextItems on the SAME Y-line that belong to the same table cell.
+// "Same cell" = gap between items is less than the median inter-item gap on that line.
+// Works per-line so items from different rows (multi-row header merge) don't bleed together.
+function mergeLineCells(lineItems: TextItem[]): TextItem[] {
+  if (lineItems.length <= 1) return lineItems;
+  const sorted = [...lineItems].sort((a, b) => a.x - b.x);
 
-  // Compute gaps between consecutive items to pick a threshold.
-  // A "within-cell" gap is small (e.g., space between "Name" and "of" in "Name of Items").
-  // A "between-cell" gap is large. We pick the median gap as the split threshold.
+  // Collect all gaps
   const gaps: number[] = [];
   for (let i = 1; i < sorted.length; i++) {
-    gaps.push(sorted[i].x - (sorted[i - 1].x + sorted[i - 1].w));
+    gaps.push(Math.max(0, sorted[i].x - (sorted[i - 1].x + sorted[i - 1].w)));
   }
-  gaps.sort((a, b) => a - b);
-  // Use 1.8× the smallest gap as the within-cell threshold, minimum 8px
-  const minGap = gaps[0] ?? 0;
-  const threshold = Math.max(minGap * 1.8, 8);
+  // Median gap — items within one cell have gap << median (e.g., "Name" "of" "Items")
+  const sortedGaps = [...gaps].sort((a, b) => a - b);
+  const median = sortedGaps[Math.floor(sortedGaps.length / 2)] ?? 0;
+  // Within-cell threshold: half the median, minimum 2px, maximum 20px
+  const threshold = Math.min(Math.max(median * 0.5, 2), 20);
 
   const cells: TextItem[] = [];
   let current = { ...sorted[0] };
-
   for (let i = 1; i < sorted.length; i++) {
-    const gap = sorted[i].x - (current.x + current.w);
+    const gap = Math.max(0, sorted[i].x - (current.x + current.w));
     if (gap <= threshold) {
-      // Same cell — merge
       current.str = current.str + ' ' + sorted[i].str;
       current.w = (sorted[i].x + sorted[i].w) - current.x;
     } else {
@@ -172,8 +168,19 @@ function mergeHeaderCells(items: TextItem[]): TextItem[] {
 }
 
 function detectXColumns(headerItems: TextItem[]): ColBoundary[] | null {
-  // Merge adjacent words into whole-cell strings before pattern matching
-  const cells = mergeHeaderCells(headerItems);
+  // Group headerItems by Y (they may come from multiple merged header lines),
+  // merge within-cell words per line, then flatten for pattern matching.
+  const byY = new Map<number, TextItem[]>();
+  for (const it of headerItems) {
+    const key = it.y;
+    if (!byY.has(key)) byY.set(key, []);
+    byY.get(key)!.push(it);
+  }
+  const cells: TextItem[] = [];
+  for (const lineItems of byY.values()) {
+    cells.push(...mergeLineCells(lineItems));
+  }
+
   const cols: ColBoundary[] = [];
 
   for (const cell of cells) {
