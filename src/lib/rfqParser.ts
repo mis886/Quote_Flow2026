@@ -363,13 +363,37 @@ function splitCells(line: string): string[] {
   return line.split(/\s+/).map(c => c.trim()).filter(Boolean);
 }
 
+// "Hard" column keywords — at least one must be present for a row to qualify as a header.
+// These are unambiguous signals that a row is a column header, not intro/body text.
+const HARD_HEADER_KEYS = new Set(['qty', 'uom', 'hsn', 'seq', 'mat', 'drwg', 'price']);
+
+// Score how many known column pattern cells a set of string cells matches.
+// Returns { score, hardScore } where hardScore counts matches from HARD_HEADER_KEYS.
+function scoreHeaderCells(cells: string[]): { score: number; hardScore: number } {
+  let score = 0, hardScore = 0;
+  for (const cell of cells) {
+    for (const [canon, re] of Object.entries(COL_PATTERNS)) {
+      if (re.test(cell.trim())) {
+        score++;
+        if (HARD_HEADER_KEYS.has(canon)) hardScore++;
+        break;
+      }
+    }
+  }
+  return { score, hardScore };
+}
+
 function detectHeaderRow(lines: string[]): { rowIdx: number; colMap: Record<string, number> } | null {
-  for (let i = 0; i < Math.min(lines.length, 30); i++) {
-    // Merge up to 3 lines for multi-row headers
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
+    // Merge up to 3 lines for multi-row headers (SAP uses 2-row headers)
     for (let merge = 1; merge <= 3 && i + merge <= lines.length; merge++) {
       const merged = lines.slice(i, i + merge).join(' ');
       const cells = splitCells(merged);
       if (cells.length < 2) continue;
+
+      // Must have at least 1 hard keyword match to qualify as a header row
+      const { score, hardScore } = scoreHeaderCells(cells);
+      if (score < 1 || hardScore < 1) continue;
 
       const colMap: Record<string, number> = {};
       for (let ci = 0; ci < cells.length; ci++) {
@@ -381,7 +405,7 @@ function detectHeaderRow(lines: string[]): { rowIdx: number; colMap: Record<stri
         }
       }
 
-      // Desc fallback: unmatched col with most words that isn't seq/hsn/qty/uom/price
+      // Desc fallback: unmatched col with most words
       if (!('desc' in colMap)) {
         const skipCols = new Set(Object.values(colMap));
         let bestIdx = -1, bestWords = 0;
@@ -631,18 +655,19 @@ function extractRawTable(posLines: TextItem[][], plain: string): { headers: stri
       // Find the first line that looks like a header (has recognisable column keywords)
       const allRows = buildColumnarRows(posLines, zones);
 
-      // Find header row index: a row where at least 2 cells match known column patterns
+      // Find header row: must have at least 1 hard keyword (qty/uom/hsn/seq/mat/drwg/price)
+      // Try merging up to 2 consecutive rows to handle split headers (e.g. "MAT." / "CODE")
       let headerIdx = -1;
-      for (let i = 0; i < Math.min(allRows.length, 30); i++) {
-        const matchCount = allRows[i].filter(cell =>
-          Object.values(COL_PATTERNS).some(re => re.test(cell.trim()))
-        ).length;
-        // Also accept a row with short cells that look like header labels (all caps, short)
-        const shortUpperCount = allRows[i].filter(c => c.trim().length > 0 && c.trim().length < 30 && /^[A-Z0-9 ./#&-]+$/.test(c.trim())).length;
-        if (matchCount >= 2 || (matchCount >= 1 && shortUpperCount >= 3)) {
-          headerIdx = i;
-          break;
+      for (let i = 0; i < Math.min(allRows.length, 40); i++) {
+        for (let merge = 1; merge <= 2 && i + merge <= allRows.length; merge++) {
+          const combined = ([] as string[]).concat(...allRows.slice(i, i + merge));
+          const { score, hardScore } = scoreHeaderCells(combined);
+          if (score >= 1 && hardScore >= 1) {
+            headerIdx = i + merge - 1;
+            break;
+          }
         }
+        if (headerIdx >= 0) break;
       }
 
       if (headerIdx >= 0) {
