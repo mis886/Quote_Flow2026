@@ -43,43 +43,226 @@ function cleanDesc(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-// ── Extract raw text from PDF using pdfjs ────────────────────────────────────
-async function extractText(file: File): Promise<string> {
+// ── Text item with position ───────────────────────────────────────────────────
+interface TextItem {
+  str: string;
+  x: number;   // left edge
+  y: number;   // baseline (higher = higher on page in PDF coords)
+  w: number;   // width
+}
+
+// ── Extract positioned text items from all pages ──────────────────────────────
+async function extractItems(file: File): Promise<TextItem[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const pages: string[] = [];
+  const allItems: TextItem[] = [];
+  let yOffset = 0;
+
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
+    const vp = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
-    // Preserve line breaks by grouping items with similar Y positions
-    const byY = new Map<number, string[]>();
     for (const item of content.items as any[]) {
-      const y = Math.round(item.transform[5]);
-      if (!byY.has(y)) byY.set(y, []);
-      byY.get(y)!.push(item.str);
+      if (!item.str?.trim()) continue;
+      allItems.push({
+        str: item.str,
+        x: Math.round(item.transform[4]),
+        // Flip Y: pdfjs Y=0 is bottom; we want Y=0 at top, increasing downward
+        y: Math.round(yOffset + (vp.height - item.transform[5])),
+        w: Math.round(item.width ?? 0),
+      });
     }
-    const lines = [...byY.entries()]
-      .sort((a, b) => b[0] - a[0])           // top-to-bottom
-      .map(([, words]) => words.join(' '));
-    pages.push(lines.join('\n'));
+    yOffset += vp.height + 20; // gap between pages
   }
-  return pages.join('\n');
+  return allItems;
 }
 
-// ── Strategy 1: Table structure from text (camelot-style) ────────────────────
-// Looks for a header row containing known column keywords,
-// then reads rows that follow it.
+// ── Group items into lines by Y proximity ─────────────────────────────────────
+function groupIntoLines(items: TextItem[], yTolerance = 4): TextItem[][] {
+  if (!items.length) return [];
+  const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+  const lines: TextItem[][] = [];
+  let currentLine: TextItem[] = [sorted[0]];
+  let lineY = sorted[0].y;
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (Math.abs(sorted[i].y - lineY) <= yTolerance) {
+      currentLine.push(sorted[i]);
+    } else {
+      lines.push(currentLine.sort((a, b) => a.x - b.x));
+      currentLine = [sorted[i]];
+      lineY = sorted[i].y;
+    }
+  }
+  lines.push(currentLine.sort((a, b) => a.x - b.x));
+  return lines;
+}
+
+// ── Reconstruct plain text (for regex strategies) ────────────────────────────
+function linesToPlainText(lines: TextItem[][]): string {
+  return lines
+    .map(line => line.map(it => it.str).join(' '))
+    .join('\n');
+}
+
+// ── Detect column X boundaries from a header line ─────────────────────────────
+// Each header cell gives us a column's approximate X range.
+interface ColBoundary { canon: string; xMin: number; xMax: number }
 
 const COL_PATTERNS: Record<string, RegExp> = {
   seq:  /^(s\.?no\.?|sr\.?no\.?|item\s*no\.?|line\s*no\.?|sl\.?no\.?|#|no\.)$/i,
-  mat:  /^(mat\.?\s*code|material\s*(code|no\.?|number)|item\s*code|part\s*no\.?|sap\s*code|pr\s*no\.?)$/i,
+  mat:  /^(mat\.?\s*code|material\s*(code|no\.?|number)|item\s*code|part\s*no\.?|sap\s*code|pr\s*no\.?|mat\.\s*code)$/i,
+  hsn:  /^(hsn\s*(code)?|hsn\/sac)$/i,
   desc: /^(description|material\s*desc(ription)?|item\s*desc(ription)?|particulars|goods\s*desc(ription)?|name\s*of\s*item)$/i,
+  make: /^(make|brand|manufacturer)$/i,
   qty:  /^(qty\.?|quantity|req(uired)?\s*qty|order\s*qty)$/i,
   uom:  /^(uom|unit|u\/m|base\s*unit|unit\s*of\s*measure)$/i,
   drwg: /^(dr(a?w(ing)?)?\.?\s*no\.?|dwg\.?\s*no\.?)$/i,
 };
+
+function detectXColumns(headerLine: TextItem[]): ColBoundary[] | null {
+  const cols: ColBoundary[] = [];
+  // Sometimes header spans 2 lines (MAT. / CODE on separate rows) — we work per-item
+  for (const item of headerLine) {
+    const text = item.str.trim();
+    for (const [canon, re] of Object.entries(COL_PATTERNS)) {
+      if (re.test(text) && !cols.find(c => c.canon === canon)) {
+        cols.push({ canon, xMin: item.x - 4, xMax: item.x + Math.max(item.w, 30) + 4 });
+        break;
+      }
+    }
+  }
+  return cols.length >= 3 ? cols : null;
+}
+
+// Assign a text item to the best matching column boundary by X overlap
+function assignToCol(item: TextItem, cols: ColBoundary[]): string | null {
+  const xMid = item.x + item.w / 2;
+  // First try mid-point containment
+  for (const col of cols) {
+    if (xMid >= col.xMin && xMid <= col.xMax) return col.canon;
+  }
+  // Fallback: nearest column
+  let best: ColBoundary | null = null;
+  let bestDist = Infinity;
+  for (const col of cols) {
+    const colMid = (col.xMin + col.xMax) / 2;
+    const dist = Math.abs(xMid - colMid);
+    if (dist < bestDist) { bestDist = dist; best = col; }
+  }
+  return bestDist < 60 ? best!.canon : null;
+}
+
+// ── X-position aware table parser ─────────────────────────────────────────────
+function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
+  // Find header line(s) — look in first 30 lines
+  let headerLineIdx = -1;
+  let cols: ColBoundary[] | null = null;
+
+  // Sometimes "MAT." and "CODE" are on separate Y lines — merge nearby lines for header detection
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    // Try merging this line + next line (for 2-row headers)
+    const combined = i + 1 < lines.length ? [...lines[i], ...lines[i + 1]] : lines[i];
+    cols = detectXColumns(combined);
+    if (cols && cols.find(c => c.canon === 'desc') && cols.find(c => c.canon === 'qty' || c.canon === 'uom')) {
+      headerLineIdx = i;
+      // If 2-row header detected, skip both rows
+      if (i + 1 < lines.length) {
+        const nextCols = detectXColumns(lines[i + 1]);
+        if (nextCols && nextCols.length > 0) headerLineIdx = i + 1;
+      }
+      break;
+    }
+  }
+
+  if (headerLineIdx < 0 || !cols) return null;
+
+  // Widen column boundaries: give desc column full width to next column
+  cols.sort((a, b) => a.xMin - b.xMin);
+  for (let i = 0; i < cols.length - 1; i++) {
+    cols[i].xMax = cols[i + 1].xMin - 1;
+  }
+  cols[cols.length - 1].xMax = 9999;
+
+  const items: LineItem[] = [];
+  let seq = 1;
+
+  // Group subsequent lines into logical rows: a new row starts when seq/mat column has a value
+  const seqCol = cols.find(c => c.canon === 'seq');
+  const dataLines = lines.slice(headerLineIdx + 1);
+
+  // Accumulate cells per logical row
+  type RowCells = Record<string, string[]>;
+  const rows: RowCells[] = [];
+  let currentRow: RowCells = {};
+
+  for (const line of dataLines) {
+    // Check if this line starts a new data row: has a value in seq column OR mat column
+    const seqItems = seqCol ? line.filter(it => {
+      const xMid = it.x + it.w / 2;
+      return xMid >= seqCol.xMin && xMid <= seqCol.xMax;
+    }) : [];
+    const hasSeq = seqItems.some(it => /^\d+$/.test(it.str.trim()));
+    const matCol = cols.find(c => c.canon === 'mat');
+    const matItems = matCol ? line.filter(it => {
+      const xMid = it.x + it.w / 2;
+      return xMid >= matCol.xMin && xMid <= matCol.xMax;
+    }) : [];
+    const hasMat = matItems.some(it => /^\d{4,}$/.test(it.str.trim()));
+
+    if ((hasSeq || hasMat) && Object.keys(currentRow).length > 0) {
+      rows.push(currentRow);
+      currentRow = {};
+    }
+
+    // Assign each item in this line to a column
+    for (const item of line) {
+      const canon = assignToCol(item, cols);
+      if (!canon) continue;
+      if (!currentRow[canon]) currentRow[canon] = [];
+      currentRow[canon].push(item.str.trim());
+    }
+  }
+  if (Object.keys(currentRow).length > 0) rows.push(currentRow);
+
+  for (const row of rows) {
+    const desc = (row.desc ?? []).join(' ').trim();
+    const qtyRaw = (row.qty ?? []).join(' ').trim();
+    const uomRaw = (row.uom ?? []).join(' ').trim();
+    const mat = (row.mat ?? []).join(' ').replace(/^0+/, '').trim();
+    const drwg = (row.drwg ?? []).join(' ').trim();
+    const seqRaw = (row.seq ?? []).join(' ').trim();
+
+    if (!desc) continue;
+    const qty = cleanNum(qtyRaw);
+    if (qty === null) continue;
+
+    const seqNum = cleanNum(seqRaw) ?? seq;
+    items.push({
+      seq: seqNum,
+      desc: cleanDesc(desc),
+      mat,
+      qty,
+      uom: normaliseUom(uomRaw || 'NOS'),
+      drwg: drwg.replace(/^[-–]$/, '').trim(),
+    });
+    seq = seqNum + 1;
+  }
+
+  return items.length > 0 ? items : null;
+}
+
+// ── Kept for regex strategies ─────────────────────────────────────────────────
+async function extractText(file: File): Promise<{ plain: string; lines: TextItem[][] }> {
+  const items = await extractItems(file);
+  const lines = groupIntoLines(items);
+  return { plain: linesToPlainText(lines), lines };
+}
+
+// ── Strategy 1b: Text-based table (fallback when X-column fails) ─────────────
+// Splits lines on 2+ spaces and matches header keywords using shared COL_PATTERNS.
 
 function detectHeaderRow(lines: string[]): { rowIdx: number; colMap: Record<string, number> } | null {
   for (let i = 0; i < Math.min(lines.length, 30); i++) {
@@ -242,32 +425,39 @@ function trySpaceAligned(text: string): LineItem[] | null {
 // ── Public API ────────────────────────────────────────────────────────────────
 export async function parseRfqPdf(file: File): Promise<ParseResult> {
   const warnings: string[] = [];
-  let text: string;
+  let plain: string;
+  let posLines: TextItem[][];
 
   try {
-    text = await extractText(file);
+    const extracted = await extractText(file);
+    plain = extracted.plain;
+    posLines = extracted.lines;
   } catch (err: any) {
     throw new Error('Could not read PDF: ' + (err?.message ?? 'unknown error'));
   }
 
-  if (!text.trim()) {
+  if (!plain.trim()) {
     throw new Error('PDF appears to be a scanned image — text extraction returned nothing. Browser-based parsing requires digitally-generated PDFs.');
   }
 
-  // Strategy waterfall
-  const strategies: [string, (t: string) => LineItem[] | null, number][] = [
-    ['table_structure',    tryTableStrategy,  0.88],
-    ['numbered_list',      tryNumberedList,   0.82],
-    ['sap_native',         trySapNative,      0.72],
-    ['space_aligned',      trySpaceAligned,   0.70],
+  // 1. X-position aware table parser (handles wrapped cells, multi-row headers)
+  const xItems = tryXColumnTable(posLines);
+  if (xItems && xItems.length > 0) {
+    return { items: xItems.map((it, i) => ({ ...it, seq: i + 1 })), method: 'x_column_table', confidence: 0.92, warnings };
+  }
+
+  // 2-5. Text / regex strategies on plain text
+  const textStrategies: [string, (t: string) => LineItem[] | null, number][] = [
+    ['table_structure', tryTableStrategy, 0.85],
+    ['numbered_list',   tryNumberedList,  0.82],
+    ['sap_native',      trySapNative,     0.72],
+    ['space_aligned',   trySpaceAligned,  0.70],
   ];
 
-  for (const [method, fn, baseConfidence] of strategies) {
-    const items = fn(text);
+  for (const [method, fn, baseConfidence] of textStrategies) {
+    const items = fn(plain);
     if (items && items.length > 0) {
-      // Re-sequence to ensure seq is 1-based and continuous
-      const resequenced = items.map((it, i) => ({ ...it, seq: i + 1 }));
-      return { items: resequenced, method, confidence: baseConfidence, warnings };
+      return { items: items.map((it, i) => ({ ...it, seq: i + 1 })), method, confidence: baseConfidence, warnings };
     }
   }
 
