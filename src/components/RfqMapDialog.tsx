@@ -260,13 +260,19 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
                     }}
                     className="w-12 text-center text-[11px] font-mono font-semibold border border-red-300 rounded-[3px] px-1 py-0.5 outline-none focus:border-red-400"
                   />
+                  <button
+                    type="button"
+                    title="Set to last row"
+                    onClick={() => setEndRow(rows.length - 1)}
+                    className="text-[9px] text-red-400 hover:text-red-600 font-semibold underline underline-offset-2 whitespace-nowrap"
+                  >last</button>
                 </div>
                 <span className="text-[10px] text-g400">of {rows.length}</span>
               </div>
             </div>
-            <div className="overflow-x-auto border border-g200 rounded-[3px]">
+            <div className="overflow-auto max-h-64 border border-g200 rounded-[3px]">
               <table className="w-full text-left">
-                <thead className="bg-g50 border-b border-g200">
+                <thead className="bg-g50 border-b border-g200 sticky top-0 z-10">
                   <tr>
                     <th className="px-2 py-2 text-[9px] font-bold text-g300 w-7">#</th>
                     {headers.map((h, ci) => (
@@ -284,7 +290,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-g100">
-                  {rows.slice(0, 20).map((row, ri) => {
+                  {rows.map((row, ri) => {
                     const isStart = ri === startRow;
                     const isEnd   = ri === endRow;
                     const isAbove = ri < startRow;
