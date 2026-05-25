@@ -133,31 +133,67 @@ const COL_PATTERNS: Record<string, RegExp> = {
 };
 
 
+// Merge adjacent TextItems that belong to the same table cell.
+// Items are "adjacent" when the gap between them is smaller than a typical column gap.
+// Returns synthetic TextItems where .str is the merged cell text and x/w span the cell.
+function mergeHeaderCells(items: TextItem[]): TextItem[] {
+  if (!items.length) return [];
+  // Sort by X
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+
+  // Compute gaps between consecutive items to pick a threshold.
+  // A "within-cell" gap is small (e.g., space between "Name" and "of" in "Name of Items").
+  // A "between-cell" gap is large. We pick the median gap as the split threshold.
+  const gaps: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    gaps.push(sorted[i].x - (sorted[i - 1].x + sorted[i - 1].w));
+  }
+  gaps.sort((a, b) => a - b);
+  // Use 1.8× the smallest gap as the within-cell threshold, minimum 8px
+  const minGap = gaps[0] ?? 0;
+  const threshold = Math.max(minGap * 1.8, 8);
+
+  const cells: TextItem[] = [];
+  let current = { ...sorted[0] };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].x - (current.x + current.w);
+    if (gap <= threshold) {
+      // Same cell — merge
+      current.str = current.str + ' ' + sorted[i].str;
+      current.w = (sorted[i].x + sorted[i].w) - current.x;
+    } else {
+      cells.push(current);
+      current = { ...sorted[i] };
+    }
+  }
+  cells.push(current);
+  return cells;
+}
+
 function detectXColumns(headerItems: TextItem[]): ColBoundary[] | null {
+  // Merge adjacent words into whole-cell strings before pattern matching
+  const cells = mergeHeaderCells(headerItems);
   const cols: ColBoundary[] = [];
 
-  for (const item of headerItems) {
-    const text = item.str.trim();
+  for (const cell of cells) {
+    const text = cell.str.trim();
     for (const [canon, re] of Object.entries(COL_PATTERNS)) {
       if (re.test(text) && !cols.find(c => c.canon === canon)) {
-        cols.push({ canon, xMin: item.x - 4, xMax: item.x + Math.max(item.w, 30) + 4 });
+        cols.push({ canon, xMin: cell.x - 4, xMax: cell.x + Math.max(cell.w, 30) + 4 });
         break;
       }
     }
   }
 
-  // ── Fallback: infer desc as the unmatched column with most words / widest span ──
-  // Per user rule: among columns not yet identified, the one that is NOT seq/hsn/mat/price/uom/qty
-  // and has the widest X span (or most text) is likely description.
+  // ── Fallback: infer desc as the unmatched cell with most words / widest span ──
   if (!cols.find(c => c.canon === 'desc') && cols.length >= 2) {
-    // Find all header items not matched to any column
     const matchedXRanges = cols.map(c => ({ xMin: c.xMin, xMax: c.xMax }));
-    const unmatched = headerItems.filter(it => {
-      const xMid = it.x + (it.w ?? 0) / 2;
+    const unmatched = cells.filter(cell => {
+      const xMid = cell.x + (cell.w ?? 0) / 2;
       return !matchedXRanges.some(r => xMid >= r.xMin && xMid <= r.xMax);
     });
     if (unmatched.length > 0) {
-      // Pick the unmatched item with the most words (widest text = description)
       const best = unmatched.reduce((a, b) =>
         (b.str.split(/\s+/).length > a.str.split(/\s+/).length ? b : a)
       );

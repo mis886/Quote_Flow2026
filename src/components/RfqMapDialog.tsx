@@ -66,24 +66,28 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
   const hasQty  = isSingleCol || Object.values(mapping).includes('qty');
   const canApply = hasDesc && hasQty;
 
+  // Returns all column indices (sorted ascending) assigned to a given key
+  const colsOf = (key: FieldKey): number[] =>
+    Object.entries(mapping)
+      .filter(([, v]) => v === key)
+      .map(([k]) => +k)
+      .sort((a, b) => a - b);
+
   // Preview first 5 rows mapped to LineItems
   const preview = useMemo<LineItem[]>(() => {
-    const colOf = (key: FieldKey) =>
-      Object.entries(mapping).find(([, v]) => v === key)?.[0];
-    const descCol = colOf('desc');
-    const qtyCol  = colOf('qty');
-    const uomCol  = colOf('uom');
-    const matCol  = colOf('mat');
-    const seqCol  = colOf('seq');
-    const drwgCol = colOf('drwg');
+    const descCols = colsOf('desc');
+    const qtyCols  = colsOf('qty');
+    const uomCols  = colsOf('uom');
+    const matCols  = colsOf('mat');
+    const seqCols  = colsOf('seq');
+    const drwgCols = colsOf('drwg');
 
     return rows.slice(0, 5).flatMap((row, ri) => {
-      let desc = descCol !== undefined ? (row[+descCol] ?? '').trim() : '';
+      let desc = descCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
       let uom = 'NOS';
 
       if (isSingleCol) {
-        // Try to extract qty+uom from end of the line
         const line = row[0] ?? '';
         const m = line.match(/(\d+(?:\.\d+)?)\s*(nos?|pcs?|ea|each|kg|mtr?s?|m|no|sets?)\s*$/i);
         if (m) {
@@ -91,40 +95,38 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
           uom = normaliseUom(m[2]);
           desc = line.slice(0, line.lastIndexOf(m[0])).trim();
         } else {
-          // No qty found — skip
           return [];
         }
       } else {
-        qty = qtyCol !== undefined ? cleanNum(row[+qtyCol] ?? '') : null;
-        uom = uomCol !== undefined ? normaliseUom(row[+uomCol] ?? '') : 'NOS';
+        const qtyRaw = qtyCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+        const uomRaw = uomCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+        qty = cleanNum(qtyRaw);
+        uom = uomRaw ? normaliseUom(uomRaw) : 'NOS';
       }
 
       if (!desc || qty === null) return [];
 
+      const seqRaw  = seqCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+      const matRaw  = matCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+      const drwgRaw = drwgCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+
       return [{
-        seq:  seqCol !== undefined ? (cleanNum(row[+seqCol] ?? '') ?? ri + 1) : ri + 1,
+        seq:  cleanNum(seqRaw) ?? ri + 1,
         desc: desc.replace(/\s+/g, ' '),
-        mat:  matCol !== undefined ? (row[+matCol] ?? '').replace(/^0+/, '').trim() : '',
+        mat:  matRaw.replace(/^0+/, '').trim(),
         qty,
         uom,
-        drwg: drwgCol !== undefined ? (row[+drwgCol] ?? '').replace(/^[-–]$/, '').trim() : '',
+        drwg: drwgRaw.replace(/^[-–]$/, '').trim(),
       }] as LineItem[];
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapping, rows, isSingleCol]);
 
   const handleApply = () => {
-    const colOf = (key: FieldKey) =>
-      Object.entries(mapping).find(([, v]) => v === key)?.[0];
-    const descCol = colOf('desc');
-    const qtyCol  = colOf('qty');
-    const uomCol  = colOf('uom');
-    const matCol  = colOf('mat');
-    const seqCol  = colOf('seq');
-    const drwgCol = colOf('drwg');
-
     const items: LineItem[] = [];
-    rows.forEach((row, ri) => {
-      let desc = descCol !== undefined ? (row[+descCol] ?? '').trim() : '';
+    rows.forEach((_row, ri) => {
+      const row = _row;
+      let desc = colsOf('desc').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
       let uom = 'NOS';
 
@@ -137,18 +139,25 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
           desc = line.slice(0, line.lastIndexOf(m[0])).trim();
         }
       } else {
-        qty = qtyCol !== undefined ? cleanNum(row[+qtyCol] ?? '') : null;
-        uom = uomCol !== undefined ? normaliseUom(row[+uomCol] ?? '') : 'NOS';
+        const qtyRaw  = colsOf('qty').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+        const uomRaw  = colsOf('uom').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+        qty = cleanNum(qtyRaw);
+        uom = uomRaw ? normaliseUom(uomRaw) : 'NOS';
       }
 
       if (!desc || qty === null) return;
+
+      const seqRaw  = colsOf('seq').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+      const matRaw  = colsOf('mat').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+      const drwgRaw = colsOf('drwg').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
+
       items.push({
-        seq:  seqCol !== undefined ? (cleanNum(row[+seqCol] ?? '') ?? items.length + 1) : items.length + 1,
+        seq:  cleanNum(seqRaw) ?? items.length + 1,
         desc: desc.replace(/\s+/g, ' '),
-        mat:  matCol !== undefined ? (row[+matCol] ?? '').replace(/^0+/, '').trim() : '',
+        mat:  matRaw.replace(/^0+/, '').trim(),
         qty,
         uom,
-        drwg: drwgCol !== undefined ? (row[+drwgCol] ?? '').replace(/^[-–]$/, '').trim() : '',
+        drwg: drwgRaw.replace(/^[-–]$/, '').trim(),
       });
     });
 
