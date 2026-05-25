@@ -53,11 +53,14 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
   // col index → field assignment
   const [mapping, setMapping] = useState<Record<number, FieldKey>>(() => {
     const m: Record<number, FieldKey> = {};
-    // Single-column (free-text lines) — pre-assign whole line as desc
     if (headers.length === 1) { m[0] = 'desc'; return m; }
     headers.forEach((h, i) => { m[i] = guessField(h); });
     return m;
   });
+
+  // 0-based inclusive range — user can pick where data starts and ends
+  const [startRow, setStartRow] = useState(0);
+  const [endRow, setEndRow] = useState(rows.length - 1);
 
   const isSingleCol = headers.length === 1;
 
@@ -81,7 +84,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
     const seqCols  = colsOf('seq');
     const drwgCols = colsOf('drwg');
 
-    return rows.slice(0, 5).flatMap((row, ri) => {
+    return rows.slice(startRow, Math.min(endRow + 1, startRow + 5)).flatMap((row, ri) => {
       let desc = descCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
       let uom = 'NOS';
@@ -119,11 +122,11 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
       }] as LineItem[];
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapping, rows, isSingleCol]);
+  }, [mapping, rows, isSingleCol, startRow, endRow]);
 
   const handleApply = () => {
     const items: LineItem[] = [];
-    rows.forEach((_row, ri) => {
+    rows.slice(startRow, endRow + 1).forEach((_row) => {
       const row = _row;
       let desc = colsOf('desc').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
@@ -221,11 +224,51 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
 
           {/* Raw data preview */}
           <div>
-            <div className="text-[10px] font-bold text-g500 uppercase tracking-wider mb-2">Raw Data (first 10 rows)</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-bold text-g500 uppercase tracking-wider">
+                Raw Data — click to set start <span className="text-g300 font-normal normal-case">/</span> shift-click to set end
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-blue-600 font-semibold">→ Start</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={endRow + 1}
+                    title="Start from row"
+                    aria-label="Start from row"
+                    value={startRow + 1}
+                    onChange={e => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) setStartRow(Math.max(0, Math.min(endRow, v - 1)));
+                    }}
+                    className="w-12 text-center text-[11px] font-mono font-semibold border border-blue-300 rounded-[3px] px-1 py-0.5 outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-red-500 font-semibold">End ←</span>
+                  <input
+                    type="number"
+                    min={startRow + 1}
+                    max={rows.length}
+                    title="End at row"
+                    aria-label="End at row"
+                    value={endRow + 1}
+                    onChange={e => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) setEndRow(Math.max(startRow, Math.min(rows.length - 1, v - 1)));
+                    }}
+                    className="w-12 text-center text-[11px] font-mono font-semibold border border-red-300 rounded-[3px] px-1 py-0.5 outline-none focus:border-red-400"
+                  />
+                </div>
+                <span className="text-[10px] text-g400">of {rows.length}</span>
+              </div>
+            </div>
             <div className="overflow-x-auto border border-g200 rounded-[3px]">
               <table className="w-full text-left">
                 <thead className="bg-g50 border-b border-g200">
                   <tr>
+                    <th className="px-2 py-2 text-[9px] font-bold text-g300 w-7">#</th>
                     {headers.map((h, ci) => (
                       <th key={ci} className="px-3 py-2 text-[9px] font-bold uppercase text-g400 tracking-wider whitespace-nowrap">
                         <div>{h || `Col ${ci + 1}`}</div>
@@ -241,13 +284,52 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-g100">
-                  {rows.slice(0, 10).map((row, ri) => (
-                    <tr key={ri} className="hover:bg-g50">
-                      {row.map((cell, ci) => (
-                        <td key={ci} className="px-3 py-2 text-[11px] text-blk max-w-[200px] truncate" title={cell}>{cell}</td>
-                      ))}
-                    </tr>
-                  ))}
+                  {rows.slice(0, 20).map((row, ri) => {
+                    const isStart = ri === startRow;
+                    const isEnd   = ri === endRow;
+                    const isAbove = ri < startRow;
+                    const isBelow = ri > endRow;
+                    const inRange = !isAbove && !isBelow;
+                    return (
+                      <tr
+                        key={ri}
+                        onClick={e => {
+                          if (e.shiftKey) {
+                            // shift-click sets end row
+                            setEndRow(Math.max(startRow, ri));
+                          } else {
+                            // regular click sets start row, clamp end if needed
+                            setStartRow(ri);
+                            setEndRow(prev => Math.max(ri, prev));
+                          }
+                        }}
+                        title={`Click: start from row ${ri + 1} · Shift-click: end at row ${ri + 1}`}
+                        className={`cursor-pointer transition-colors ${
+                          isStart ? 'bg-blue-50' :
+                          isEnd   ? 'bg-red-50'  :
+                          isAbove || isBelow ? 'opacity-30 hover:opacity-55 hover:bg-g50' :
+                          'hover:bg-g50'
+                        }`}
+                      >
+                        <td className="px-2 py-2 text-[9px] font-mono w-7 select-none">
+                          {isStart ? <span className="text-blue-500 font-bold">→</span>
+                          : isEnd  ? <span className="text-red-400 font-bold">←</span>
+                          : <span className={inRange ? 'text-g400' : 'text-g200'}>{ri + 1}</span>}
+                        </td>
+                        {row.map((cell, ci) => (
+                          <td
+                            key={ci}
+                            title={cell}
+                            className={`px-3 py-2 text-[11px] max-w-[200px] truncate ${
+                              isStart ? 'text-blue-800 font-medium' :
+                              isEnd   ? 'text-red-700 font-medium'  :
+                              inRange ? 'text-blk' : 'text-g300'
+                            }`}
+                          >{cell}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -283,7 +365,9 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-g200 flex items-center justify-between shrink-0 bg-g50">
-          <span className="text-[10px] text-g400">{rows.length} rows in document</span>
+          <span className="text-[10px] text-g400">
+            Rows <span className="font-semibold text-blue-600">{startRow + 1}</span>–<span className="font-semibold text-red-500">{endRow + 1}</span> selected &nbsp;·&nbsp; {rows.length} total
+          </span>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-white border border-g300 text-[11px] text-g600 font-semibold rounded-[3px] hover:bg-g100 transition-colors">
               Cancel
@@ -294,7 +378,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
               disabled={!canApply}
               className="px-4 py-2 bg-blk text-white text-[11px] font-bold rounded-[3px] hover:bg-g700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
             >
-              <Check size={12} strokeWidth={3} /> Apply {preview.length > 0 ? `(${rows.filter(r => r.some(c => c.trim())).length} items)` : ''}
+              <Check size={12} strokeWidth={3} /> Apply {preview.length > 0 ? `(${rows.slice(startRow, endRow + 1).filter(r => r.some(c => c.trim())).length} rows)` : ''}
             </button>
           </div>
         </div>
