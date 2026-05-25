@@ -301,24 +301,51 @@ async function extractText(file: File): Promise<{ plain: string; lines: TextItem
   return { plain: linesToPlainText(lines), lines };
 }
 
-// ── Strategy 1b: Text-based table (fallback when X-column fails) ─────────────
-// Splits lines on 2+ spaces and matches header keywords using shared COL_PATTERNS.
+// ── Strategy 1b: Text-based table (fallback when X-column table fails) ────────
+// Works on plain text. Tries single-space AND multi-space splitting.
+// Merges up to 3 header lines. Applies "most words = desc" fallback.
+
+function splitCells(line: string): string[] {
+  // Try multi-space split first (preserves more columns)
+  const multi = line.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
+  if (multi.length >= 3) return multi;
+  // Fall back to single-space split
+  return line.split(/\s+/).map(c => c.trim()).filter(Boolean);
+}
 
 function detectHeaderRow(lines: string[]): { rowIdx: number; colMap: Record<string, number> } | null {
   for (let i = 0; i < Math.min(lines.length, 30); i++) {
-    const cells = lines[i].split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
-    if (cells.length < 3) continue;
-    const colMap: Record<string, number> = {};
-    for (let ci = 0; ci < cells.length; ci++) {
-      for (const [canon, re] of Object.entries(COL_PATTERNS)) {
-        if (re.test(cells[ci]) && !(canon in colMap)) {
-          colMap[canon] = ci;
-          break;
+    // Merge up to 3 lines for multi-row headers
+    for (let merge = 1; merge <= 3 && i + merge <= lines.length; merge++) {
+      const merged = lines.slice(i, i + merge).join(' ');
+      const cells = splitCells(merged);
+      if (cells.length < 2) continue;
+
+      const colMap: Record<string, number> = {};
+      for (let ci = 0; ci < cells.length; ci++) {
+        for (const [canon, re] of Object.entries(COL_PATTERNS)) {
+          if (re.test(cells[ci]) && !(canon in colMap)) {
+            colMap[canon] = ci;
+            break;
+          }
         }
       }
-    }
-    if ('desc' in colMap && ('qty' in colMap || 'uom' in colMap)) {
-      return { rowIdx: i, colMap };
+
+      // Desc fallback: unmatched col with most words that isn't seq/hsn/qty/uom/price
+      if (!('desc' in colMap)) {
+        const skipCols = new Set(Object.values(colMap));
+        let bestIdx = -1, bestWords = 0;
+        for (let ci = 0; ci < cells.length; ci++) {
+          if (skipCols.has(ci)) continue;
+          const words = cells[ci].split(/\s+/).length;
+          if (words > bestWords) { bestWords = words; bestIdx = ci; }
+        }
+        if (bestIdx >= 0) colMap['desc'] = bestIdx;
+      }
+
+      if ('desc' in colMap && ('qty' in colMap || 'uom' in colMap)) {
+        return { rowIdx: i + merge - 1, colMap };
+      }
     }
   }
   return null;
@@ -331,24 +358,22 @@ function parseTableRows(
 ): LineItem[] {
   const items: LineItem[] = [];
   let seq = 1;
+  const maxIdx = Math.max(...Object.values(colMap));
 
   for (let i = startIdx; i < lines.length; i++) {
     if (STOP_RE.test(lines[i])) break;
-    const cells = lines[i].split(/\s{2,}|\t/).map(c => c.trim());
-    // Pad cells to at least max col index
-    const maxIdx = Math.max(...Object.values(colMap));
+    const cells = splitCells(lines[i]);
     while (cells.length <= maxIdx) cells.push('');
 
-    const desc = colMap.desc !== undefined ? cells[colMap.desc] ?? '' : '';
-    const qtyRaw = colMap.qty !== undefined ? cells[colMap.qty] ?? '' : '';
-    const uomRaw = colMap.uom !== undefined ? cells[colMap.uom] ?? '' : '';
-    const mat = colMap.mat !== undefined ? cells[colMap.mat] ?? '' : '';
-    const drwg = colMap.drwg !== undefined ? cells[colMap.drwg] ?? '' : '';
-    const seqRaw = colMap.seq !== undefined ? cells[colMap.seq] ?? '' : '';
+    const desc    = cells[colMap.desc]  ?? '';
+    const qtyRaw  = colMap.qty  !== undefined ? cells[colMap.qty]  ?? '' : '';
+    const uomRaw  = colMap.uom  !== undefined ? cells[colMap.uom]  ?? '' : '';
+    const mat     = colMap.mat  !== undefined ? cells[colMap.mat]  ?? '' : '';
+    const drwg    = colMap.drwg !== undefined ? cells[colMap.drwg] ?? '' : '';
+    const seqRaw  = colMap.seq  !== undefined ? cells[colMap.seq]  ?? '' : '';
+    const qty     = cleanNum(qtyRaw);
 
-    const qty = cleanNum(qtyRaw);
-
-    // Row continuation: has desc but no qty → append to previous item
+    // Continuation line: desc text but no qty — append to previous item desc
     if (desc && qty === null && items.length > 0) {
       items[items.length - 1].desc = cleanDesc(items[items.length - 1].desc + ' ' + desc);
       continue;
@@ -363,7 +388,7 @@ function parseTableRows(
       mat: mat.replace(/^0+/, '').trim(),
       qty,
       uom: normaliseUom(uomRaw || 'NOS'),
-      drwg: drwg.trim(),
+      drwg: drwg.replace(/^[-–]$/, '').trim(),
     });
     seq = seqNum + 1;
   }
@@ -379,11 +404,13 @@ function tryTableStrategy(text: string): LineItem[] | null {
 }
 
 // ── Strategy 2: Numbered list ─────────────────────────────────────────────────
-// Matches:  1. RUBBER O RING SIZE 28.5MM ID X 3.53 MM THICK   QTY : 30 NOS
-//           2.. ITEM DESC   30 EA
-//           1) ITEM   30 NOS
+// Pattern A: "1. ITEM DESC   30 NOS"  (2+ spaces before qty)
 const NUMBERED_RE = /^(\d{1,3})[.)]\s{1,3}(.+?)\s{2,}(?:QTY\s*[:\-]?\s*)?(\d+(?:\.\d+)?)\s+([A-Z]{1,6})\s*$/im;
+// Pattern B: "1. ITEM DESC  QTY: 30 NOS"  (inline QTY keyword)
 const NUMBERED_INLINE_QTY = /^(\d{1,3})[.)]\s{1,3}(.+?)\s+QTY\s*[:\-]?\s*(\d+(?:\.\d+)?)\s+([A-Z]{1,6})/im;
+// Pattern C: "1. ITEM DESC 4No"  (qty+uom glued at end, no separator)
+// Handles: 4No, 50Mtr, 5NOS, 100Pcs, 20EA — number immediately followed by letters
+const NUMBERED_GLUED_RE = /^(\d{1,3})[.)]\s*(.+?)\s+(\d+(?:\.\d+)?)(nos?|pcs?|ea|each|kg|kgs?|mtr?s?|m|ltr?s?|no|sets?|shts?|rmt?)\s*$/im;
 
 function tryNumberedList(text: string): LineItem[] | null {
   const lines = text.split('\n');
@@ -391,18 +418,37 @@ function tryNumberedList(text: string): LineItem[] | null {
 
   for (const line of lines) {
     if (STOP_RE.test(line)) break;
-    let m = NUMBERED_RE.exec(line) || NUMBERED_INLINE_QTY.exec(line);
-    if (!m) continue;
-    const qty = cleanNum(m[3]);
-    if (qty === null) continue;
-    items.push({
-      seq: parseInt(m[1]),
-      desc: cleanDesc(m[2]),
-      mat: '',
-      qty,
-      uom: normaliseUom(m[4]),
-      drwg: '',
-    });
+
+    // Try patterns A and B first (explicit separator), then C (glued)
+    const m = NUMBERED_RE.exec(line) || NUMBERED_INLINE_QTY.exec(line);
+    if (m) {
+      const qty = cleanNum(m[3]);
+      if (qty === null) continue;
+      items.push({
+        seq: parseInt(m[1]),
+        desc: cleanDesc(m[2]),
+        mat: '',
+        qty,
+        uom: normaliseUom(m[4]),
+        drwg: '',
+      });
+      continue;
+    }
+
+    // Pattern C: qty+uom glued to end of description
+    const mg = NUMBERED_GLUED_RE.exec(line);
+    if (mg) {
+      const qty = cleanNum(mg[3]);
+      if (qty === null) continue;
+      items.push({
+        seq: parseInt(mg[1]),
+        desc: cleanDesc(mg[2]),
+        mat: '',
+        qty,
+        uom: normaliseUom(mg[4]),
+        drwg: '',
+      });
+    }
   }
   return items.length > 0 ? items : null;
 }
