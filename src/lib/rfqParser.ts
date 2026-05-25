@@ -43,6 +43,9 @@ function cleanDesc(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+// Lines that signal end of item table — stop parsing when matched
+const STOP_RE = /^\s*(terms\s*(and|&)\s*conditions?|general\s*terms|special\s*terms|notes?\s*:|note\s*:|remarks?\s*:|payment\s*terms?|delivery\s*terms?|warranty|guarantee|validity|commercial\s*terms?|kindly\s*(send|quote|submit)|please\s*(send|quote|submit|note|confirm|mention)|thanking\s*you|yours?\s*(faithfully|truly|sincerely)|regards|with\s*regards|for\s*and\s*on\s*behalf|authoris[e|z]d\s*signatory|signature|total\s*amount|grand\s*total|sub[\s-]?total|gst\s*amount|tax\s*amount|amount\s*in\s*words|rupees|end\s*of\s*(order|enquiry|rfq)|page\s*\d+\s*of\s*\d+)\b/i;
+
 // ── Text item with position ───────────────────────────────────────────────────
 interface TextItem {
   str: string;
@@ -199,6 +202,8 @@ function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
   let currentRow: RowCells = {};
 
   for (const line of dataLines) {
+    const lineText = line.map(it => it.str).join(' ');
+    if (STOP_RE.test(lineText)) break;
     // Check if this line starts a new data row: has a value in seq column OR mat column
     const seqItems = seqCol ? line.filter(it => {
       const xMid = it.x + it.w / 2;
@@ -293,6 +298,7 @@ function parseTableRows(
   let seq = 1;
 
   for (let i = startIdx; i < lines.length; i++) {
+    if (STOP_RE.test(lines[i])) break;
     const cells = lines[i].split(/\s{2,}|\t/).map(c => c.trim());
     // Pad cells to at least max col index
     const maxIdx = Math.max(...Object.values(colMap));
@@ -349,6 +355,7 @@ function tryNumberedList(text: string): LineItem[] | null {
   const items: LineItem[] = [];
 
   for (const line of lines) {
+    if (STOP_RE.test(line)) break;
     let m = NUMBERED_RE.exec(line) || NUMBERED_INLINE_QTY.exec(line);
     if (!m) continue;
     const qty = cleanNum(m[3]);
@@ -375,6 +382,7 @@ function trySapNative(text: string): LineItem[] | null {
   const seen = new Set<number>();
 
   for (const line of lines) {
+    if (STOP_RE.test(line)) break;
     const m = SAP_LINE_RE.exec(line);
     if (!m) continue;
     const seq = parseInt(m[1]);
@@ -405,6 +413,7 @@ function trySpaceAligned(text: string): LineItem[] | null {
   const items: LineItem[] = [];
 
   for (const line of lines) {
+    if (STOP_RE.test(line)) break;
     const m = SPACE_ALIGNED_RE.exec(line);
     if (!m) continue;
     const qty = cleanNum(m[2]);
