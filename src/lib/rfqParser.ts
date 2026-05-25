@@ -563,22 +563,127 @@ function trySpaceAligned(text: string): LineItem[] | null {
   return items.length > 0 ? items : null;
 }
 
+// ── Build column X-zones from all text items in the document ──────────────────
+// Scan the first ~40 lines to find stable X positions that repeat — these are columns.
+// Returns sorted column left-edge X values.
+function detectColumnZones(lines: TextItem[][]): number[] {
+  // Collect all X start positions from the first 40 lines
+  const xCounts = new Map<number, number>();
+  for (const line of lines.slice(0, 40)) {
+    for (const it of line) {
+      // Round to nearest 4px to group near-identical positions
+      const rx = Math.round(it.x / 4) * 4;
+      xCounts.set(rx, (xCounts.get(rx) ?? 0) + 1);
+    }
+  }
+  // Keep X positions that appear in at least 2 different lines (= real column anchor)
+  const stable = [...xCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([x]) => x)
+    .sort((a, b) => a - b);
+
+  if (stable.length < 2) return stable;
+
+  // Merge X positions that are within 12px of each other into a single zone
+  const zones: number[] = [stable[0]];
+  for (let i = 1; i < stable.length; i++) {
+    if (stable[i] - zones[zones.length - 1] > 12) {
+      zones.push(stable[i]);
+    }
+  }
+  return zones;
+}
+
+// Assign each text item to the nearest column zone, collect cells per zone per line
+function buildColumnarRows(
+  lines: TextItem[][],
+  zones: number[],
+): string[][] {
+  return lines.map(line => {
+    const cells: string[] = new Array(zones.length).fill('');
+    for (const it of line) {
+      // Find nearest zone
+      let best = 0, bestDist = Infinity;
+      for (let zi = 0; zi < zones.length; zi++) {
+        const dist = Math.abs(it.x - zones[zi]);
+        if (dist < bestDist) { bestDist = dist; best = zi; }
+      }
+      // Only assign if reasonably close (within half the gap to next zone)
+      const maxDist = zones.length > 1
+        ? Math.min(...zones.slice(1).map((z, i) => (z - zones[i]) / 2))
+        : 60;
+      if (bestDist <= maxDist + 10) {
+        cells[best] = cells[best] ? cells[best] + ' ' + it.str : it.str;
+      }
+    }
+    return cells;
+  });
+}
+
 // ── Extract raw table rows for manual mapping dialog ─────────────────────────
-function extractRawTable(plain: string): { headers: string[]; rows: string[][] } {
-  // Try to find a header row and extract column-split rows from plain text
+// Uses X-position clustering on posLines to produce real columnar data.
+// Falls back to plain-text splitting if no position data.
+function extractRawTable(posLines: TextItem[][], plain: string): { headers: string[]; rows: string[][] } {
+  // Try position-aware columnar extraction first
+  if (posLines.length > 0) {
+    const zones = detectColumnZones(posLines);
+    if (zones.length >= 2) {
+      // Find the first line that looks like a header (has recognisable column keywords)
+      const allRows = buildColumnarRows(posLines, zones);
+
+      // Find header row index: a row where at least 2 cells match known column patterns
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(allRows.length, 30); i++) {
+        const matchCount = allRows[i].filter(cell =>
+          Object.values(COL_PATTERNS).some(re => re.test(cell.trim()))
+        ).length;
+        // Also accept a row with short cells that look like header labels (all caps, short)
+        const shortUpperCount = allRows[i].filter(c => c.trim().length > 0 && c.trim().length < 30 && /^[A-Z0-9 ./#&-]+$/.test(c.trim())).length;
+        if (matchCount >= 2 || (matchCount >= 1 && shortUpperCount >= 3)) {
+          headerIdx = i;
+          break;
+        }
+      }
+
+      if (headerIdx >= 0) {
+        const headers = allRows[headerIdx].map(h => h.trim());
+        const dataRows = allRows
+          .slice(headerIdx + 1)
+          .filter(row => {
+            const joined = row.join(' ');
+            return !STOP_RE.test(joined) && !SKIP_LINE_RE.test(joined) && row.some(c => c.trim());
+          })
+          .slice(0, 60);
+        return { headers, rows: dataRows };
+      }
+
+      // No header found but we have zones — return all rows so user can inspect
+      const dataRows = allRows
+        .filter(row => row.some(c => c.trim()))
+        .slice(0, 60);
+      if (dataRows.length > 0) {
+        return { headers: zones.map((_, i) => `Col ${i + 1}`), rows: dataRows };
+      }
+    }
+  }
+
+  // Fallback: plain-text splitting
   const textLines = plain.split('\n').filter(l => l.trim());
   const header = detectHeaderRow(textLines);
   if (header) {
     const headers = splitCells(textLines[header.rowIdx]);
     const rows = textLines
       .slice(header.rowIdx + 1)
-      .filter(l => !STOP_RE.test(l))
-      .slice(0, 50)
+      .filter(l => !STOP_RE.test(l) && !SKIP_LINE_RE.test(l))
+      .slice(0, 60)
       .map(l => splitCells(l));
     return { headers, rows };
   }
-  // No header — return raw lines as single-column rows (for numbered/free-text formats)
-  const rows = textLines.filter(l => !STOP_RE.test(l)).slice(0, 50).map(l => [l.trim()]);
+  // Free-text / numbered list — single column
+  const rows = textLines
+    .filter(l => !STOP_RE.test(l) && !SKIP_LINE_RE.test(l))
+    .slice(0, 60)
+    .map(l => [l.trim()]);
   return { headers: ['Line'], rows };
 }
 
@@ -600,7 +705,7 @@ export async function parseRfqPdf(file: File): Promise<ParseResult> {
     throw new Error('PDF appears to be a scanned image — text extraction returned nothing. Browser-based parsing requires digitally-generated PDFs.');
   }
 
-  const { headers: rawHeaders, rows: rawRows } = extractRawTable(plain);
+  const { headers: rawHeaders, rows: rawRows } = extractRawTable(posLines, plain);
 
   // 1. X-position aware table parser (handles wrapped cells, multi-row headers)
   const xItems = tryXColumnTable(posLines);
