@@ -327,7 +327,14 @@ function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
 
     if (!desc) continue;
     const qty = cleanNum(qtyRaw);
-    if (qty === null) continue;
+
+    // No qty → continuation of previous item's description
+    if (qty === null) {
+      if (items.length > 0) {
+        items[items.length - 1].desc = cleanDesc(items[items.length - 1].desc + ' ' + desc);
+      }
+      continue;
+    }
 
     const seqNum = cleanNum(seqRaw) ?? seq;
     items.push({

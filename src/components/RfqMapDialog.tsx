@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { X, Check } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { X, Check, ArrowUp } from 'lucide-react';
 import type { LineItem } from '../lib/types';
 
 type FieldKey = 'seq' | 'desc' | 'mat' | 'qty' | 'uom' | 'drwg' | 'ignore';
@@ -62,6 +62,26 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
   const [startRow, setStartRow] = useState(0);
   const [endRow, setEndRow] = useState(rows.length - 1);
 
+  // Editable local copy of rows — user can merge continuation rows into the row above
+  const [localRows, setLocalRows] = useState<string[][]>(() => rows.map(r => [...r]));
+
+  // Merge row at index ri into the row above — concatenates desc-column cells, removes ri
+  const mergeUp = useCallback((ri: number) => {
+    setLocalRows(prev => {
+      if (ri <= 0) return prev;
+      const next = prev.map(r => [...r]);
+      // Append every non-empty cell from ri into the same column of ri-1
+      next[ri - 1] = next[ri - 1].map((cell, ci) => {
+        const below = (next[ri][ci] ?? '').trim();
+        return below ? (cell.trim() ? cell.trim() + ' ' + below : below) : cell;
+      });
+      next.splice(ri, 1);
+      return next;
+    });
+    // Keep endRow in bounds after splice
+    setEndRow(prev => Math.min(prev, rows.length - 2));
+  }, [rows.length]);
+
   const isSingleCol = headers.length === 1;
 
   // Validate: only desc is required; qty is optional (defaults to 0 if not mapped)
@@ -84,7 +104,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
     const seqCols  = colsOf('seq');
     const drwgCols = colsOf('drwg');
 
-    return rows.slice(startRow, Math.min(endRow + 1, startRow + 5)).flatMap((row, ri) => {
+    return localRows.slice(startRow, Math.min(endRow + 1, startRow + 5)).flatMap((row, ri) => {
       let desc = descCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
       let uom = 'NOS';
@@ -122,11 +142,11 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
       }] as LineItem[];
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapping, rows, isSingleCol, startRow, endRow]);
+  }, [mapping, localRows, isSingleCol, startRow, endRow]);
 
   const handleApply = () => {
     const items: LineItem[] = [];
-    rows.slice(startRow, endRow + 1).forEach((_row) => {
+    localRows.slice(startRow, endRow + 1).forEach((_row) => {
       const row = _row;
       let desc = colsOf('desc').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       let qty: number | null = null;
@@ -290,21 +310,24 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-g100">
-                  {rows.map((row, ri) => {
+                  {localRows.map((row, ri) => {
                     const isStart = ri === startRow;
                     const isEnd   = ri === endRow;
                     const isAbove = ri < startRow;
                     const isBelow = ri > endRow;
                     const inRange = !isAbove && !isBelow;
+                    // Row has no qty value — candidate for merging up
+                    const qtyCols = colsOf('qty');
+                    const hasNoQty = !isSingleCol && ri > 0 &&
+                      qtyCols.length > 0 &&
+                      qtyCols.every(ci => !(row[ci] ?? '').trim());
                     return (
                       <tr
                         key={ri}
                         onClick={e => {
                           if (e.shiftKey) {
-                            // shift-click sets end row
                             setEndRow(Math.max(startRow, ri));
                           } else {
-                            // regular click sets start row, clamp end if needed
                             setStartRow(ri);
                             setEndRow(prev => Math.max(ri, prev));
                           }
@@ -333,6 +356,19 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
                             }`}
                           >{cell}</td>
                         ))}
+                        {/* Merge-up button — shown on rows with no qty value */}
+                        <td className="px-1 py-1 w-6" onClick={e => e.stopPropagation()}>
+                          {hasNoQty && (
+                            <button
+                              type="button"
+                              title="Merge into row above"
+                              onClick={() => mergeUp(ri)}
+                              className="p-0.5 rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                            >
+                              <ArrowUp size={11} strokeWidth={2.5} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -372,7 +408,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
         {/* Footer */}
         <div className="px-5 py-3 border-t border-g200 flex items-center justify-between shrink-0 bg-g50">
           <span className="text-[10px] text-g400">
-            Rows <span className="font-semibold text-blue-600">{startRow + 1}</span>–<span className="font-semibold text-red-500">{endRow + 1}</span> selected &nbsp;·&nbsp; {rows.length} total
+            Rows <span className="font-semibold text-blue-600">{startRow + 1}</span>–<span className="font-semibold text-red-500">{endRow + 1}</span> selected &nbsp;·&nbsp; {localRows.length} total
           </span>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-white border border-g300 text-[11px] text-g600 font-semibold rounded-[3px] hover:bg-g100 transition-colors">
@@ -384,7 +420,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
               disabled={!canApply}
               className="px-4 py-2 bg-blk text-white text-[11px] font-bold rounded-[3px] hover:bg-g700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
             >
-              <Check size={12} strokeWidth={3} /> Apply {preview.length > 0 ? `(${rows.slice(startRow, endRow + 1).filter(r => r.some(c => c.trim())).length} rows)` : ''}
+              <Check size={12} strokeWidth={3} /> Apply {preview.length > 0 ? `(${localRows.slice(startRow, endRow + 1).filter(r => r.some(c => c.trim())).length} rows)` : ''}
             </button>
           </div>
         </div>
