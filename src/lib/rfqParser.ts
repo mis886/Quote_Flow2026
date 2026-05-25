@@ -14,6 +14,9 @@ export interface ParseResult {
   method: string;
   confidence: number;
   warnings: string[];
+  // Raw columns for manual mapping dialog — always populated
+  rawHeaders: string[];
+  rawRows: string[][];
 }
 
 // ── UOM normalisation ─────────────────────────────────────────────────────────
@@ -512,6 +515,25 @@ function trySpaceAligned(text: string): LineItem[] | null {
   return items.length > 0 ? items : null;
 }
 
+// ── Extract raw table rows for manual mapping dialog ─────────────────────────
+function extractRawTable(posLines: TextItem[][], plain: string): { headers: string[]; rows: string[][] } {
+  // Try to find a header row and extract column-split rows from plain text
+  const textLines = plain.split('\n').filter(l => l.trim());
+  const header = detectHeaderRow(textLines);
+  if (header) {
+    const headers = splitCells(textLines[header.rowIdx]);
+    const rows = textLines
+      .slice(header.rowIdx + 1)
+      .filter(l => !STOP_RE.test(l))
+      .slice(0, 50)
+      .map(l => splitCells(l));
+    return { headers, rows };
+  }
+  // No header — return raw lines as single-column rows (for numbered/free-text formats)
+  const rows = textLines.filter(l => !STOP_RE.test(l)).slice(0, 50).map(l => [l.trim()]);
+  return { headers: ['Line'], rows };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 export async function parseRfqPdf(file: File): Promise<ParseResult> {
   const warnings: string[] = [];
@@ -530,10 +552,12 @@ export async function parseRfqPdf(file: File): Promise<ParseResult> {
     throw new Error('PDF appears to be a scanned image — text extraction returned nothing. Browser-based parsing requires digitally-generated PDFs.');
   }
 
+  const { headers: rawHeaders, rows: rawRows } = extractRawTable(posLines, plain);
+
   // 1. X-position aware table parser (handles wrapped cells, multi-row headers)
   const xItems = tryXColumnTable(posLines);
   if (xItems && xItems.length > 0) {
-    return { items: xItems.map((it, i) => ({ ...it, seq: i + 1 })), method: 'x_column_table', confidence: 0.92, warnings };
+    return { items: xItems.map((it, i) => ({ ...it, seq: i + 1 })), method: 'x_column_table', confidence: 0.92, warnings, rawHeaders, rawRows };
   }
 
   // 2-5. Text / regex strategies on plain text
@@ -547,12 +571,10 @@ export async function parseRfqPdf(file: File): Promise<ParseResult> {
   for (const [method, fn, baseConfidence] of textStrategies) {
     const items = fn(plain);
     if (items && items.length > 0) {
-      return { items: items.map((it, i) => ({ ...it, seq: i + 1 })), method, confidence: baseConfidence, warnings };
+      return { items: items.map((it, i) => ({ ...it, seq: i + 1 })), method, confidence: baseConfidence, warnings, rawHeaders, rawRows };
     }
   }
 
-  throw new Error(
-    'Could not detect item structure in this PDF. ' +
-    'Supported formats: grid table, numbered list, SAP native, space-aligned text.'
-  );
+  // Nothing matched — return empty items but still provide raw data for manual mapping
+  return { items: [], method: 'none', confidence: 0, warnings, rawHeaders, rawRows };
 }

@@ -9,6 +9,7 @@ import { CustomerSearch } from '../components/CustomerSearch';
 import { uploadToS3 } from '../lib/s3';
 import { isBetaActive } from '../lib/beta';
 import { parseRfqPdf } from '../lib/rfqParser';
+import { RfqMapDialog } from '../components/RfqMapDialog';
 
 export function NewEnquiry() {
   const navigate = useNavigate();
@@ -51,6 +52,7 @@ export function NewEnquiry() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [extractedItems, setExtractedItems] = useState<LineItem[] | null>(null);
+  const [mapDialog, setMapDialog] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
   const extractItemsFromPdf = async () => {
     const pdfDoc = enquiryDocs.find(d => d.file && d.fileName.toLowerCase().endsWith('.pdf'));
@@ -60,8 +62,17 @@ export function NewEnquiry() {
     setExtractedItems(null);
     try {
       const result = await parseRfqPdf(pdfDoc.file);
-      if (!result.items.length) throw new Error('No items found in document.');
-      setExtractedItems(result.items);
+      if (result.items.length > 0) {
+        // Auto-extracted successfully
+        setExtractedItems(result.items);
+        // Also show map button if confidence is low
+        if (result.confidence < 0.75) {
+          setExtractError(`Low confidence (${Math.round(result.confidence * 100)}%) — review carefully or use Map Columns.`);
+        }
+      } else {
+        // Nothing extracted — open map dialog directly
+        setMapDialog({ headers: result.rawHeaders, rows: result.rawRows });
+      }
     } catch (err: any) {
       setExtractError(err.message || 'Extraction failed.');
     } finally {
@@ -585,7 +596,53 @@ export function NewEnquiry() {
                       </div>
                     </div>
                   )}
+
+                  {/* Map columns manually */}
+                  {!extractedItems && !isExtracting && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const pdfDoc = enquiryDocs.find(d => d.file && d.fileName.toLowerCase().endsWith('.pdf'));
+                        if (!pdfDoc?.file) return;
+                        setIsExtracting(true);
+                        try {
+                          const result = await parseRfqPdf(pdfDoc.file);
+                          setMapDialog({ headers: result.rawHeaders, rows: result.rawRows });
+                        } catch { /* ignore */ }
+                        finally { setIsExtracting(false); }
+                      }}
+                      className="mt-2 w-full py-1.5 bg-white border border-amber-300 text-amber-700 text-[10.5px] font-semibold rounded-[3px] hover:bg-amber-50 transition-colors"
+                    >
+                      Map Columns Manually
+                    </button>
+                  )}
+                  {extractedItems && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const pdfDoc = enquiryDocs.find(d => d.file && d.fileName.toLowerCase().endsWith('.pdf'));
+                        if (!pdfDoc?.file) return;
+                        try {
+                          const result = await parseRfqPdf(pdfDoc.file);
+                          setMapDialog({ headers: result.rawHeaders, rows: result.rawRows });
+                        } catch { /* ignore */ }
+                      }}
+                      className="mt-2 w-full py-1.5 bg-white border border-amber-300 text-amber-700 text-[10.5px] font-semibold rounded-[3px] hover:bg-amber-50 transition-colors"
+                    >
+                      Map Columns Manually
+                    </button>
+                  )}
                 </div>
+              )}
+
+              {/* Map dialog */}
+              {mapDialog && (
+                <RfqMapDialog
+                  headers={mapDialog.headers}
+                  rows={mapDialog.rows}
+                  onApply={mapped => { setItems(mapped); setMapDialog(null); setExtractedItems(null); setExtractError(''); }}
+                  onClose={() => setMapDialog(null)}
+                />
               )}
             </div>
 
