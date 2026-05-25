@@ -61,10 +61,9 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
 
   const isSingleCol = headers.length === 1;
 
-  // Validate: desc + qty must be mapped (unless single-col where qty is inferred)
+  // Validate: only desc is required; qty is optional (defaults to 0 if not mapped)
   const hasDesc = Object.values(mapping).includes('desc');
-  const hasQty  = isSingleCol || Object.values(mapping).includes('qty');
-  const canApply = hasDesc && hasQty;
+  const canApply = hasDesc;
 
   // Returns all column indices (sorted ascending) assigned to a given key
   const colsOf = (key: FieldKey): number[] =>
@@ -104,7 +103,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
         uom = uomRaw ? normaliseUom(uomRaw) : 'NOS';
       }
 
-      if (!desc || qty === null) return [];
+      if (!desc) return [];
 
       const seqRaw  = seqCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       const matRaw  = matCols.map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
@@ -114,7 +113,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
         seq:  cleanNum(seqRaw) ?? ri + 1,
         desc: desc.replace(/\s+/g, ' '),
         mat:  matRaw.replace(/^0+/, '').trim(),
-        qty,
+        qty: qty ?? 0,
         uom,
         drwg: drwgRaw.replace(/^[-–]$/, '').trim(),
       }] as LineItem[];
@@ -145,7 +144,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
         uom = uomRaw ? normaliseUom(uomRaw) : 'NOS';
       }
 
-      if (!desc || qty === null) return;
+      if (!desc) return;
 
       const seqRaw  = colsOf('seq').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
       const matRaw  = colsOf('mat').map(ci => (row[ci] ?? '').trim()).filter(Boolean).join(' ');
@@ -155,7 +154,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
         seq:  cleanNum(seqRaw) ?? items.length + 1,
         desc: desc.replace(/\s+/g, ' '),
         mat:  matRaw.replace(/^0+/, '').trim(),
-        qty,
+        qty: qty ?? 0,
         uom,
         drwg: drwgRaw.replace(/^[-–]$/, '').trim(),
       });
@@ -186,7 +185,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
           {!isSingleCol && (
             <div>
               <div className="text-[10px] font-bold text-g500 uppercase tracking-wider mb-3">
-                Assign each column to a field — <span className="text-red-mrt">Description</span> and <span className="text-green-700">Qty</span> are required
+                Assign each column to a field — <span className="text-red-mrt">Description</span> is required
               </div>
               <div className="flex flex-wrap gap-2">
                 {headers.map((h, ci) => (
@@ -277,8 +276,7 @@ export function RfqMapDialog({ headers, rows, onApply, onClose }: Props) {
 
           {!canApply && (
             <p className="text-[10.5px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-              {!hasDesc ? 'Assign at least one column as Description. ' : ''}
-              {!hasQty && !isSingleCol ? 'Assign at least one column as Qty.' : ''}
+              Assign at least one column as Description.
             </p>
           )}
         </div>
