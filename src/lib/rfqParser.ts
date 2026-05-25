@@ -47,7 +47,10 @@ function cleanDesc(s: string): string {
 }
 
 // Lines that signal end of item table — stop parsing when matched
-const STOP_RE = /^\s*(terms\s*(and|&)\s*conditions?|general\s*terms|special\s*terms|notes?\s*:|note\s*:|remarks?\s*:|payment\s*terms?|delivery\s*terms?|warranty|guarantee|validity|commercial\s*terms?|kindly\s*(send|quote|submit)|please\s*(send|quote|submit|note|confirm|mention)|thanking\s*you|yours?\s*(faithfully|truly|sincerely)|regards|with\s*regards|for\s*and\s*on\s*behalf|authoris[e|z]d\s*signatory|signature|total\s*amount|grand\s*total|sub[\s-]?total|gst\s*amount|tax\s*amount|amount\s*in\s*words|rupees|end\s*of\s*(order|enquiry|rfq)|page\s*\d+\s*of\s*\d+)\b/i;
+const STOP_RE = /^\s*(terms\s*(and|&)\s*conditions?|general\s*terms|special\s*terms|notes?\s*:|note\s*:|remarks?\s*:|payment\s*terms?|delivery\s*terms?|warranty|guarantee|validity|commercial\s*terms?|kindly\s*(send|quote|submit)|please\s*(send|quote|submit|note|confirm|mention)|thank(s|\s*ing)\s*(you|&\s*regards?)|yours?\s*(faithfully|truly|sincerely)|with\s*regards?|regards?[,\s]*$|for\s*and\s*on\s*behalf|authoris[e|z]d\s*signatory|signature|^total$|total\s*amount|grand\s*total|sub[\s-]?total|gst\s*amount|tax\s*amount|amount\s*in\s*words|rupees|end\s*of\s*(order|enquiry|rfq))\b/i;
+
+// Lines to skip silently (page headers/footers that repeat on every page — don't stop, just ignore)
+const SKIP_LINE_RE = /^\s*(page\s*\d+\s*of\s*\d+|continued\s*on\s*next\s*page|contd\.?\.?\s*on\s*next|sheet\s*\d+\s*of\s*\d+)\s*$/i;
 
 // ── Text item with position ───────────────────────────────────────────────────
 interface TextItem {
@@ -255,6 +258,7 @@ function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
   for (const line of dataLines) {
     const lineText = line.map(it => it.str).join(' ');
     if (STOP_RE.test(lineText)) break;
+    if (SKIP_LINE_RE.test(lineText)) continue;
 
     if (isNewRowLine(line) && Object.keys(currentRow).length > 0) {
       rows.push(currentRow);
@@ -365,6 +369,7 @@ function parseTableRows(
 
   for (let i = startIdx; i < lines.length; i++) {
     if (STOP_RE.test(lines[i])) break;
+    if (SKIP_LINE_RE.test(lines[i])) continue;
     const cells = splitCells(lines[i]);
     while (cells.length <= maxIdx) cells.push('');
 
@@ -516,7 +521,7 @@ function trySpaceAligned(text: string): LineItem[] | null {
 }
 
 // ── Extract raw table rows for manual mapping dialog ─────────────────────────
-function extractRawTable(posLines: TextItem[][], plain: string): { headers: string[]; rows: string[][] } {
+function extractRawTable(plain: string): { headers: string[]; rows: string[][] } {
   // Try to find a header row and extract column-split rows from plain text
   const textLines = plain.split('\n').filter(l => l.trim());
   const header = detectHeaderRow(textLines);
@@ -552,7 +557,7 @@ export async function parseRfqPdf(file: File): Promise<ParseResult> {
     throw new Error('PDF appears to be a scanned image — text extraction returned nothing. Browser-based parsing requires digitally-generated PDFs.');
   }
 
-  const { headers: rawHeaders, rows: rawRows } = extractRawTable(posLines, plain);
+  const { headers: rawHeaders, rows: rawRows } = extractRawTable(plain);
 
   // 1. X-position aware table parser (handles wrapped cells, multi-row headers)
   const xItems = tryXColumnTable(posLines);
