@@ -115,20 +115,22 @@ function linesToPlainText(lines: TextItem[][]): string {
 interface ColBoundary { canon: string; xMin: number; xMax: number }
 
 const COL_PATTERNS: Record<string, RegExp> = {
-  seq:  /^(s\.?no\.?|sr\.?no\.?|item\s*no\.?|line\s*no\.?|sl\.?no\.?|#|no\.)$/i,
-  mat:  /^(mat\.?\s*code|material\s*(code|no\.?|number)|item\s*code|part\s*no\.?|sap\s*code|pr\s*no\.?|mat\.\s*code)$/i,
-  hsn:  /^(hsn\s*(code)?|hsn\/sac)$/i,
-  desc: /^(description|material\s*desc(ription)?|item\s*desc(ription)?|particulars|goods\s*desc(ription)?|name\s*of\s*item)$/i,
+  seq:  /^(s\.?no\.?|sr\.?no\.?|item\s*no\.?|line\s*no\.?|sl\.?no\.?|#|no\.|item)$/i,
+  mat:  /^(mat\.?\s*code|material\s*(code|no\.?|number)|item\s*code|part\s*no\.?|sap\s*code|pr\s*no\.?|mat\.\s*code|material)$/i,
+  hsn:  /^(hsn\s*(code)?|hsn\/sac|hsn\/sac\s*code)$/i,
+  desc: /^(description|material\s*desc(ription)?|item\s*desc(ription)?|particulars|goods\s*desc(ription)?|name\s*of\s*item|description\s*of\s*goods?|details|product\s*desc(ription)?)$/i,
   make: /^(make|brand|manufacturer)$/i,
-  qty:  /^(qty\.?|quantity|req(uired)?\s*qty|order\s*qty)$/i,
+  qty:  /^(qty\.?|quantity|req(uired)?\s*qty|order\s*qty|order\s*quantity)$/i,
   uom:  /^(uom|unit|u\/m|base\s*unit|unit\s*of\s*measure)$/i,
   drwg: /^(dr(a?w(ing)?)?\.?\s*no\.?|dwg\.?\s*no\.?)$/i,
+  price: /^(price|rate|unit\s*price|price\s*per\s*unit|net\s*value|amount)$/i,
 };
 
-function detectXColumns(headerLine: TextItem[]): ColBoundary[] | null {
+
+function detectXColumns(headerItems: TextItem[]): ColBoundary[] | null {
   const cols: ColBoundary[] = [];
-  // Sometimes header spans 2 lines (MAT. / CODE on separate rows) — we work per-item
-  for (const item of headerLine) {
+
+  for (const item of headerItems) {
     const text = item.str.trim();
     for (const [canon, re] of Object.entries(COL_PATTERNS)) {
       if (re.test(text) && !cols.find(c => c.canon === canon)) {
@@ -137,7 +139,30 @@ function detectXColumns(headerLine: TextItem[]): ColBoundary[] | null {
       }
     }
   }
-  return cols.length >= 3 ? cols : null;
+
+  // ── Fallback: infer desc as the unmatched column with most words / widest span ──
+  // Per user rule: among columns not yet identified, the one that is NOT seq/hsn/mat/price/uom/qty
+  // and has the widest X span (or most text) is likely description.
+  if (!cols.find(c => c.canon === 'desc') && cols.length >= 2) {
+    // Find all header items not matched to any column
+    const matchedXRanges = cols.map(c => ({ xMin: c.xMin, xMax: c.xMax }));
+    const unmatched = headerItems.filter(it => {
+      const xMid = it.x + (it.w ?? 0) / 2;
+      return !matchedXRanges.some(r => xMid >= r.xMin && xMid <= r.xMax);
+    });
+    if (unmatched.length > 0) {
+      // Pick the unmatched item with the most words (widest text = description)
+      const best = unmatched.reduce((a, b) =>
+        (b.str.split(/\s+/).length > a.str.split(/\s+/).length ? b : a)
+      );
+      cols.push({ canon: 'desc', xMin: best.x - 4, xMax: best.x + Math.max(best.w, 80) + 4 });
+    }
+  }
+
+  // Need at least: something identifiable + qty or uom
+  const hasDesc = cols.find(c => c.canon === 'desc');
+  const hasQtyOrUom = cols.find(c => c.canon === 'qty' || c.canon === 'uom');
+  return (hasDesc && hasQtyOrUom && cols.length >= 2) ? cols : null;
 }
 
 // Assign a text item to the best matching column boundary by X overlap
@@ -160,29 +185,26 @@ function assignToCol(item: TextItem, cols: ColBoundary[]): string | null {
 
 // ── X-position aware table parser ─────────────────────────────────────────────
 function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
-  // Find header line(s) — look in first 30 lines
+  // Find header — try merging up to 3 consecutive lines (SAP uses 2-row headers)
   let headerLineIdx = -1;
   let cols: ColBoundary[] | null = null;
 
-  // Sometimes "MAT." and "CODE" are on separate Y lines — merge nearby lines for header detection
   for (let i = 0; i < Math.min(lines.length, 30); i++) {
-    // Try merging this line + next line (for 2-row headers)
-    const combined = i + 1 < lines.length ? [...lines[i], ...lines[i + 1]] : lines[i];
-    cols = detectXColumns(combined);
-    if (cols && cols.find(c => c.canon === 'desc') && cols.find(c => c.canon === 'qty' || c.canon === 'uom')) {
-      headerLineIdx = i;
-      // If 2-row header detected, skip both rows
-      if (i + 1 < lines.length) {
-        const nextCols = detectXColumns(lines[i + 1]);
-        if (nextCols && nextCols.length > 0) headerLineIdx = i + 1;
+    for (let merge = 1; merge <= 3 && i + merge <= lines.length; merge++) {
+      const combined = ([] as TextItem[]).concat(...lines.slice(i, i + merge));
+      const detected = detectXColumns(combined);
+      if (detected) {
+        cols = detected;
+        headerLineIdx = i + merge - 1; // last merged line index
+        break;
       }
-      break;
     }
+    if (cols) break;
   }
 
   if (headerLineIdx < 0 || !cols) return null;
 
-  // Widen column boundaries: give desc column full width to next column
+  // Widen column boundaries: each col extends to the next col's left edge
   cols.sort((a, b) => a.xMin - b.xMin);
   for (let i = 0; i < cols.length - 1; i++) {
     cols[i].xMax = cols[i + 1].xMin - 1;
@@ -192,37 +214,50 @@ function tryXColumnTable(lines: TextItem[][]): LineItem[] | null {
   const items: LineItem[] = [];
   let seq = 1;
 
-  // Group subsequent lines into logical rows: a new row starts when seq/mat column has a value
   const seqCol = cols.find(c => c.canon === 'seq');
+  const matCol = cols.find(c => c.canon === 'mat');
+  // Left-most X across all columns — a lone number here = new row (SAP seq-only line)
+  const leftmostX = Math.min(...cols.map(c => c.xMin));
+
   const dataLines = lines.slice(headerLineIdx + 1);
 
-  // Accumulate cells per logical row
   type RowCells = Record<string, string[]>;
   const rows: RowCells[] = [];
   let currentRow: RowCells = {};
 
+  const isNewRowLine = (line: TextItem[]): boolean => {
+    // Has a number in seq column
+    if (seqCol) {
+      const inSeq = line.filter(it => {
+        const xMid = it.x + (it.w ?? 0) / 2;
+        return xMid >= seqCol.xMin && xMid <= seqCol.xMax;
+      });
+      if (inSeq.some(it => /^\d+$/.test(it.str.trim()))) return true;
+    }
+    // Has a material/item code in mat column
+    if (matCol) {
+      const inMat = line.filter(it => {
+        const xMid = it.x + (it.w ?? 0) / 2;
+        return xMid >= matCol.xMin && xMid <= matCol.xMax;
+      });
+      if (inMat.some(it => /^\d{4,}/.test(it.str.trim()))) return true;
+    }
+    // SAP pattern: sole item on line is a small integer at far left (seq on its own line)
+    if (line.length === 1 && /^\d{1,3}$/.test(line[0].str.trim()) && line[0].x <= leftmostX + 20) {
+      return true;
+    }
+    return false;
+  };
+
   for (const line of dataLines) {
     const lineText = line.map(it => it.str).join(' ');
     if (STOP_RE.test(lineText)) break;
-    // Check if this line starts a new data row: has a value in seq column OR mat column
-    const seqItems = seqCol ? line.filter(it => {
-      const xMid = it.x + it.w / 2;
-      return xMid >= seqCol.xMin && xMid <= seqCol.xMax;
-    }) : [];
-    const hasSeq = seqItems.some(it => /^\d+$/.test(it.str.trim()));
-    const matCol = cols.find(c => c.canon === 'mat');
-    const matItems = matCol ? line.filter(it => {
-      const xMid = it.x + it.w / 2;
-      return xMid >= matCol.xMin && xMid <= matCol.xMax;
-    }) : [];
-    const hasMat = matItems.some(it => /^\d{4,}$/.test(it.str.trim()));
 
-    if ((hasSeq || hasMat) && Object.keys(currentRow).length > 0) {
+    if (isNewRowLine(line) && Object.keys(currentRow).length > 0) {
       rows.push(currentRow);
       currentRow = {};
     }
 
-    // Assign each item in this line to a column
     for (const item of line) {
       const canon = assignToCol(item, cols);
       if (!canon) continue;
