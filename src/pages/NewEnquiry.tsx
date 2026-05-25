@@ -7,10 +7,13 @@ import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 
 import { uploadToS3 } from '../lib/s3';
+import { isBetaActive } from '../lib/beta';
+import { parseRfqPdf } from '../lib/rfqParser';
 
 export function NewEnquiry() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isBeta = isBetaActive();
   const editId = searchParams.get('id');
   const { data, addEnquiry, updateEnquiry, addCustomer } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -43,7 +46,36 @@ export function NewEnquiry() {
   const [notes, setNotes] = useState('');
   
   const [urgency, setUrgency] = useState<Urgency>('Normal');
-  
+
+  // Beta: PDF extract
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractError, setExtractError] = useState('');
+  const [extractedItems, setExtractedItems] = useState<LineItem[] | null>(null);
+
+  const extractItemsFromPdf = async () => {
+    const pdfDoc = enquiryDocs.find(d => d.file && d.fileName.toLowerCase().endsWith('.pdf'));
+    if (!pdfDoc?.file) { setExtractError('Upload a PDF enquiry document first.'); return; }
+    setIsExtracting(true);
+    setExtractError('');
+    setExtractedItems(null);
+    try {
+      const result = await parseRfqPdf(pdfDoc.file);
+      if (!result.items.length) throw new Error('No items found in document.');
+      setExtractedItems(result.items);
+    } catch (err: any) {
+      setExtractError(err.message || 'Extraction failed.');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const applyExtractedItems = () => {
+    if (!extractedItems) return;
+    setItems(extractedItems.map((it, i) => ({ ...it, seq: i + 1 })));
+    setExtractedItems(null);
+    setExtractError('');
+  };
+
   const [items, setItems] = useState<LineItem[]>([
     { seq: 1, desc: '', mat: '', qty: 1, uom: 'pcs', drwg: '' }
   ]);
@@ -498,6 +530,61 @@ export function NewEnquiry() {
                       <button onClick={() => removeAttachment(a.id, 'enquiry')} className="text-red-mrt p-1 hover:bg-red-mrt/10 rounded"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* ── Beta: AI Extract panel ── only visible at ?beta=true ── */}
+              {isBeta && enquiryDocs.some(d => d.file && d.fileName.toLowerCase().endsWith('.pdf')) && (
+                <div className="mt-3 border border-dashed border-amber-300 bg-amber-50 rounded-[3px] p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[9px] font-bold tracking-[1.5px] uppercase text-amber-700">Auto-fill Items from PDF</span>
+                    <span className="text-[8px] font-mono bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-full">BETA</span>
+                  </div>
+                  <p className="text-[10px] text-amber-700 mb-2 leading-relaxed">Scans the uploaded PDF and extracts line items automatically. Review before applying.</p>
+
+                  <button
+                    type="button"
+                    onClick={extractItemsFromPdf}
+                    disabled={isExtracting}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-[11px] font-bold rounded-[3px] transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isExtracting
+                      ? <><svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4"/></svg>Extracting items...</>
+                      : '⚡ Extract Items from PDF'
+                    }
+                  </button>
+
+                  {extractError && (
+                    <p className="mt-2 text-[10px] text-red-600 font-medium bg-red-50 border border-red-200 rounded px-2 py-1">{extractError}</p>
+                  )}
+
+                  {extractedItems && (
+                    <div className="mt-3 border border-amber-300 rounded-[3px] overflow-hidden">
+                      <div className="bg-amber-100 px-3 py-2 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-amber-800">{extractedItems.length} item{extractedItems.length !== 1 ? 's' : ''} found — review before applying</span>
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto divide-y divide-amber-100">
+                        {extractedItems.map((it, i) => (
+                          <div key={i} className="px-3 py-2 text-[10.5px] flex items-start gap-2">
+                            <span className="font-mono text-amber-500 shrink-0 w-5">{it.seq}.</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-blk">{it.desc}</span>
+                              {it.mat && <span className="ml-1.5 text-g400 font-mono text-[9px]">[{it.mat}]</span>}
+                            </div>
+                            <span className="shrink-0 text-g600 font-mono text-[10px]">{it.qty} {it.uom}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 p-2 bg-amber-50 border-t border-amber-200">
+                        <button type="button" onClick={applyExtractedItems} className="flex-1 py-1.5 bg-blk text-white text-[11px] font-bold rounded-[3px] hover:bg-g700 transition-colors">
+                          Apply to Items Table
+                        </button>
+                        <button type="button" onClick={() => setExtractedItems(null)} className="px-3 py-1.5 bg-white border border-g300 text-[11px] text-g600 font-semibold rounded-[3px] hover:bg-g100 transition-colors">
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
