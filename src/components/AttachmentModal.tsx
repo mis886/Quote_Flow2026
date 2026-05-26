@@ -20,53 +20,59 @@ export function AttachmentModal({ entityType, entityId, isOpen, onClose }: Attac
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [poSubmissions, setPoSubmissions] = useState<any[]>([]);
 
-  // Derive the quote_id for this entity so we can look up po_submissions
-  const quoteId = (() => {
-    if (entityType === 'quote') return entityId;
-    if (entityType === 'order') {
-      const ord = data.orders.find(o => o.id === entityId) as any;
-      return ord?.quoteRef ?? null;
+  // Resolve the full enquiry → quote(s) → order(s) chain from any entry point
+  let rootEnq: any = null;
+  if (entityType === 'enquiry') {
+    rootEnq = data.enquiries.find(e => e.id === entityId);
+  } else if (entityType === 'quote') {
+    const q = data.quotes.find(qq => qq.id === entityId) as any;
+    if (q?.enqRef) rootEnq = data.enquiries.find(e => e.id === q.enqRef);
+  } else if (entityType === 'order') {
+    const o = data.orders.find(oo => oo.id === entityId) as any;
+    if (o?.quoteRef) {
+      const q = data.quotes.find(qq => qq.id === o.quoteRef) as any;
+      if (q?.enqRef) rootEnq = data.enquiries.find(e => e.id === q.enqRef);
     }
-    return null;
-  })();
+    if (!rootEnq && o?.enqRef) rootEnq = data.enquiries.find(e => e.id === o.enqRef);
+  }
+
+  const chainEnqs: any[] = rootEnq ? [rootEnq] : [];
+  const chainQuotes: any[] = rootEnq
+    ? (data.quotes as any[]).filter(q => q.enqRef === rootEnq.id)
+    : (entityType === 'quote' ? [data.quotes.find(q => q.id === entityId)].filter(Boolean) as any[] : []);
+  const chainQuoteIds = new Set(chainQuotes.map(q => q.id));
+  const chainOrders: any[] = (data.orders as any[]).filter(o =>
+    (o.quoteRef && chainQuoteIds.has(o.quoteRef)) ||
+    (rootEnq && o.enqRef === rootEnq.id) ||
+    (entityType === 'order' && o.id === entityId)
+  );
+
+  // Collect every quote_id in the chain for po_submissions lookup
+  const quoteIdsForPoLookup = Array.from(chainQuoteIds);
 
   useEffect(() => {
-    if (!isOpen || !quoteId) { setPoSubmissions([]); return; }
-    supabase.from('po_submissions').select('*').eq('quote_id', quoteId)
+    if (!isOpen || quoteIdsForPoLookup.length === 0) { setPoSubmissions([]); return; }
+    supabase.from('po_submissions').select('*').in('quote_id', quoteIdsForPoLookup)
       .then(({ data: rows }) => setPoSubmissions(rows ?? []));
-  }, [isOpen, quoteId]);
+  }, [isOpen, quoteIdsForPoLookup.join(',')]);
 
   if (!isOpen) return null;
 
-  let relatedEnq: any = null;
-  let relatedQuote: any = null;
-  let relatedOrder: any = null;
-
-  if (entityType === 'enquiry') {
-    relatedEnq = data.enquiries.find(e => e.id === entityId);
-  } else if (entityType === 'quote') {
-    relatedQuote = data.quotes.find(q => q.id === entityId) as any;
-    if (relatedQuote?.enqRef) relatedEnq = data.enquiries.find(e => e.id === relatedQuote.enqRef);
-  } else if (entityType === 'order') {
-    relatedOrder = data.orders.find(o => o.id === entityId) as any;
-    if (relatedOrder?.quoteRef) {
-      relatedQuote = data.quotes.find(q => q.id === relatedOrder.quoteRef);
-      if (relatedQuote?.enqRef) relatedEnq = data.enquiries.find(e => e.id === relatedQuote.enqRef);
-    } else if (relatedOrder?.enqRef) {
-      relatedEnq = data.enquiries.find(e => e.id === relatedOrder.enqRef);
-    }
-  }
-
   const allAttachments: any[] = [];
-  if (relatedEnq?.attachments) {
-    allAttachments.push(...relatedEnq.attachments.map((a:any) => ({...a, sourceEntity: relatedEnq.id})));
+  for (const e of chainEnqs) {
+    if (e?.attachments) allAttachments.push(...e.attachments.map((a: any) => ({ ...a, sourceEntity: e.id })));
   }
-  if (relatedQuote?.attachments) {
-    allAttachments.push(...relatedQuote.attachments.map((a:any) => ({...a, sourceEntity: relatedQuote.id})));
+  for (const q of chainQuotes) {
+    if (q?.attachments) allAttachments.push(...q.attachments.map((a: any) => ({ ...a, sourceEntity: q.id })));
   }
-  if (relatedOrder?.attachments) {
-    allAttachments.push(...relatedOrder.attachments.map((a:any) => ({...a, sourceEntity: relatedOrder.id})));
+  for (const o of chainOrders) {
+    if (o?.attachments) allAttachments.push(...o.attachments.map((a: any) => ({ ...a, sourceEntity: o.id })));
   }
+
+  // Keep legacy refs for "current entity" upload target below
+  const relatedEnq = entityType === 'enquiry' ? rootEnq : null;
+  const relatedQuote = entityType === 'quote' ? data.quotes.find(q => q.id === entityId) as any : null;
+  const relatedOrder = entityType === 'order' ? data.orders.find(o => o.id === entityId) as any : null;
 
   // Merge po_submissions (customer-uploaded POs via public link) — dedupe by storage_path
   const seenPaths = new Set(allAttachments.map((a: any) => a.storagePath));
@@ -78,23 +84,26 @@ export function AttachmentModal({ entityType, entityId, isOpen, onClose }: Attac
         fileName: sub.storage_path.split('/').pop()?.split('?')[0] || sub.storage_path,
         storagePath: sub.storage_path,
         docType: 'PO Doc',
-        sourceEntity: quoteId,
+        sourceEntity: sub.quote_id,
         uploadedAt: sub.created_at || new Date().toISOString(),
         isPublicUrl: true,
       });
     }
   }
-  // Also show poFileName on order if not already in po_submissions
-  if (relatedOrder?.poFileName && !seenPaths.has(relatedOrder.poFileName)) {
-    allAttachments.push({
-      id: 'po-' + relatedOrder.id,
-      fileName: relatedOrder.poFileName.split('/').pop() || relatedOrder.poFileName,
-      storagePath: relatedOrder.poFileName,
-      docType: 'PO Doc',
-      sourceEntity: relatedOrder.id,
-      uploadedAt: relatedOrder.poDate || new Date().toISOString(),
-      isPublicUrl: relatedOrder.poFileName.includes('supabase'),
-    });
+  // Also show poFileName on every order in the chain if not already present
+  for (const ord of chainOrders) {
+    if (ord?.poFileName && !seenPaths.has(ord.poFileName)) {
+      seenPaths.add(ord.poFileName);
+      allAttachments.push({
+        id: 'po-' + ord.id,
+        fileName: ord.poFileName.split('/').pop() || ord.poFileName,
+        storagePath: ord.poFileName,
+        docType: 'PO Doc',
+        sourceEntity: ord.id,
+        uploadedAt: ord.poDate || new Date().toISOString(),
+        isPublicUrl: ord.poFileName.includes('supabase'),
+      });
+    }
   }
 
   const attachments = allAttachments;
