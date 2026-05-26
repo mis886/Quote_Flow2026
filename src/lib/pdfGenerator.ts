@@ -126,6 +126,7 @@ export function generateQuotePDF(
 
   if (primarySite) {
     const addrParts: string[] = [];
+    if (primarySite.name) addrParts.push(primarySite.name);
     if (primarySite.fullAddress || primarySite.address)
       addrParts.push(primarySite.fullAddress || primarySite.address || '');
     if (primarySite.city)
@@ -478,8 +479,9 @@ export function generatePIPDF(
   doc.text('Bill To:', mx, y);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   y += 5; doc.text(order.cust, mx, y);
+  if (primarySite?.name) { y += 5; doc.text(primarySite.name, mx, y); }
   if (primaryContact?.name) { y += 5; doc.text('Attn: ' + primaryContact.name, mx, y); }
-  if (primarySite?.city) { y += 5; doc.text(primarySite.city, mx, y); }
+  if (primarySite?.city) { y += 5; doc.text(primarySite.city + (primarySite.state ? ', ' + primarySite.state : ''), mx, y); }
   const billGstin = primarySite?.gstin || customer?.gstin;
   if (billGstin) { y += 5; doc.text('GSTIN: ' + billGstin, mx, y); }
 

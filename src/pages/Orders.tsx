@@ -168,7 +168,7 @@ export function Orders() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Order No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote Ref</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer</th>
+                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer - Site/Branch</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">PO Number</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">PO Date</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Items</th>
@@ -196,7 +196,15 @@ export function Orders() {
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sW">{o.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-sQ">{o.quoteRef}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle font-semibold">{o.cust}</td>
+                        <td className="px-[13px] py-[10px] align-middle font-semibold">
+                          {o.cust}
+                          {(() => {
+                            const enq = data.enquiries.find(e => e.id === o.enqRef);
+                            const cust = data.customers.find(c => c.name === o.cust);
+                            const site = cust?.sites?.find(s => s.id === enq?.siteId) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
+                            return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
+                          })()}
+                        </td>
                         <td className="px-[13px] py-[10px] align-middle font-mono text-[11px] font-bold text-g700">
                           <div className="flex items-center gap-1.5">
                             {o.poNo}

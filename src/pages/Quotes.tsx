@@ -143,7 +143,7 @@ export function Quotes() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">ENQ Ref</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer</th>
+                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer - Site/Branch</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Date</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Items</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-right whitespace-nowrap border-b border-g200">Value (excl. GST)</th>
@@ -171,7 +171,15 @@ export function Quotes() {
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sQ">{q.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-red-mrt">{q.enqRef}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle font-semibold">{q.cust}</td>
+                        <td className="px-[13px] py-[10px] align-middle font-semibold">
+                          {q.cust}
+                          {(() => {
+                            const enq = data.enquiries.find(e => e.id === q.enqRef);
+                            const cust = data.customers.find(c => c.name === q.cust);
+                            const site = cust?.sites?.find(s => s.id === enq?.siteId) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
+                            return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
+                          })()}
+                        </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
                           {q.date ? format(new Date(q.date), 'dd MMM yyyy') : '--'}
                         </td>
