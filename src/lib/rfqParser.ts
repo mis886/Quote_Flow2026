@@ -735,6 +735,44 @@ export async function parseRfqPdf(file: File): Promise<ParseResult> {
     }
   }
 
-  // Nothing matched — return empty items but still provide raw data for manual mapping
+  // Nothing matched — try the Cloudflare Workers AI LLM fallback before giving up.
+  const llmItems = await tryLlmFallback(plain);
+  if (llmItems && llmItems.length > 0) {
+    return {
+      items: llmItems.map((it, i) => ({ ...it, seq: i + 1 })),
+      method: 'llm_cloudflare',
+      confidence: 0.6,
+      warnings: [...warnings, 'Items extracted by LLM — verify each row before saving'],
+      rawHeaders,
+      rawRows,
+    };
+  }
+
+  // Still nothing — return empty items but provide raw data for manual mapping
   return { items: [], method: 'none', confidence: 0, warnings, rawHeaders, rawRows };
+}
+
+// ── Cloudflare Workers AI fallback ────────────────────────────────────────────
+// Fires only when every deterministic strategy returns nothing. Configure via Vite env:
+//   VITE_RFQ_LLM_URL    = https://<worker>.<account>.workers.dev
+//   VITE_RFQ_LLM_SECRET = same value as `wrangler secret put SHARED_SECRET`
+async function tryLlmFallback(text: string): Promise<LineItem[] | null> {
+  const url = import.meta.env.VITE_RFQ_LLM_URL as string | undefined;
+  const secret = import.meta.env.VITE_RFQ_LLM_SECRET as string | undefined;
+  if (!url || !secret) return null;
+
+  try {
+    // Trim to the Worker's hard cap (60k chars). Items table is usually in the first half.
+    const payload = text.length > 60_000 ? text.slice(0, 60_000) : text;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shared-Secret': secret },
+      body: JSON.stringify({ text: payload }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { items?: LineItem[] };
+    return Array.isArray(data.items) && data.items.length > 0 ? data.items : null;
+  } catch {
+    return null;
+  }
 }
