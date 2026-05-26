@@ -950,7 +950,7 @@ export function Dashboard() {
                       <div className="w-[120px] font-mono text-[11px] font-bold text-red-mrt shrink-0 tracking-wider truncate pr-2">{e.id}</div>
                       <div className="font-bold text-[13px] flex-1 truncate pr-3">{e.cust}</div>
                       <div className="flex items-center justify-end shrink-0 w-[190px] gap-2.5">
-                        <span className="font-mono text-[10px] text-g400 bg-g50">{e.items.length} items</span> // border border-g200 px-1.5 py-0.5 rounded-full
+                        <span className="font-mono text-[10px] text-g400 bg-g50">{e.items.length} items</span> {/*border border-g200 px-1.5 py-0.5 rounded-full*/}
                         <div className="w-[68px] flex justify-center">
                           <Badge status={e.status} />
                         </div>
