@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { formatINR, cn, getThisWeekRange } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
@@ -65,6 +65,13 @@ export function Dashboard() {
   const [expandedMdo, setExpandedMdo] = useState<Record<string, boolean>>({});
   const [calendarWeekOffset, setCalendarWeekOffset] = useState<number>(0);
 
+  // Rotating sub-text index for KPI cards: 0=current, 1=vs last week, 2=vs last month. Ticks every 15s.
+  const [kpiSubIdx, setKpiSubIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setKpiSubIdx(i => (i + 1) % 3), 15000);
+    return () => clearInterval(t);
+  }, []);
+
   const userName = user?.email ? user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ') : 'User';
   const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
@@ -97,16 +104,9 @@ export function Dashboard() {
     ? (e2qSamples.reduce((a, b) => a + b, 0) / e2qSamples.length).toFixed(1)
     : null;
 
-  // ── Trend helpers ─────────────────────────────────────────────────────────
-  function pctTrend(current: number, prev: number): number | null {
-    if (prev === 0 && current === 0) return null;
-    if (prev === 0) return null;
-    return Math.round(((current - prev) / prev) * 100);
-  }
-
   const now = Date.now();
 
-  // Period window in ms
+  // Period window in ms — drives the "current period" filter used for KPI values.
   const periodMs = period === '30d' ? 30 * 24 * 3600 * 1000
     : period === 'quarter' ? 91 * 24 * 3600 * 1000
     : 365 * 24 * 3600 * 1000;
@@ -120,59 +120,94 @@ export function Dashboard() {
     return true;
   };
 
-  const isWithinPrevPeriod = (dateString?: string | null) => {
+  // Quotes in current period — kept for display values; trends are now shown via rotating sub-text.
+  const quotesInPeriod = data.quotes.filter(q => isWithinCurrentPeriod(q.date));
+  const quoteValInPeriod = quotesInPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
+  const wonQuotesInPeriod = quotesInPeriod.filter(q => q.status === 'Won');
+  const q2oRate = quotesInPeriod.length ? Math.round((wonQuotesInPeriod.length / quotesInPeriod.length) * 100) : 0;
+
+  // ── Rolling 7d / 30d windows for sub-text rotation ─────────────────────────
+  // "Current" = last 7d (or 30d); "prev" = the 7d (or 30d) before that.
+  const DAY = 86_400_000;
+  const inLast = (dateString: string | null | undefined, days: number) => {
     if (!dateString) return false;
-    if (globalDateRange?.startDate || globalDateRange?.endDate) return false; // Disable trends for custom ranges
     const age = now - new Date(dateString).getTime();
-    return age > periodMs && age <= 2 * periodMs;
+    return age >= 0 && age <= days * DAY;
+  };
+  const inPrevWindow = (dateString: string | null | undefined, days: number) => {
+    if (!dateString) return false;
+    const age = now - new Date(dateString).getTime();
+    return age > days * DAY && age <= 2 * days * DAY;
   };
 
-  // Quotes in current period vs prev period
-  const quotesInPeriod = data.quotes.filter(q => isWithinCurrentPeriod(q.date));
-  const quotesInPrevPeriod = data.quotes.filter(q => isWithinPrevPeriod(q.date));
-  const quotesSentTrendRaw = pctTrend(quotesInPeriod.length, quotesInPrevPeriod.length);
+  // Helper: build the rotating 3-string sub array for a card.
+  // base = current sub (already shown today). signed delta in brackets, plus sign for positives.
+  const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  const buildSub = (base: string, weekDelta: number | null, monthDelta: number | null, label: string): [string, string, string] => [
+    base,
+    weekDelta === null ? `vs last week — no data` : `${signed(weekDelta)} ${label} vs last week`,
+    monthDelta === null ? `vs last month — no data` : `${signed(monthDelta)} ${label} vs last month`,
+  ];
 
-  const quoteValInPeriod = quotesInPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
-  const quoteValInPrev   = quotesInPrevPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
-  const quoteValTrendRaw = pctTrend(quoteValInPeriod, quoteValInPrev);
+  // ── Per-KPI week / month deltas ────────────────────────────────────────────
+  // Quotes sent
+  const quotesLast7  = data.quotes.filter(q => inLast(q.date, 7)).length;
+  const quotesPrev7  = data.quotes.filter(q => inPrevWindow(q.date, 7)).length;
+  const quotesLast30 = data.quotes.filter(q => inLast(q.date, 30)).length;
+  const quotesPrev30 = data.quotes.filter(q => inPrevWindow(q.date, 30)).length;
+  const quotesSentWeekDelta  = quotesLast7  - quotesPrev7;
+  const quotesSentMonthDelta = quotesLast30 - quotesPrev30;
 
-  // Quote-to-Order conversion rate — count quotes in period that are Won (have a linked order)
-  const wonQuotesInPeriod = quotesInPeriod.filter(q => q.status === 'Won');
-  const wonQuotesInPrev   = quotesInPrevPeriod.filter(q => q.status === 'Won');
-  const q2oRate     = quotesInPeriod.length     ? Math.round((wonQuotesInPeriod.length / quotesInPeriod.length) * 100)     : 0;
-  const q2oRatePrev = quotesInPrevPeriod.length ? Math.round((wonQuotesInPrev.length   / quotesInPrevPeriod.length) * 100) : 0;
-  const q2oTrendRaw = pctTrend(q2oRate, q2oRatePrev);
+  // Quote value (in lakhs, 1 decimal)
+  const sumQuoteVal = (qs: typeof data.quotes) =>
+    qs.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
+  const qvLast7  = sumQuoteVal(data.quotes.filter(q => inLast(q.date, 7)));
+  const qvPrev7  = sumQuoteVal(data.quotes.filter(q => inPrevWindow(q.date, 7)));
+  const qvLast30 = sumQuoteVal(data.quotes.filter(q => inLast(q.date, 30)));
+  const qvPrev30 = sumQuoteVal(data.quotes.filter(q => inPrevWindow(q.date, 30)));
+  const inLakhs = (v: number) => +(v / 100_000).toFixed(1);
+  const quoteValWeekDelta  = inLakhs(qvLast7  - qvPrev7);
+  const quoteValMonthDelta = inLakhs(qvLast30 - qvPrev30);
 
-  // E2Q trend in period
-  const currentE2Q: number[] = [];
-  const prevE2Q: number[] = [];
-  for (const enq of data.enquiries) {
-    if (!enq.qRef) continue;
-    const quote = data.quotes.find(q => q.id === enq.qRef);
-    if (!quote?.date || !enq.recv) continue;
-    const diffH = (new Date(quote.date).getTime() - new Date(enq.recv).getTime()) / 3_600_000;
-    if (diffH < 0) continue;
-    if (isWithinCurrentPeriod(quote.date)) currentE2Q.push(diffH);
-    else if (isWithinPrevPeriod(quote.date)) prevE2Q.push(diffH);
-  }
-  const currentE2QAvg = currentE2Q.length ? currentE2Q.reduce((a, b) => a + b, 0) / currentE2Q.length : 0;
-  const prevE2QAvg    = prevE2Q.length    ? prevE2Q.reduce((a, b) => a + b, 0)    / prevE2Q.length    : 0;
-  const e2qTrendRaw   = pctTrend(currentE2QAvg, prevE2QAvg);
+  // Q→O conversion rate (percentage points)
+  const ratePctPts = (qs: typeof data.quotes): number | null => {
+    if (qs.length === 0) return null;
+    return Math.round((qs.filter(q => q.status === 'Won').length / qs.length) * 100);
+  };
+  const r7  = ratePctPts(data.quotes.filter(q => inLast(q.date, 7)));
+  const rp7 = ratePctPts(data.quotes.filter(q => inPrevWindow(q.date, 7)));
+  const r30 = ratePctPts(data.quotes.filter(q => inLast(q.date, 30)));
+  const rp30= ratePctPts(data.quotes.filter(q => inPrevWindow(q.date, 30)));
+  const q2oWeekDelta  = r7  !== null && rp7  !== null ? r7  - rp7  : null;
+  const q2oMonthDelta = r30 !== null && rp30 !== null ? r30 - rp30 : null;
+
+  // E2Q average (hours). Compare by avg in window. Inverse: lower is better.
+  const avgE2QIn = (predicate: (d: string | null | undefined) => boolean): number | null => {
+    const samples: number[] = [];
+    for (const enq of data.enquiries) {
+      if (!enq.qRef) continue;
+      const quote = data.quotes.find(q => q.id === enq.qRef);
+      if (!quote?.date || !enq.recv) continue;
+      if (!predicate(quote.date)) continue;
+      const diffH = (new Date(quote.date).getTime() - new Date(enq.recv).getTime()) / 3_600_000;
+      if (diffH >= 0) samples.push(diffH);
+    }
+    return samples.length ? +(samples.reduce((a, b) => a + b, 0) / samples.length).toFixed(1) : null;
+  };
+  const e7  = avgE2QIn(d => inLast(d, 7));
+  const ep7 = avgE2QIn(d => inPrevWindow(d, 7));
+  const e30 = avgE2QIn(d => inLast(d, 30));
+  const ep30= avgE2QIn(d => inPrevWindow(d, 30));
+  const e2qWeekDelta  = e7  !== null && ep7  !== null ? +(e7  - ep7 ).toFixed(1) : null;
+  const e2qMonthDelta = e30 !== null && ep30 !== null ? +(e30 - ep30).toFixed(1) : null;
+
+  // Open pipeline = current snapshot of open quotes; no historical comparison meaningful here.
+  // Use change in open quote count vs same time 7/30 days ago = open quotes whose date is older than the window cutoff.
+  const openPipeWeekDelta  = openQuotes.filter(q => inLast(q.date, 7)).length;
+  const openPipeMonthDelta = openQuotes.filter(q => inLast(q.date, 30)).length;
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-  const getTrendStr = (trend: number | null): string | undefined => {
-    if (trend === null) return undefined;
-    return `${trend > 0 ? '+' : ''}${trend}%`;
-  };
-
-  const getTrendColor = (trend: number | null, isInverse: boolean = false): 'up' | 'dn' | 'neutral' | undefined => {
-    if (trend === null) return undefined;
-    if (trend === 0) return 'neutral';
-    if (isInverse) return trend < 0 ? 'up' : 'dn';
-    return trend > 0 ? 'up' : 'dn';
-  };
 
   const AgeCell = ({ hours }: { hours: number }) => {
     let color = "text-[#059669]";
@@ -826,39 +861,64 @@ export function Dashboard() {
           <StatCard
             label="Avg E2Q Time"
             value={avgE2Q !== null ? `${avgE2Q}h` : '--'}
-            trend={getTrendStr(e2qTrendRaw)} trendColor={getTrendColor(e2qTrendRaw, true)}
-            sub={e2qSamples.length > 0 ? `${e2qSamples.length} quoted enq${e2qSamples.length === 1 ? '' : 's'}` : 'No data yet'}
+            subIdx={kpiSubIdx}
+            sub={buildSub(
+              e2qSamples.length > 0 ? `${e2qSamples.length} quoted enq${e2qSamples.length === 1 ? '' : 's'}` : 'No data yet',
+              e2qWeekDelta,
+              e2qMonthDelta,
+              'h',
+            )}
             color="blue"
             icon={<Clock size={16} strokeWidth={2} />}
           />
           <StatCard
             label="Open Pipeline"
             value={formatINR(openPipeVal)}
-            sub={openQuoteString}
+            subIdx={kpiSubIdx}
+            sub={[
+              openQuoteString,
+              `${openPipeWeekDelta} new this week`,
+              `${openPipeMonthDelta} new this month`,
+            ]}
             color="purple"
             icon={<IndianRupee size={16} strokeWidth={2} />}
           />
           <StatCard
             label="Q→O Conversion"
             value={`${q2oRate}%`}
-            trend={getTrendStr(q2oTrendRaw)} trendColor={getTrendColor(q2oTrendRaw)}
-            sub={quotesInPeriod.length > 0 ? `${wonQuotesInPeriod.length} won from ${quotesInPeriod.length} quotes` : 'No quotes in period'}
+            subIdx={kpiSubIdx}
+            sub={buildSub(
+              quotesInPeriod.length > 0 ? `${wonQuotesInPeriod.length} won from ${quotesInPeriod.length} quotes` : 'No quotes in period',
+              q2oWeekDelta,
+              q2oMonthDelta,
+              'pp',
+            )}
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
           />
           <StatCard
             label="Quotes Sent"
             value={quotesInPeriod.length.toString()}
-            trend={getTrendStr(quotesSentTrendRaw)} trendColor={getTrendColor(quotesSentTrendRaw)}
-            sub="Total quotations issued"
+            subIdx={kpiSubIdx}
+            sub={buildSub(
+              'Total quotations issued',
+              quotesSentWeekDelta,
+              quotesSentMonthDelta,
+              'quotes',
+            )}
             color="orange"
             icon={<FileSignature size={16} strokeWidth={2} />}
           />
           <StatCard
             label="Quote Value"
             value={formatINR(quoteValInPeriod)}
-            trend={getTrendStr(quoteValTrendRaw)} trendColor={getTrendColor(quoteValTrendRaw)}
-            sub="Total value quoted"
+            subIdx={kpiSubIdx}
+            sub={buildSub(
+              'Total value quoted',
+              quoteValWeekDelta,
+              quoteValMonthDelta,
+              'L',
+            )}
             color="red"
             icon={<IndianRupee size={16} strokeWidth={2} />}
           />
@@ -1112,12 +1172,15 @@ const STAT_COLORS = {
   red:    { top: 'border-t-red-500',    iconBg: 'bg-red-50',    iconText: 'text-red-500'    },
 };
 
-function StatCard({ label, value, sub, trend, trendColor, color, icon }: {
-  label: string; value: string; sub?: string;
+function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon }: {
+  label: string; value: string; sub?: string | string[];
+  subIdx?: number;
   trend?: string; trendColor?: 'up' | 'dn' | 'neutral';
   color: keyof typeof STAT_COLORS; icon: React.ReactNode;
 }) {
   const c = STAT_COLORS[color];
+  const subList = Array.isArray(sub) ? sub : sub ? [sub] : [];
+  const currentSub = subList.length > 0 ? subList[subIdx % subList.length] : undefined;
   return (
     <div className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow', c.top)}>
       <div className="flex items-start justify-between gap-2">
@@ -1135,8 +1198,8 @@ function StatCard({ label, value, sub, trend, trendColor, color, icon }: {
           {trend} <span className="font-normal text-g400">vs last month</span>
         </div>
       )}
-      {!trend && sub && (
-        <div className="text-[11px] text-g400 font-medium truncate">{sub}</div>
+      {!trend && currentSub && (
+        <div key={subIdx} className="text-[11px] text-g400 font-medium truncate animate-in fade-in duration-500">{currentSub}</div>
       )}
     </div>
   );
