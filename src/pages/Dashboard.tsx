@@ -979,7 +979,7 @@ export function Dashboard() {
                   <div className="text-[12px] text-g400 text-center p-8 italic">No quotations yet.</div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-3 px-[16px] py-[7px] border-b border-g100">
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 px-[16px] py-[7px] border-b border-g100">
                       <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">Quote No.</div>
                       <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">Customer</div>
                       <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400 text-right">Value</div>
@@ -988,7 +988,7 @@ export function Dashboard() {
                     {recentQuotes.map(q => {
                       const val = q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0);
                       return (
-                        <div key={q.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-3 items-center px-[16px] py-[8px] border-b border-g100 last:border-0 hover:bg-g50 cursor-pointer transition-colors" onClick={() => openDetailPanel('quote', q.id)}>
+                        <div key={q.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 items-center px-[16px] py-[8px] border-b border-g100 last:border-0 hover:bg-g50 cursor-pointer transition-colors" onClick={() => openDetailPanel('quote', q.id)}>
                           <div className="font-mono text-[10.5px] font-bold text-red-mrt truncate">{q.id}</div>
                           <div className="text-[12px] font-medium text-blk truncate">{q.cust}</div>
                           <div className="font-mono text-[11px] font-bold text-blk text-right whitespace-nowrap">{formatINR(val)}</div>
