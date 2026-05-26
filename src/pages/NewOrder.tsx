@@ -126,6 +126,7 @@ export function NewOrder() {
         if (o.priceBasis || o.eximCode || o.customPoint || o.pan || o.hsn) setShowExim(true);
         if (o.poFileName) setExistingPoFileName(o.poFileName);
         if (o.shipToAddress) setShipAddr(o.shipToAddress);
+        if ((o as any).siteId) setSiteId((o as any).siteId);
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === o.authorizedPerson?.name);
         if (matched) setSelectedSigId(matched.id);
       }
@@ -134,6 +135,7 @@ export function NewOrder() {
       const q = data.quotes.find(e => e.id === quoteRef);
       if (q) {
         setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
+        if ((q as any).siteId) setSiteId((q as any).siteId);
         setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
         setCustomTerms(parseQuoteTerms(q.terms));
         setItems(q.items.map(i => ({ ...i, agreedRate: i.unitPrice, remarks: '' })));
@@ -201,7 +203,7 @@ export function NewOrder() {
   const buildOrderData = (): Order => ({
     id: orderId, quoteRef: quoteRef || '',
     enqRef: quoteRef ? (data.quotes.find(q => q.id === quoteRef)?.enqRef || '') : '',
-    cust: custName, poNo, poDate, dlvDate,
+    cust: custName, siteId: siteId || undefined, poNo, poDate, dlvDate,
     status: editOrderId ? orderStatus : 'Processing',
     value: grandTotal,
     inco: dlvTerms === 'OVERRIDE' ? customDlvTerms : dlvTerms,

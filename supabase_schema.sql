@@ -90,6 +90,11 @@ ALTER TABLE followups ENABLE ROW LEVEL SECURITY;
 
 -- CREATE POLICIES (Allow all authenticated users with @manglarubbers.com domain)
 -- This is a simple policy. In production, you might want more granular project-based access.
+DROP POLICY IF EXISTS "Allow company access" ON customers;
+DROP POLICY IF EXISTS "Allow company access" ON enquiries;
+DROP POLICY IF EXISTS "Allow company access" ON quotes;
+DROP POLICY IF EXISTS "Allow company access" ON orders;
+DROP POLICY IF EXISTS "Allow company access" ON followups;
 CREATE POLICY "Allow company access" ON customers FOR ALL TO authenticated USING (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
 CREATE POLICY "Allow company access" ON enquiries FOR ALL TO authenticated USING (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
 CREATE POLICY "Allow company access" ON quotes FOR ALL TO authenticated USING (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
@@ -112,6 +117,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow company access" ON app_settings;
 CREATE POLICY "Allow company access" ON app_settings FOR ALL TO authenticated USING (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
 
 -- Seed initial config
@@ -129,5 +135,10 @@ CREATE TABLE IF NOT EXISTS authorized_signatories (
 );
 
 ALTER TABLE authorized_signatories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow company access" ON authorized_signatories;
 CREATE POLICY "Allow company access" ON authorized_signatories FOR ALL TO authenticated USING (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
+
+-- 8. site_id on quotes & orders (per-quote/order site override)
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS site_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS site_id TEXT;
 

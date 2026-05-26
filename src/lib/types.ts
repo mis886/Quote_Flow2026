@@ -87,6 +87,7 @@ export interface Quote {
   id: string;
   enqRef: string;
   cust: string;
+  siteId?: string;
   date: string;
   validity: string;
   status: QuoteStatus;
@@ -111,6 +112,7 @@ export interface Order {
   quoteRef: string;
   enqRef: string;
   cust: string;
+  siteId?: string;
   poNo: string;
   poDate: string;
   dlvDate: string;

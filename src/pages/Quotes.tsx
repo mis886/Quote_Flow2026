@@ -176,7 +176,8 @@ export function Quotes() {
                           {(() => {
                             const enq = data.enquiries.find(e => e.id === q.enqRef);
                             const cust = data.customers.find(c => c.name === q.cust);
-                            const site = cust?.sites?.find(s => s.id === enq?.siteId) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
+                            const effSiteId = (q as any).siteId || enq?.siteId;
+                            const site = (effSiteId && cust?.sites?.find(s => s.id === effSiteId)) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
                             return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
                           })()}
                         </td>

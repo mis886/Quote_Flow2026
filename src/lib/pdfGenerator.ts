@@ -110,7 +110,10 @@ export function generateQuotePDF(
   doc.line(pw / 2 - qw / 2, y + 0.8, pw / 2 + qw / 2, y + 0.8);
 
   // ── K.A. contact ─────────────────────────────────────────────────────────
-  const primarySite = (customer?.sites ?? []).find((s) => s.isPrimary) || (customer?.sites ?? [])[0];
+  const primarySite =
+    (((quote as any).siteId ? (customer?.sites ?? []).find((s) => s.id === (quote as any).siteId) : undefined))
+    || (customer?.sites ?? []).find((s) => s.isPrimary)
+    || (customer?.sites ?? [])[0];
   const primaryContact =
     (primarySite?.contacts ?? []).find((c) => c.isPrimary) || (primarySite?.contacts ?? [])[0];
   if (primaryContact?.name) {
@@ -472,7 +475,10 @@ export function generatePIPDF(
 
   // ── Customer + PO details ────────────────────────────────────────────────
   y += 4;
-  const primarySite = (customer?.sites ?? []).find((s) => s.isPrimary) || (customer?.sites ?? [])[0];
+  const primarySite =
+    (((order as any).siteId ? (customer?.sites ?? []).find((s) => s.id === (order as any).siteId) : undefined))
+    || (customer?.sites ?? []).find((s) => s.isPrimary)
+    || (customer?.sites ?? [])[0];
   const primaryContact = (primarySite?.contacts ?? []).find((c) => c.isPrimary) || (primarySite?.contacts ?? [])[0];
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0, 0, 0);

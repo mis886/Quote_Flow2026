@@ -117,7 +117,9 @@ export function NewQuote() {
         if (matched) setSelectedSigId(matched.id);
         const c = data.customers.find(x => x.name === q.cust);
         if (c) {
-          const ps = (c.sites ?? []).find((s: any) => s.isPrimary) || (c.sites ?? [])[0];
+          const ps = (q.siteId && (c.sites ?? []).find((s: any) => s.id === q.siteId))
+            || (c.sites ?? []).find((s: any) => s.isPrimary)
+            || (c.sites ?? [])[0];
           if (ps) { setSiteId(ps.id); const pc = (ps.contacts ?? []).find((ct: any) => ct.isPrimary) || (ps.contacts ?? [])[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }
         }
       }
@@ -318,6 +320,7 @@ export function NewQuote() {
 
   const buildQuoteData = (): Quote => ({
     id: quoteId, enqRef: enqRef || '', cust: custName, date, validity,
+    siteId: siteId || undefined,
     status: editId ? quoteStatus : 'Sent',
     curr, pay, items,
     notes: notes.filter(n => n.trim()),

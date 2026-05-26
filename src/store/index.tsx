@@ -188,6 +188,7 @@ const mapEnquiryToDB = (e: any) => {
   const mapQuoteFromDB = (q: any): Quote => {
     const obj: any = { ...q };
     obj.enqRef = q.enq_ref;
+    if (q.site_id) obj.siteId = q.site_id;
     if (q.unit_id) obj.unitId = q.unit_id;
     if (q.cust_enquiry_doc_no) obj.custEnquiryDocNo = q.cust_enquiry_doc_no;
     if ('authorized_person' in q) {
@@ -195,6 +196,7 @@ const mapEnquiryToDB = (e: any) => {
       delete obj.authorized_person;
     }
     delete obj.enq_ref;
+    delete obj.site_id;
     delete obj.unit_id;
     delete obj.cust_enquiry_doc_no;
     return obj;
@@ -218,6 +220,9 @@ const mapEnquiryToDB = (e: any) => {
     if ('enqRef' in q) obj.enq_ref = q.enqRef || null;
     else if ('enq_ref' in q) obj.enq_ref = q.enq_ref || null;
 
+    if ('siteId' in q) obj.site_id = q.siteId || null;
+    else if ('site_id' in q) obj.site_id = q.site_id || null;
+
     if ('unitId' in q) obj.unit_id = q.unitId || null;
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
     if ('notes' in q) obj.notes = q.notes ?? [];
@@ -229,6 +234,7 @@ const mapEnquiryToDB = (e: any) => {
     const obj: any = { ...o };
     obj.quoteRef = o.quote_ref;
     obj.enqRef = o.enq_ref;
+    if (o.site_id) obj.siteId = o.site_id;
     obj.poNo = o.po_no;
     obj.poDate = o.po_date;
     obj.dlvDate = o.dlv_date;
@@ -249,6 +255,7 @@ const mapEnquiryToDB = (e: any) => {
 
     delete obj.quote_ref;
     delete obj.enq_ref;
+    delete obj.site_id;
     delete obj.po_no;
     delete obj.po_date;
     delete obj.dlv_date;
@@ -283,6 +290,9 @@ const mapEnquiryToDB = (e: any) => {
 
     if ('enqRef' in o) obj.enq_ref = o.enqRef || null;
     else if ('enq_ref' in o) obj.enq_ref = o.enq_ref || null;
+
+    if ('siteId' in o) obj.site_id = o.siteId || null;
+    else if ('site_id' in o) obj.site_id = o.site_id || null;
 
     if ('poNo' in o) obj.po_no = o.poNo;
     else if ('po_no' in o) obj.po_no = o.po_no;
