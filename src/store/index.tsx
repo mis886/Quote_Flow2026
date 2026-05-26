@@ -178,7 +178,7 @@ const mapEnquiryToDB = (e: any) => {
   // Handle snake_case conversions with defaults
   obj.site_id = e.siteId || e.site_id || null;
   obj.contact_id = e.contactId || e.contact_id || null;
-  obj.age_h = e.ageH || e.age_h || 0;
+  obj.age_h = Math.floor(Number(e.ageH ?? e.age_h ?? 0)) || 0;
   obj.q_ref = e.qRef || e.q_ref || null;
   
   return obj;
