@@ -3,6 +3,7 @@ import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog,
 import { supabase, signOut, getSettings } from '../lib/supabase';
 import { uploadToS3 } from '../lib/s3';
 import { fetchLabelledEmails, fetchEmailAttachments } from '../lib/gmail';
+import { calculateAgeHours } from '../lib/utils';
 import { User } from '@supabase/supabase-js';
 
 export interface GlobalDateRange {
@@ -143,7 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const obj: any = { ...e };
     obj.siteId = e.site_id;
     obj.contactId = e.contact_id;
-    obj.ageH = e.age_h;
+    obj.ageH = e.recv ? calculateAgeHours(e.recv) : (e.age_h || 0);
     obj.qRef = e.q_ref;
     if (e.gmail_message_id) obj.gmailMessageId = e.gmail_message_id;
 
