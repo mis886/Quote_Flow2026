@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { uploadToS3, getS3SignedUrl } from '../lib/s3';
 import { supabase } from '../lib/supabase';
-import { format } from 'date-fns';
+import { fmtIST } from '../lib/utils';
 import { Paperclip, Download, X, Loader2 } from 'lucide-react';
 
 interface AttachmentModalProps {
@@ -230,7 +230,7 @@ export function AttachmentModal({ entityType, entityId, isOpen, onClose }: Attac
                         <div className="text-[9px] text-g500 font-mono mt-0.5 uppercase flex gap-2">
                           <span className="text-red-mrt">{att.docType || (att.fileName.toLowerCase().includes('drawing') ? 'Drawing' : 'Enquiry Doc')}</span>
                           <span>•</span>
-                          <span>{format(new Date(att.uploadedAt), 'dd MMM yyyy')}</span>
+                          <span>{fmtIST(new Date(att.uploadedAt), 'dd MMM yyyy')}</span>
                           {att.sourceEntity && (
                             <>
                               <span>•</span>

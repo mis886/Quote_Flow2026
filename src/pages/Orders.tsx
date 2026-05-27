@@ -3,11 +3,10 @@ import { useAppStore } from '../store';
 import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Loader2, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, isInDateRange } from '../lib/utils';
+import { formatINR, fmtIST, isInDateRange } from '../lib/utils';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { exportOrderToSheets, buildSheetsPayload } from '../lib/sheets';
 import { getS3SignedUrl } from '../lib/s3';
-import { format } from 'date-fns';
 import { Order } from '../lib/types';
 import { SendEmailModal } from '../components/SendEmailModal';
 
@@ -233,7 +232,7 @@ export function Orders() {
                           </div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {o.poDate ? format(new Date(o.poDate), 'dd MMM yyyy') : '--'}
+                          {o.poDate ? fmtIST(new Date(o.poDate), 'dd MMM yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <span className="font-mono text-[10px] font-bold bg-g100 text-g600 px-[7px] py-[2px] rounded-full inline-flex items-center">
@@ -242,7 +241,7 @@ export function Orders() {
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-right font-mono text-[12px] font-bold">{formatINR(grandTotal)}</td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {o.dlvDate ? format(new Date(o.dlvDate), 'dd MMM yyyy') : '--'}
+                          {o.dlvDate ? fmtIST(new Date(o.dlvDate), 'dd MMM yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle"><Badge status={o.status} /></td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>
@@ -277,7 +276,7 @@ export function Orders() {
                             <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openAttachmentModal('order', o.id); }}>Docs</Button>
                             {false && data.settings?.sheets_webhook_url && (
                               o.sheetsExportedAt ? (
-                                <button type="button" disabled title={`Exported ${format(new Date(o.sheetsExportedAt), 'dd MMM yyyy')}`} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-[#A2DEBD] bg-[#EAF8F1] cursor-not-allowed shrink-0">
+                                <button type="button" disabled title={`Exported ${fmtIST(new Date(o.sheetsExportedAt!), 'dd MMM yyyy')}`} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-[#A2DEBD] bg-[#EAF8F1] cursor-not-allowed shrink-0">
                                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="#0F9D58" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                 </button>
                               ) : (

@@ -4,8 +4,7 @@ import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { QuoteStatus, Quote } from '../lib/types';
-import { formatINR, isInDateRange } from '../lib/utils';
-import { format } from 'date-fns';
+import { formatINR, fmtIST, isInDateRange } from '../lib/utils';
 import { generateQuotePDF } from '../lib/pdfGenerator';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { FollowUpSendPrompt } from '../components/FollowUpSendPrompt';
@@ -182,7 +181,7 @@ export function Quotes() {
                           })()}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {q.date ? format(new Date(q.date), 'dd MMM yyyy') : '--'}
+                          {q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <span className="font-mono text-[10px] font-bold bg-g100 text-g600 px-[7px] py-[2px] rounded-full inline-flex items-center">
@@ -203,7 +202,7 @@ export function Quotes() {
                           </div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {q.validity ? format(new Date(q.validity), 'dd MMM yyyy') : '--'}
+                          {q.validity ? fmtIST(new Date(q.validity), 'dd MMM yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>
                           <div className="flex gap-1.5">

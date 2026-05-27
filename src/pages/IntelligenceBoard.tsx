@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, X, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Customer, Contact, CustomerTier, Quote, Order, Enquiry, FollowUpLog } from '../lib/types';
-import { formatINR } from '../lib/utils';
+import { formatINR, fmtIST } from '../lib/utils';
 import { cn } from '../lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
@@ -134,7 +134,7 @@ function useRevTrend(orders: Order[]): { label: string; value: number }[] {
           return d >= start && d <= end;
         })
         .reduce((s, o) => s + (o.value ?? 0), 0);
-      return { label: format(m, 'MMM'), value };
+      return { label: fmtIST(m, 'MMM'), value };
     });
   }, [orders]);
 }
@@ -227,7 +227,7 @@ function QuoteDetailDrawer({ quote, onClose }: { quote: Quote; onClose: () => vo
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${STATUS_BADGE[quote.status] ?? STATUS_BADGE.Draft}`}>{quote.status}</span>
               </div>
               <div className="text-[11px] text-g400 mt-0.5">
-                {quote.cust}{quote.date ? ` · ${format(new Date(quote.date), 'dd MMM yyyy')}` : ''}
+                {quote.cust}{quote.date ? ` · ${fmtIST(new Date(quote.date), 'dd MMM yyyy')}` : ''}
               </div>
             </div>
           </div>
@@ -301,7 +301,7 @@ function QuoteDetailDrawer({ quote, onClose }: { quote: Quote; onClose: () => vo
           <div className="p-4 grid grid-cols-2 gap-3">
             {[
               { label: 'Currency',     value: curr },
-              { label: 'Valid Until',  value: quote.validity ? format(new Date(quote.validity), 'dd MMM yyyy') : '—' },
+              { label: 'Valid Until',  value: quote.validity ? fmtIST(new Date(quote.validity), 'dd MMM yyyy') : '—' },
               { label: 'Payment',      value: (quote as any).pay || '—' },
               { label: 'Delivery',     value: (quote as any).delivery || '—' },
             ].map(f => (
@@ -465,7 +465,7 @@ function CustomerDetail({ stats, allFollowups }: {
                     <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
                     <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(total)}</span>
                     <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                    <span className="text-[10px] text-g400 w-16 text-right shrink-0">{q.date ? format(new Date(q.date), 'dd MMM') : '—'}</span>
+                    <span className="text-[10px] text-g400 w-16 text-right shrink-0">{q.date ? fmtIST(new Date(q.date), 'dd MMM') : '—'}</span>
                     <ChevronRight size={12} className="text-g300 shrink-0" />
                   </button>
                 );
@@ -497,7 +497,7 @@ function CustomerDetail({ stats, allFollowups }: {
                       <span className="text-[9px] text-g400 font-mono">{t.quoteId}</span>
                     </div>
                     <div className="text-[11px] text-g500 mt-0.5">{t.note}</div>
-                    <div className="text-[9.5px] text-g400 mt-1">{t.who} · {t.ts ? format(new Date(t.ts), 'dd MMM yyyy, HH:mm') : '—'}</div>
+                    <div className="text-[9.5px] text-g400 mt-1">{t.who} · {t.ts ? fmtIST(new Date(t.ts), 'dd MMM yyyy, HH:mm') : '—'}</div>
                   </div>
                 </div>
               ))}

@@ -24,7 +24,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn, isInDateRange, getThisWeekRange } from '../lib/utils';
+import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
@@ -63,7 +63,7 @@ const CHANNEL_CONFIG: Record<string, { icon: string; color: string; bg: string; 
 
 function formatDue(date: string | null | undefined, time?: string | null) {
   if (!date) return null;
-  const label = isToday(parseISO(date)) ? 'Today' : format(parseISO(date), 'dd MMM');
+  const label = isToday(parseISO(date)) ? 'Today' : fmtIST(parseISO(date), 'dd MMM');
   return time ? `${label} at ${time}` : label;
 }
 
@@ -167,7 +167,7 @@ export default function FollowUps() {
 
   const calWeekLabel = useMemo(() => {
     const s = calDays[0], e = calDays[6];
-    return `${format(s, 'dd MMM')} – ${format(e, 'dd MMM yyyy')}`;
+    return `${fmtIST(s, 'dd MMM')} – ${fmtIST(e, 'dd MMM yyyy')}`;
   }, [calDays]);
 
   const calEventMap = useMemo(() => {
@@ -544,7 +544,7 @@ export default function FollowUps() {
                     <div className="w-px h-6 bg-g200" />
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-g400 tracking-wider">Valid Till</span>
-                      <span className="text-[14px] font-medium text-blk">{format(parseISO(selectedItem.quote.validity), 'dd MMM yyyy')}</span>
+                      <span className="text-[14px] font-medium text-blk">{fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy')}</span>
                     </div>
                     <div className="w-px h-6 bg-g200" />
                     <div className="flex flex-col">
@@ -637,7 +637,7 @@ export default function FollowUps() {
                         <div className="flex items-center gap-3 my-3">
                           <div className="flex-1 h-px bg-g200" />
                           <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
-                            {isToday(parseISO(day)) ? 'Today' : format(parseISO(day), 'dd MMM yyyy')}
+                            {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
                           </span>
                           <div className="flex-1 h-px bg-g200" />
                         </div>
@@ -653,7 +653,7 @@ export default function FollowUps() {
                                   <span className="text-[10px]">📨</span>
                                   <span className="text-[11px] text-amber-700 font-medium">{log.note}</span>
                                   <span className="text-[9px] text-amber-500 font-mono">
-                                    {format(parseISO(log.ts), 'hh:mm aa')}
+                                    {fmtIST(parseISO(log.ts), 'hh:mm aa')}
                                   </span>
                                 </div>
                               </div>
@@ -683,7 +683,7 @@ export default function FollowUps() {
                                 )}
                                 <div className="flex items-center justify-between gap-4">
                                   <span className="text-[10px] text-g500 font-medium">{log.who}</span>
-                                  <span className="text-[9px] text-g400 font-mono">{format(parseISO(log.ts), 'hh:mm aa')}</span>
+                                  <span className="text-[9px] text-g400 font-mono">{fmtIST(parseISO(log.ts), 'hh:mm aa')}</span>
                                 </div>
                               </div>
                             </div>
@@ -874,9 +874,9 @@ function FUCalWeekGrid({ days, eventMap, selectedQuoteId, onSelect, todayKey, we
                 'px-1 py-1.5 text-center border-b border-g100 shrink-0',
                 isTodayCol ? 'bg-red-mrt text-white' : 'bg-g50 text-blk'
               )}>
-                <div className="text-[8px] font-bold uppercase tracking-wide opacity-70">{format(day, 'EEE')}</div>
-                <div className="text-[15px] font-mono font-bold leading-none mt-0.5">{format(day, 'd')}</div>
-                <div className="text-[8px] opacity-60">{format(day, 'MMM')}</div>
+                <div className="text-[8px] font-bold uppercase tracking-wide opacity-70">{fmtIST(day, 'EEE')}</div>
+                <div className="text-[15px] font-mono font-bold leading-none mt-0.5">{fmtIST(day, 'd')}</div>
+                <div className="text-[8px] opacity-60">{fmtIST(day, 'MMM')}</div>
               </div>
               {/* Pills */}
               <div className="flex-1 p-1 space-y-1 overflow-y-auto">

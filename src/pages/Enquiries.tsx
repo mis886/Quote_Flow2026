@@ -3,9 +3,8 @@ import { useAppStore } from '../store';
 import { Badge, Button, SourceIcon, DateFilterBanner } from '../components/ui';
 import { Search, Plus, Calendar, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { calculateAgeHours, isInDateRange } from '../lib/utils';
+import { calculateAgeHours, fmtIST, isInDateRange } from '../lib/utils';
 import { EnqStatus, Urgency } from '../lib/types';
-import { format } from 'date-fns';
 
 export function Enquiries() {
   const store = useAppStore();
@@ -181,7 +180,7 @@ export function Enquiries() {
                         onClick={() => setExpandedRow(isExpanded ? null : e.id)}
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-red-mrt">{e.id}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">{format(d, 'dd MMM HH:mm')}</td>
+                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">{fmtIST(d, 'dd MMM HH:mm')}</td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <div className="font-semibold">
                             {e.cust}

@@ -36,6 +36,38 @@ export const formatUSD = (value: number) => {
   }).format(value);
 };
 
+// Format a Date in Asia/Kolkata (IST, UTC+5:30) using date-fns-style tokens.
+// Supported tokens: yyyy, yy, MMM, MM, dd, d, EEE, HH, hh, mm, a, aa
+const IST_TZ = 'Asia/Kolkata';
+const _istParts = (d: Date) => {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: IST_TZ,
+    year: 'numeric', month: 'short', day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).reduce<Record<string, string>>((a, x) => (a[x.type] = x.value, a), {});
+  const hour24 = parseInt(p.hour === '24' ? '00' : p.hour, 10);
+  const hour12 = ((hour24 + 11) % 12) + 1;
+  return {
+    yyyy: p.year,
+    yy: p.year.slice(-2),
+    MMM: p.month,
+    MM: String(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(p.month) + 1).padStart(2, '0'),
+    dd: p.day,
+    d: String(parseInt(p.day, 10)),
+    EEE: p.weekday,
+    HH: String(hour24).padStart(2, '0'),
+    hh: String(hour12).padStart(2, '0'),
+    mm: p.minute,
+    a: hour24 < 12 ? 'AM' : 'PM',
+    aa: hour24 < 12 ? 'AM' : 'PM',
+  };
+};
+export function fmtIST(d: Date, pattern: string): string {
+  const t = _istParts(d);
+  return pattern.replace(/yyyy|yy|MMM|MM|dd|EEE|HH|hh|mm|aa|a|d/g, (m) => (t as any)[m] ?? m);
+}
+
 export const calculateAgeHours = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();

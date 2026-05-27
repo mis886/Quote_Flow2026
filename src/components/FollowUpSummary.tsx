@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAppStore } from '../store';
 import { Quote, FollowUpLog } from '../lib/types';
-import { format, parseISO, isBefore, isToday, startOfDay } from 'date-fns';
+import { parseISO, isBefore, isToday, startOfDay } from 'date-fns';
 import { Phone, ChevronRight, CheckCircle2, Plus, X, ChevronDown, MessageCircle, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn } from '../lib/utils';
+import { cn, fmtIST } from '../lib/utils';
 
 export function FollowUpSummary({ quote }: { quote: Quote }) {
   const { data, user, addFollowUpLog } = useAppStore();
@@ -34,7 +34,7 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
     dueColor = 'text-emerald-600';
   } else if (followUp?.next_date) {
     const d = parseISO(followUp.next_date);
-    const datePart = isToday(d) ? 'Today' : format(d, 'dd MMM');
+    const datePart = isToday(d) ? 'Today' : fmtIST(d, 'dd MMM');
     const timePart = followUp.next_time ? ` at ${followUp.next_time}` : '';
     dueLabel = `${datePart}${timePart}`;
     if (isBefore(d, today)) dueColor = 'text-red-mrt';
@@ -168,7 +168,7 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
         <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2.5">
           <div className="text-[9px] font-bold tracking-[1px] uppercase text-g400 mb-1">Last Activity</div>
           <div className="text-[12px] font-semibold text-blk truncate">
-            {lastLog ? `${lastLog.channel} · ${format(parseISO(lastLog.ts), 'dd MMM')}` : '—'}
+            {lastLog ? `${lastLog.channel} · ${fmtIST(parseISO(lastLog.ts), 'dd MMM')}` : '—'}
           </div>
         </div>
       </div>
@@ -262,7 +262,7 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
           <div className="text-[10px] text-g400 mb-1">
             <span className="font-semibold text-g500">{lastLog.who}</span>
             {' · '}
-            {format(parseISO(lastLog.ts), 'dd MMM, HH:mm')}
+            {fmtIST(parseISO(lastLog.ts), 'dd MMM, HH:mm')}
           </div>
           <div className="text-[12px] text-g600 leading-relaxed whitespace-pre-wrap line-clamp-3">{lastLog.note}</div>
         </div>
