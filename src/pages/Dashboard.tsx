@@ -140,13 +140,24 @@ export function Dashboard() {
     return age > days * DAY && age <= 2 * days * DAY;
   };
 
-  // Helper: build the rotating 3-string sub array for a card.
-  // base = current sub (already shown today). signed delta in brackets, plus sign for positives.
+  // Helper: build the rotating 3-entry sub array for a card.
+  // Each entry: { text, dir } where dir = 'up' | 'dn' | 'neutral' | null (for plain text).
+  // inverse=true → lower is better (e.g. avg E2Q hours), so a negative delta is "up".
   const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-  const buildSub = (base: string, weekDelta: number | null, monthDelta: number | null, label: string): [string, string, string] => [
-    base,
-    weekDelta === null ? `vs last week — no data` : `${signed(weekDelta)} ${label} vs last week`,
-    monthDelta === null ? `vs last month — no data` : `${signed(monthDelta)} ${label} vs last month`,
+  const dirOf = (n: number, inverse = false): 'up' | 'dn' | 'neutral' => {
+    if (n === 0) return 'neutral';
+    if (inverse) return n < 0 ? 'up' : 'dn';
+    return n > 0 ? 'up' : 'dn';
+  };
+  type SubEntry = { text: string; dir?: 'up' | 'dn' | 'neutral' | null };
+  const buildSub = (base: string, weekDelta: number | null, monthDelta: number | null, label: string, inverse = false): SubEntry[] => [
+    { text: base, dir: null },
+    weekDelta === null
+      ? { text: `vs last week — no data`, dir: 'neutral' }
+      : { text: `${signed(weekDelta)} ${label} vs last week`, dir: dirOf(weekDelta, inverse) },
+    monthDelta === null
+      ? { text: `vs last month — no data`, dir: 'neutral' }
+      : { text: `${signed(monthDelta)} ${label} vs last month`, dir: dirOf(monthDelta, inverse) },
   ];
 
   // ── Per-KPI week / month deltas ────────────────────────────────────────────
@@ -867,6 +878,7 @@ export function Dashboard() {
               e2qWeekDelta,
               e2qMonthDelta,
               'h',
+              true, // inverse — lower hours = better
             )}
             color="blue"
             icon={<Clock size={16} strokeWidth={2} />}
@@ -1172,15 +1184,28 @@ const STAT_COLORS = {
   red:    { top: 'border-t-red-500',    iconBg: 'bg-red-50',    iconText: 'text-red-500'    },
 };
 
+type SubEntry = { text: string; dir?: 'up' | 'dn' | 'neutral' | null };
+
 function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon }: {
-  label: string; value: string; sub?: string | string[];
+  label: string; value: string;
+  sub?: string | string[] | SubEntry[];
   subIdx?: number;
   trend?: string; trendColor?: 'up' | 'dn' | 'neutral';
   color: keyof typeof STAT_COLORS; icon: React.ReactNode;
 }) {
   const c = STAT_COLORS[color];
-  const subList = Array.isArray(sub) ? sub : sub ? [sub] : [];
+  // Normalise sub to SubEntry[]
+  const subList: SubEntry[] = Array.isArray(sub)
+    ? (sub as any[]).map((s): SubEntry => typeof s === 'string' ? { text: s, dir: null } : s)
+    : sub
+      ? [{ text: sub as string, dir: null }]
+      : [];
   const currentSub = subList.length > 0 ? subList[subIdx % subList.length] : undefined;
+  const dirColor = currentSub?.dir === 'up' ? 'text-emerald-600'
+    : currentSub?.dir === 'dn' ? 'text-red-500'
+    : currentSub?.dir === 'neutral' ? 'text-g400'
+    : 'text-g400';
+  const arrow = currentSub?.dir === 'up' ? '↑' : currentSub?.dir === 'dn' ? '↓' : '';
   return (
     <div className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow', c.top)}>
       <div className="flex items-start justify-between gap-2">
@@ -1199,7 +1224,15 @@ function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, ico
         </div>
       )}
       {!trend && currentSub && (
-        <div key={subIdx} className="text-[11px] text-g400 font-medium truncate animate-in fade-in duration-500">{currentSub}</div>
+        <div
+          key={subIdx}
+          className={cn('flex items-center gap-1 text-[11px] font-medium truncate animate-in fade-in duration-500',
+            currentSub.dir ? dirColor : 'text-g400',
+            currentSub.dir && currentSub.dir !== 'neutral' ? 'font-semibold' : '')}
+        >
+          {arrow && <span>{arrow}</span>}
+          <span className="truncate">{currentSub.text}</span>
+        </div>
       )}
     </div>
   );
