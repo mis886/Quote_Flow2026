@@ -262,14 +262,21 @@ export function DetailPanel() {
                 </div>
               )}
 
-              {enq.qRef && (
-                <div className="relative">
-                  <div className="absolute -left-[20px] top-[4px] w-2.5 h-2.5 rounded-full border-2 border-red-mrt bg-white shadow-[0_0_0_2px_#fff]"></div>
-                  <div className="font-mono text-[9.5px] text-red-mrt font-bold mb-0.5">E2Q: {enq.ageH}h</div>
-                  <div className="text-[13px] font-semibold text-blk">Quotation Created — {enq.qRef}</div>
-                  <div className="text-[12px] text-g500">Document generated & sent (simulated)</div>
-                </div>
-              )}
+              {enq.qRef && (() => {
+                const quote = data.quotes.find(q => q.id === enq.qRef);
+                const qDt = quote?.date ? new Date(quote.date) : null;
+                return (
+                  <div className="relative">
+                    <div className="absolute -left-[20px] top-[4px] w-2.5 h-2.5 rounded-full border-2 border-red-mrt bg-white shadow-[0_0_0_2px_#fff]"></div>
+                    <div className="font-mono text-[9.5px] text-g500 mb-0.5">
+                      {qDt ? format(qDt, 'dd MMM yyyy, hh:mm a') : '—'}
+                      <span className="text-red-mrt font-bold ml-2">E2Q: {Number(enq.ageH).toFixed(2)}h</span>
+                    </div>
+                    <div className="text-[13px] font-semibold text-blk">Quotation Created — {enq.qRef}</div>
+                    <div className="text-[12px] text-g500">Document generated & sent (simulated)</div>
+                  </div>
+                );
+              })()}
 
             </div>
           </section>
