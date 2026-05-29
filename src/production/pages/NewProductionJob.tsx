@@ -5,9 +5,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Download } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { insertJob, logStageEvent, nextJobId } from '../lib/db';
+import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
 import { localDateStr } from '../../lib/utils';
 import type { ProductionJob } from '../lib/types';
 
@@ -39,6 +40,7 @@ export function NewProductionJob() {
 
   const [customerName, setCustomerName] = useState('');
   const [orderRef, setOrderRef]         = useState('');
+  const [importedOrderId, setImportedOrderId] = useState<string | null>(null);
   const [promised, setPromised]         = useState(localDateStr(new Date(Date.now() + 7 * 86400000)));
   const [priority, setPriority]         = useState<'normal' | 'emergency'>('normal');
   const [emergencyReason, setEmergencyReason] = useState('');
@@ -47,9 +49,49 @@ export function NewProductionJob() {
   const [saving, setSaving]             = useState(false);
   const [err, setErr]                   = useState<string | null>(null);
 
+  // Open CRM orders that don't already have a Production Job linked.
+  const [openOrders, setOpenOrders] = useState<CrmOrderLite[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  useEffect(() => {
+    (async () => {
+      setLoadingOrders(true);
+      const list = await listOrdersWithoutJobs();
+      setOpenOrders(list);
+      setLoadingOrders(false);
+    })();
+  }, []);
+
   const existingIds = useMemo(() => jobs.map(j => j.id), [jobs]);
 
   useEffect(() => { setErr(null); }, [customerName, lines, promised]);
+
+  const importFromOrder = (orderId: string) => {
+    if (!orderId) return;
+    const o = openOrders.find(x => x.id === orderId);
+    if (!o) return;
+    setImportedOrderId(o.id);
+    setCustomerName(o.cust || '');
+    setOrderRef(o.po_no || o.id);
+    if (o.dlv_date) setPromised(o.dlv_date);
+    const newLines: DraftLine[] = (o.items || []).map(it => ({
+      product_desc: [it.desc, it.mat].filter(Boolean).join(' · '),
+      qty:          it.qty != null ? String(it.qty) : '',
+      mould_code: '',
+      cavities: '',
+      cure_time_min: '',
+      cure_temp_c: '',
+      compound_code: it.mat || '',
+      tikli_size: '',
+    }));
+    setLines(newLines.length ? newLines : [blankLine()]);
+  };
+
+  const clearImport = () => {
+    setImportedOrderId(null);
+    setCustomerName('');
+    setOrderRef('');
+    setLines([blankLine()]);
+  };
 
   const updateLine = (i: number, patch: Partial<DraftLine>) => {
     setLines(ls => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -77,7 +119,7 @@ export function NewProductionJob() {
         ids.push(id);
         const job: ProductionJob = {
           id,
-          order_id: orderRef || null,
+          order_id: importedOrderId || orderRef || null,
           order_line_seq: i + 1,
           customer_name: customerName.trim(),
           product_desc: l.product_desc.trim(),
@@ -129,6 +171,54 @@ export function NewProductionJob() {
       <p className="text-[12px] text-g500 mb-4">
         One row per line item. Each line becomes a separate Job Card and enters the Moulding queue.
       </p>
+
+      {/* Import from open CRM Order */}
+      <div className="bg-blue-50 border border-blue-200 rounded-[3px] p-3 mb-3 flex items-center gap-2 flex-wrap">
+        <Download size={14} className="text-blue-700 shrink-0" />
+        <span className="text-[12px] font-semibold text-blue-900">
+          Import from open Order
+        </span>
+        <select
+          title="Pick an open CRM order to autofill customer + lines"
+          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-blk bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          value={importedOrderId || ''}
+          onChange={e => importFromOrder(e.target.value)}
+          disabled={loadingOrders}
+        >
+          <option value="">
+            {loadingOrders
+              ? 'Loading open orders…'
+              : openOrders.length === 0
+              ? 'No open orders without jobs'
+              : '— Select an open Order —'}
+          </option>
+          {openOrders.map(o => {
+            const lineCount = (o.items || []).length;
+            const totalQty = (o.items || []).reduce((s, i) => s + (i.qty || 0), 0);
+            return (
+              <option key={o.id} value={o.id}>
+                {o.po_no || o.id} · {o.cust || '—'} · {lineCount} line{lineCount === 1 ? '' : 's'} · {totalQty.toLocaleString()} pcs
+                {o.dlv_date ? ` · due ${o.dlv_date}` : ''}
+              </option>
+            );
+          })}
+        </select>
+        {importedOrderId && (
+          <button
+            type="button"
+            onClick={clearImport}
+            className="text-[11px] text-blue-700 border border-blue-300 rounded px-2 py-1 hover:bg-blue-100"
+          >
+            Clear & enter manually
+          </button>
+        )}
+      </div>
+      {importedOrderId && (
+        <div className="text-[11px] text-g600 mb-3 -mt-1.5">
+          Imported from CRM Order <code className="bg-g100 px-1 rounded">{orderRef}</code>.
+          Fill in Mould / Cavities / Cure per line below — these aren't on the CRM order.
+        </div>
+      )}
 
       {/* Header */}
       <div className="bg-white border border-g200 rounded-[3px] p-4 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
