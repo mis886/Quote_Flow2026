@@ -8,7 +8,7 @@ import { AlertTriangle, Plus, Workflow } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { PressBoard } from '../components/PressBoard';
 import { AssignPressModal } from '../components/AssignPressModal';
-import { assignJobToPress, markPressDone } from '../lib/actions';
+import { assignJobsToPress, markPressDone } from '../lib/actions';
 
 export function ProductionDashboard() {
   const { presses, jobs, settings, loading, refresh } = useProductionData();
@@ -28,8 +28,8 @@ export function ProductionDashboard() {
 
   const queuedNoPress = jobs.filter(j => j.stage === 'moulding' && !j.press_id);
 
-  const handleConfirmAssign = async (jobId: string, pressId: string) => {
-    await assignJobToPress(jobId, pressId);
+  const handleConfirmAssign = async (jobIds: string[], pressId: string) => {
+    await assignJobsToPress(jobIds, pressId);
     await refresh();
   };
   const handleMarkDone = async (pressId: string) => {

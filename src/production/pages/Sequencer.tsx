@@ -1,42 +1,52 @@
-// Sequencer wrapper — 6 tabs (Shift Briefing + 5 stages).
-// Vertical slice ships Moulding fully wired; other tabs render a
-// placeholder so the workflow is visible without being complete.
+// Sequencer — 6 tabs (Shift Briefing + 5 stages), all wired.
+// Mirrors MRT_ERP_Phase1_2_v2.html behaviour.
 
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useProductionData } from '../lib/useProductionData';
 import { PressBoard } from '../components/PressBoard';
 import { AssignPressModal } from '../components/AssignPressModal';
-import { assignJobToPress, markPressDone } from '../lib/actions';
-import { updateJob, logStageEvent } from '../lib/db';
+import { NCRModal } from '../components/NCRModal';
+import { PDIApprovalModal } from '../components/PDIApprovalModal';
+import { ConfirmDispatchModal } from '../components/ConfirmDispatchModal';
+import { ShiftBriefingTab } from './tabs/ShiftBriefingTab';
+import { FinishingTab } from './tabs/FinishingTab';
+import { InspectionTab } from './tabs/InspectionTab';
+import { PDITab } from './tabs/PDITab';
+import { DispatchTab } from './tabs/DispatchTab';
+import {
+  assignJobsToPress, markPressDone, advanceJob,
+  passInspection, raiseNCR, reworkFromNCR, approvePDI, confirmDispatch,
+} from '../lib/actions';
 import { ArrowRight, Plus } from 'lucide-react';
+import type { ProductionJob } from '../lib/types';
 
-const TABS: { k: string; label: string; emoji?: string }[] = [
-  { k: 'shift',    label: 'Shift Briefing', emoji: '🌅' },
-  { k: 'mould',    label: 'Moulding' },
-  { k: 'finish',   label: 'Finishing' },
-  { k: 'insp',     label: 'Inspection' },
-  { k: 'pdi',      label: 'PDI Awaiting' },
-  { k: 'dispatch', label: 'Ready to Dispatch' },
+const TABS: { k: string; label: string; emoji?: string; stage?: string | null }[] = [
+  { k: 'shift',    label: 'Shift Briefing',    emoji: '🌅', stage: null },
+  { k: 'mould',    label: 'Moulding',           stage: 'moulding' },
+  { k: 'finish',   label: 'Finishing',          stage: 'finishing' },
+  { k: 'insp',     label: 'Inspection',         stage: 'inspection' },
+  { k: 'pdi',      label: 'PDI Awaiting',       stage: 'pdi' },
+  { k: 'dispatch', label: 'Ready to Dispatch',  stage: 'dispatch' },
 ];
-
-const STAGE_BY_TAB: Record<string, string | null> = {
-  shift: null, mould: 'moulding', finish: 'finishing',
-  insp: 'inspection', pdi: 'pdi', dispatch: 'dispatch',
-};
 
 export function Sequencer() {
   const { tab } = useParams<{ tab?: string }>();
   const active = tab && TABS.some(t => t.k === tab) ? tab : 'mould';
   const navigate = useNavigate();
-  const { presses, jobs, loading, refresh } = useProductionData();
+  const data = useProductionData();
+  const { presses, jobs, workers, loading, refresh } = data;
+
   const [assigning, setAssigning] = useState<{ pressId: string | null; jobId: string | null } | null>(null);
+  const [ncrJob, setNcrJob]       = useState<ProductionJob | null>(null);
+  const [pdiJob, setPdiJob]       = useState<ProductionJob | null>(null);
+  const [dispJob, setDispJob]     = useState<ProductionJob | null>(null);
 
   const stageJobs = useMemo(() => {
-    const s = STAGE_BY_TAB[active];
-    if (!s) return [];
+    const t = TABS.find(x => x.k === active);
+    if (!t || !t.stage) return [];
     return jobs
-      .filter(j => j.stage === s)
+      .filter(j => j.stage === t.stage)
       .slice()
       .sort((a, b) => {
         if (a.priority === 'emergency' && b.priority !== 'emergency') return -1;
@@ -50,8 +60,8 @@ export function Sequencer() {
     [jobs]
   );
 
-  const handleConfirmAssign = async (jobId: string, pressId: string) => {
-    await assignJobToPress(jobId, pressId);
+  const handleConfirmAssign = async (jobIds: string[], pressId: string) => {
+    await assignJobsToPress(jobIds, pressId);
     await refresh();
   };
   const handleMarkDone = async (pressId: string) => {
@@ -59,11 +69,34 @@ export function Sequencer() {
     await refresh();
   };
   const handleAdvance = async (jobId: string, toStage: 'finishing' | 'inspection' | 'pdi' | 'dispatch') => {
-    const j = jobs.find(x => x.id === jobId);
-    if (!j) return;
-    await updateJob(jobId, { stage: toStage, status: toStage === 'dispatch' ? 'ready' : 'in-progress' });
-    await logStageEvent(jobId, toStage, j.stage as any, null, null);
+    await advanceJob(jobId, toStage);
     await refresh();
+  };
+  const handlePassInspection = async (jobId: string) => {
+    await passInspection(jobId);
+    await refresh();
+  };
+  const handleSubmitNCR = async (payload: { defect_desc: string; defect_code: string; responsible_stage: string; action: 'rework' | 'reject' }) => {
+    if (!ncrJob) return;
+    await raiseNCR(ncrJob.id, payload);
+    await refresh();
+    setNcrJob(null);
+  };
+  const handleRework = async (jobId: string) => {
+    await reworkFromNCR(jobId);
+    await refresh();
+  };
+  const handleApprovePDI = async (officer: string) => {
+    if (!pdiJob) return;
+    await approvePDI(pdiJob.id, officer);
+    await refresh();
+    setPdiJob(null);
+  };
+  const handleConfirmDispatch = async (payload: { courier: string; consignment_no: string }) => {
+    if (!dispJob) return;
+    await confirmDispatch(dispJob.id, payload);
+    await refresh();
+    setDispJob(null);
   };
 
   return (
@@ -72,10 +105,12 @@ export function Sequencer() {
       <div className="flex items-center gap-1 border-b border-g200 mb-3 overflow-x-auto">
         {TABS.map(t => {
           const isActive = active === t.k;
-          const count = t.k === 'shift' ? null : jobs.filter(j => j.stage === STAGE_BY_TAB[t.k]).length;
+          const count = t.stage ? jobs.filter(j => j.stage === t.stage).length : null;
+          const hasEm = t.stage === 'moulding' && jobs.some(j => j.stage === 'moulding' && j.priority === 'emergency');
           return (
             <button
               key={t.k}
+              type="button"
               onClick={() => navigate(`/production/sequencer/${t.k}`)}
               className={`px-3 py-2 text-[12px] whitespace-nowrap border-b-2 transition-colors ${
                 isActive
@@ -83,6 +118,7 @@ export function Sequencer() {
                   : 'border-transparent text-g500 hover:text-blk'
               }`}
             >
+              {hasEm && <span className="mr-1">🔴</span>}
               {t.emoji && <span className="mr-1">{t.emoji}</span>}
               {t.label}
               {count !== null && (
@@ -98,7 +134,11 @@ export function Sequencer() {
       </div>
 
       {/* Tab content */}
-      {active === 'mould' ? (
+      {active === 'shift' && (
+        <ShiftBriefingTab data={data} />
+      )}
+
+      {active === 'mould' && (
         <div className="space-y-3">
           <PressBoard
             presses={presses}
@@ -115,6 +155,15 @@ export function Sequencer() {
                   {stageJobs.length} jobs · sorted by LSD
                 </span>
               </div>
+              {queuedNoPress.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAssigning({ pressId: null, jobId: null })}
+                  className="text-[11px] text-blk border border-g300 rounded px-2 py-1 hover:bg-g100"
+                >
+                  Assign Press ({queuedNoPress.length} queued)
+                </button>
+              )}
               <Link
                 to="/production/jobs/new"
                 className="text-[11px] text-red-mrt border border-red-mrt/30 rounded px-2 py-1 hover:bg-red-lt flex items-center gap-1"
@@ -126,9 +175,7 @@ export function Sequencer() {
             {loading ? (
               <div className="p-6 text-center text-[12px] text-g400">Loading…</div>
             ) : stageJobs.length === 0 ? (
-              <div className="p-8 text-center text-[12px] text-g400">
-                No jobs in this stage.
-              </div>
+              <div className="p-8 text-center text-[12px] text-g400">No jobs in Moulding.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -167,6 +214,7 @@ export function Sequencer() {
                         <Td>
                           {!j.press_id ? (
                             <button
+                              type="button"
                               onClick={() => setAssigning({ pressId: null, jobId: j.id })}
                               className="text-[11px] text-red-mrt border border-red-mrt/30 rounded px-2 py-1 hover:bg-red-lt"
                             >
@@ -174,6 +222,7 @@ export function Sequencer() {
                             </button>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => handleAdvance(j.id, 'finishing')}
                               className="text-[11px] text-green-700 border border-green-300 rounded px-2 py-1 hover:bg-green-50 flex items-center gap-1"
                             >
@@ -189,8 +238,40 @@ export function Sequencer() {
             )}
           </div>
         </div>
-      ) : (
-        <PlaceholderTab tab={active} count={stageJobs.length} />
+      )}
+
+      {active === 'finish' && (
+        <FinishingTab
+          jobs={stageJobs}
+          workers={workers}
+          settings={data.settings}
+          onQtyDoneChange={() => refresh()}
+          onAdvance={(jobId) => handleAdvance(jobId, 'inspection')}
+        />
+      )}
+
+      {active === 'insp' && (
+        <InspectionTab
+          jobs={stageJobs}
+          workers={workers}
+          onPass={handlePassInspection}
+          onFail={(j) => setNcrJob(j)}
+          onRework={handleRework}
+        />
+      )}
+
+      {active === 'pdi' && (
+        <PDITab
+          jobs={stageJobs}
+          onApprove={(j) => setPdiJob(j)}
+        />
+      )}
+
+      {active === 'dispatch' && (
+        <DispatchTab
+          jobs={stageJobs}
+          onConfirmDispatch={(j) => setDispJob(j)}
+        />
       )}
 
       <AssignPressModal
@@ -201,6 +282,27 @@ export function Sequencer() {
         preselectPressId={assigning?.pressId || null}
         preselectJobId={assigning?.jobId || null}
         onConfirm={handleConfirmAssign}
+      />
+
+      <NCRModal
+        open={!!ncrJob}
+        job={ncrJob}
+        onClose={() => setNcrJob(null)}
+        onSubmit={handleSubmitNCR}
+      />
+
+      <PDIApprovalModal
+        open={!!pdiJob}
+        job={pdiJob}
+        onClose={() => setPdiJob(null)}
+        onConfirm={handleApprovePDI}
+      />
+
+      <ConfirmDispatchModal
+        open={!!dispJob}
+        job={dispJob}
+        onClose={() => setDispJob(null)}
+        onConfirm={handleConfirmDispatch}
       />
     </div>
   );
@@ -232,26 +334,5 @@ function StatusPill({ status }: { status: string }) {
     <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-[2px] border ${map[status] || 'bg-g100 text-g600 border-g200'}`}>
       {status}
     </span>
-  );
-}
-
-function PlaceholderTab({ tab, count }: { tab: string; count: number }) {
-  const labels: Record<string, string> = {
-    shift: 'Shift Briefing', finish: 'Finishing', insp: 'Inspection',
-    pdi: 'PDI Awaiting', dispatch: 'Ready to Dispatch',
-  };
-  return (
-    <div className="bg-white border border-g200 rounded-[3px] p-10 text-center">
-      <div className="text-[13px] font-semibold text-blk mb-1">
-        {labels[tab] || tab}
-      </div>
-      <div className="text-[12px] text-g500 mb-3">
-        {count} job{count === 1 ? '' : 's'} in this stage.
-      </div>
-      <div className="text-[11px] text-g400">
-        This tab ships in the next Beta iteration. The vertical slice covers
-        Moulding only.
-      </div>
-    </div>
   );
 }
