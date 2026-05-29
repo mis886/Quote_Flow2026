@@ -93,8 +93,9 @@ ALTER TABLE followups ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT 'Sent Quotatio
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS stage_entered_at TIMESTAMPTZ;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS outcome TEXT;
 
--- Per-lane TAT config (JSON map of lane -> days) on the settings singleton
-ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat JSONB;
+-- Per-lane TAT config on the settings singleton (JSON map of lane -> value)
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat JSONB;    -- legacy: days
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat_h JSONB;  -- canonical: hours
 
 -- ENABLE RLS
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;

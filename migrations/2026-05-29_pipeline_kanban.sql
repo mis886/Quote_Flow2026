@@ -18,5 +18,6 @@ UPDATE followups
    SET stage = 'Closed'
  WHERE status = 'closed' AND (stage IS NULL OR stage <> 'Closed');
 
--- Per-lane TAT config (JSON map lane -> days) on the settings singleton
-ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat JSONB;
+-- Per-lane TAT config on the settings singleton (JSON map lane -> value)
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat JSONB;    -- legacy: days
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat_h JSONB;  -- canonical: hours

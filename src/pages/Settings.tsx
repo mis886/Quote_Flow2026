@@ -4,7 +4,7 @@ import { useAppStore } from '../store';
 import { hasActiveToken } from '../lib/gmail';
 import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X, GitBranch } from 'lucide-react';
 import { UnitsManager } from '../components/UnitsManager';
-import { BOARD_LANES, DEFAULT_STAGE_TAT, type BoardLane } from '../lib/types';
+import { BOARD_LANES, DEFAULT_STAGE_TAT_H, type BoardLane } from '../lib/types';
 
 type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations' | 'pipeline';
 
@@ -38,8 +38,8 @@ export function Settings() {
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [sheetsDriveFolderId, setSheetsDriveFolderId] = useState('');
 
-  // Pipeline TAT (days per lane)
-  const [pipelineTat, setPipelineTat] = useState<Record<BoardLane, number>>({ ...DEFAULT_STAGE_TAT });
+  // Pipeline TAT (total HOURS per lane; edited as days + hours)
+  const [pipelineTatH, setPipelineTatH] = useState<Record<BoardLane, number>>({ ...DEFAULT_STAGE_TAT_H });
 
   // Gmail
   const [gmailEnabled, setGmailEnabled] = useState(false);
@@ -90,7 +90,11 @@ export function Settings() {
       setIntelPin(s.intelligence_pin ?? '');
       setSheetsUrl(s.sheets_webhook_url ?? '');
       setSheetsDriveFolderId(s.sheets_drive_folder_id ?? '');
-      if (s.pipeline_tat) setPipelineTat({ ...DEFAULT_STAGE_TAT, ...s.pipeline_tat });
+      // Prefer hour-precise config; fall back to legacy days (×24), then defaults.
+      const fromDays = s.pipeline_tat
+        ? Object.fromEntries(Object.entries(s.pipeline_tat).map(([k, v]) => [k, (v as number) * 24]))
+        : {};
+      setPipelineTatH({ ...DEFAULT_STAGE_TAT_H, ...fromDays, ...(s.pipeline_tat_h ?? {}) });
     });
   }, []);
 
@@ -109,7 +113,7 @@ export function Settings() {
         intelligence_pin: intelPin.trim() || undefined,
         sheets_webhook_url: sheetsUrl.trim() || undefined,
         sheets_drive_folder_id: sheetsDriveFolderId.trim() || undefined,
-        pipeline_tat: pipelineTat,
+        pipeline_tat_h: pipelineTatH,
       });
       if (error) throw error;
       await refreshData();
@@ -323,37 +327,56 @@ export function Settings() {
               </div>
               <div className="p-5">
                 <p className="text-[12px] text-g500 mb-4">
-                  How many days a card may sit in each pipeline stage before it's flagged.
+                  How long a card may sit in each pipeline stage before it's flagged — set in
+                  <span className="font-semibold text-blk"> days and hours</span>.
                   Cards turn <span className="font-semibold text-amber-600">amber at 80%</span> of the TAT and
                   <span className="font-semibold text-red-mrt"> red once breached</span>. The pre-quote lanes use
                   the enquiry's urgency SLA, so the value below is only a fallback.
                 </p>
                 <div className="space-y-2">
-                  {BOARD_LANES.filter(l => l !== 'Closed').map(lane => (
-                    <div key={lane} className="flex items-center justify-between gap-3 py-1.5 border-b border-g100 last:border-0">
-                      <span className="text-[13px] text-blk font-medium">{lane}</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          aria-label={`${lane} TAT in days`}
-                          className="w-20 font-mono text-[13px] text-right bg-white border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
-                          value={pipelineTat[lane]}
-                          onChange={e => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
-                            setPipelineTat(prev => ({ ...prev, [lane]: v }));
-                          }}
-                        />
-                        <span className="text-[11px] text-g400 w-8">days</span>
-                      </div>
+                  {/* Column labels */}
+                  <div className="flex items-center justify-between gap-3 pb-1 text-[9px] font-bold uppercase tracking-wider text-g400">
+                    <span>Stage</span>
+                    <div className="flex items-center gap-2">
+                      <span className="w-16 text-center">Days</span>
+                      <span className="w-16 text-center">Hours</span>
+                      <span className="w-14 text-right">= Total</span>
                     </div>
-                  ))}
+                  </div>
+                  {BOARD_LANES.filter(l => l !== 'Closed').map(lane => {
+                    const totalH = pipelineTatH[lane] ?? 0;
+                    const days = Math.floor(totalH / 24);
+                    const hrs = totalH % 24;
+                    const setLane = (d: number, h: number) =>
+                      setPipelineTatH(prev => ({ ...prev, [lane]: Math.max(0, d) * 24 + Math.max(0, h) }));
+                    return (
+                      <div key={lane} className="flex items-center justify-between gap-3 py-1.5 border-b border-g100 last:border-0">
+                        <span className="text-[13px] text-blk font-medium">{lane}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number" min={0} step={1}
+                            aria-label={`${lane} TAT days`}
+                            className="w-16 font-mono text-[13px] text-right bg-white border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
+                            value={days}
+                            onChange={e => setLane(Number(e.target.value) || 0, hrs)}
+                          />
+                          <input
+                            type="number" min={0} max={23} step={1}
+                            aria-label={`${lane} TAT hours`}
+                            className="w-16 font-mono text-[13px] text-right bg-white border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
+                            value={hrs}
+                            onChange={e => setLane(days, Number(e.target.value) || 0)}
+                          />
+                          <span className="w-14 text-right font-mono text-[11px] text-g500">{totalH}h</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => setPipelineTat({ ...DEFAULT_STAGE_TAT })}
+                    onClick={() => setPipelineTatH({ ...DEFAULT_STAGE_TAT_H })}
                     className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-wider uppercase text-g500 hover:text-blk transition-colors"
                   >
                     <RotateCcw size={11} /> Reset to defaults

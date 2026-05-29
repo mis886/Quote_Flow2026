@@ -6,7 +6,7 @@ import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth } from '../lib/utils'
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import {
   BOARD_LANES,
-  DEFAULT_STAGE_TAT,
+  DEFAULT_STAGE_TAT_H,
   type BoardLane,
   type PipelineStage,
   type PipelineOutcome,
@@ -39,6 +39,16 @@ import {
 
 const PRE_QUOTE_LANES: BoardLane[] = ['New Enquiry', 'To Quote'];
 const SLA_H: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
+
+// Format a TAT budget in hours as a compact label: 96 → "4d", 100 → "4d 4h", 5 → "5h".
+function fmtTat(hours: number): string {
+  const h = Math.round(hours);
+  if (h <= 0) return '0h';
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  const rem = h % 24;
+  return rem ? `${d}d ${rem}h` : `${d}d`;
+}
 
 // One unified card model for both enquiry-backed and quote-backed lanes.
 interface BoardCard {
@@ -103,10 +113,13 @@ export default function PipelineBoard({
   const [closing, setClosing] = useState<BoardCard | null>(null);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
 
-  // Resolve TAT (in hours) for a lane from settings → defaults.
+  // Resolve TAT (in hours) for a lane: hours config → legacy days config → default.
   const tatHoursFor = (lane: BoardLane): number => {
-    const days = data.settings?.pipeline_tat?.[lane] ?? DEFAULT_STAGE_TAT[lane];
-    return (days || 0) * 24;
+    const h = data.settings?.pipeline_tat_h?.[lane];
+    if (h != null) return h;
+    const days = data.settings?.pipeline_tat?.[lane];
+    if (days != null) return days * 24;
+    return DEFAULT_STAGE_TAT_H[lane];
   };
 
   // Resolve the site/branch name for a customer + explicit siteId, falling
@@ -246,7 +259,7 @@ export default function PipelineBoard({
           const cards = lanes[lane];
           const breaches = laneBreaches(lane);
           const isPreQuote = PRE_QUOTE_LANES.includes(lane);
-          const tatDays = data.settings?.pipeline_tat?.[lane] ?? DEFAULT_STAGE_TAT[lane];
+          const laneTatH = tatHoursFor(lane);
           return (
             <div key={lane} className="w-[260px] shrink-0 flex flex-col bg-white rounded-[6px] border border-g200 overflow-hidden">
               {/* Lane header */}
@@ -260,7 +273,7 @@ export default function PipelineBoard({
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-[9px] text-g400 font-mono">
-                    {lane === 'Closed' ? 'no TAT' : isPreQuote ? `SLA-based` : `TAT ${tatDays}d`}
+                    {lane === 'Closed' ? 'no TAT' : isPreQuote ? `SLA-based` : `TAT ${fmtTat(laneTatH)}`}
                   </span>
                   {breaches > 0 && (
                     <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-mrt">
@@ -368,7 +381,7 @@ function Card({ card, onAdvance, onBack, onOpen }: { card: BoardCard; onAdvance:
               ? `Overdue ${fmtElapsed(card.tat.overdueH)}`
               : `${fmtElapsed(card.tat.elapsedH)} in stage`}
           </span>
-          <span className="text-g400">/ {Math.round(card.tatHours / 24)}d TAT</span>
+          <span className="text-g400">/ {fmtTat(card.tatHours)} TAT</span>
         </div>
       )}
 
@@ -640,15 +653,15 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                         {/* RIGHT — next to-do (only when a next step was planned) */}
                         {log.nextDate && (
                           <div className="flex justify-end">
-                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] bg-emerald-600 text-white px-3 py-2 shadow-sm">
-                              <div className="text-[8.5px] font-bold uppercase tracking-widest opacity-80 mb-0.5">
+                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] px-3 py-2 shadow-sm border border-[#c5e9a8]" style={{ backgroundColor: '#DCF8C6' }}>
+                              <div className="text-[8.5px] font-bold uppercase tracking-widest text-emerald-800/70 mb-0.5">
                                 To-Do{log.nextChannel ? ` · ${log.nextChannel}` : ''}
                               </div>
-                              <div className="text-[12px] font-semibold">
+                              <div className="text-[12px] font-semibold text-emerald-900">
                                 {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}
                               </div>
                               {log.nextNote && (
-                                <p className="text-[11.5px] leading-relaxed whitespace-pre-wrap mt-1 opacity-95">{log.nextNote}</p>
+                                <p className="text-[11.5px] leading-relaxed whitespace-pre-wrap mt-1 text-emerald-950/90">{log.nextNote}</p>
                               )}
                             </div>
                           </div>

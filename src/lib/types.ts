@@ -242,6 +242,7 @@ export const BOARD_LANES: BoardLane[] = ['New Enquiry', 'To Quote', ...PIPELINE_
 
 // Default turnaround time (in days) allowed in each lane before a TAT warning.
 // 'Closed' has no TAT — the clock stops once closed.
+// Kept for backward-compat with configs saved before TAT became hour-precise.
 export const DEFAULT_STAGE_TAT: Record<BoardLane, number> = {
   'New Enquiry': 1,
   'To Quote': 2,
@@ -250,6 +251,18 @@ export const DEFAULT_STAGE_TAT: Record<BoardLane, number> = {
   '1st Follow-up': 3,
   '2nd Follow-up': 4,
   'Negotiation': 7,
+  'Closed': 0,
+};
+
+// Default TAT in HOURS — the canonical unit. Derived from the day defaults.
+export const DEFAULT_STAGE_TAT_H: Record<BoardLane, number> = {
+  'New Enquiry': 24,
+  'To Quote': 48,
+  'Sent Quotation': 24,
+  'Offer Acknowledged': 48,
+  '1st Follow-up': 72,
+  '2nd Follow-up': 96,
+  'Negotiation': 168,
   'Closed': 0,
 };
 
@@ -303,6 +316,9 @@ export interface AppSettings {
   intelligence_pin?: string;
   sheets_webhook_url?: string;
   sheets_drive_folder_id?: string;
-  // Per-lane TAT in days, editable in Settings. Falls back to DEFAULT_STAGE_TAT.
+  // Per-lane TAT in days (legacy). Superseded by pipeline_tat_h.
   pipeline_tat?: Partial<Record<BoardLane, number>>;
+  // Per-lane TAT in HOURS, editable in Settings. Falls back to pipeline_tat
+  // (×24) then DEFAULT_STAGE_TAT_H.
+  pipeline_tat_h?: Partial<Record<BoardLane, number>>;
 }
