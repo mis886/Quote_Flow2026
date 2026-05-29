@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { parseISO, isToday } from 'date-fns';
 import { useAppStore } from '../store';
 import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth } from '../lib/utils';
+import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import {
   BOARD_LANES,
   DEFAULT_STAGE_TAT,
@@ -32,6 +33,8 @@ import {
   Mail,
   Plus,
   Paperclip,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 
 const PRE_QUOTE_LANES: BoardLane[] = ['New Enquiry', 'To Quote'];
@@ -56,6 +59,15 @@ interface BoardCard {
   followUp?: FollowUp;
   outcome?: PipelineOutcome | null;
 }
+
+// Channel styling for the left-side "what happened" chat pills.
+const CHANNEL_PILL: Record<string, { icon: string; bg: string; border: string; text: string }> = {
+  Called:   { icon: '📞', bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700' },
+  WhatsApp: { icon: '💬', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  Email:    { icon: '📧', bg: 'bg-blue-50',    border: 'border-blue-200',    text: 'text-blue-700' },
+  Meeting:  { icon: '🤝', bg: 'bg-purple-50',  border: 'border-purple-200',  text: 'text-purple-700' },
+  Visit:    { icon: '📍', bg: 'bg-orange-50',  border: 'border-orange-200',  text: 'text-orange-700' },
+};
 
 const LANE_META: Record<BoardLane, { tint: string; bar: string; text: string }> = {
   'New Enquiry':       { tint: 'bg-slate-50',   bar: 'bg-slate-400',   text: 'text-slate-600' },
@@ -444,6 +456,31 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
     onClose(); // hand focus fully to the document modal
   };
 
+  const order = card.quote ? data.orders.find(o => o.quoteRef === card.quote!.id) : undefined;
+
+  const handleQuotePDF = () => {
+    const q = card.quote;
+    if (!q) return;
+    const c = data.customers.find(x => x.name === q.cust);
+    const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
+    const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+    const sig = unitSig ?? data.signatories.find(s => s.is_default);
+    generateQuotePDF(q, c, data.settings, sig, true, unit);
+  };
+
+  const handlePIPDF = () => {
+    const q = card.quote;
+    if (!q || !order) return;
+    const c = data.customers.find(x => x.name === order.cust);
+    const unit = order.unitId ? data.units.find(u => u.id === order.unitId) : data.units.find(u => u.is_default);
+    const bank = order.bankAccountId
+      ? data.bankAccounts.find(b => b.id === order.bankAccountId)
+      : data.bankAccounts.find(b => b.unit_id === unit?.id && b.is_default);
+    const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+    const sig = unitSig ?? data.signatories.find(s => s.is_default);
+    generatePIPDF(order, q, c, data.settings, sig, true, unit, bank);
+  };
+
   const cust = data.customers.find(c => c.name === card.cust);
   const siteId = isEnquiry ? card.enquiry?.siteId : (card.quote?.siteId || data.enquiries.find(e => e.id === card.quote?.enqRef)?.siteId);
   const site = (siteId && cust?.sites.find(s => s.id === siteId)) || cust?.sites.find(s => s.isPrimary) || cust?.sites?.[0];
@@ -494,16 +531,33 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
               </h2>
               <div className="font-mono text-[11px] text-sQ mt-0.5">{card.title}</div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <button type="button" onClick={onClose} title="Close" className="text-g400 hover:text-blk p-1 shrink-0"><X size={18} /></button>
+          </div>
+
+          {/* Document / PDF actions — quote cards only */}
+          {!isEnquiry && (
+            <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+              <button
+                type="button" onClick={handleQuotePDF} title="Download Quotation PDF"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
+              >
+                <FileText size={12} /> Quote PDF
+              </button>
+              <button
+                type="button" onClick={handlePIPDF} disabled={!order}
+                title={order ? 'Download Proforma Invoice PDF' : 'No order created yet for this quote'}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-g300"
+              >
+                <Receipt size={12} /> PI PDF
+              </button>
               <button
                 type="button" onClick={openDocs} title="View all documents (enquiry, quotes, orders, POs)"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
               >
                 <Paperclip size={12} /> Docs
               </button>
-              <button type="button" onClick={onClose} title="Close" className="text-g400 hover:text-blk p-1"><X size={18} /></button>
             </div>
-          </div>
+          )}
 
           {/* Contact strip */}
           {contacts.length > 0 && (
@@ -561,24 +615,47 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
               {logs.length === 0 ? (
                 <div className="py-8 text-center text-g400 text-[12px]">No activity logged yet.</div>
               ) : (
-                <div className="space-y-2.5">
-                  {logs.map((log, idx) => (
-                    <div key={idx} className="bg-white border border-g200 rounded-[8px] px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-g500">{log.channel}</span>
-                        <span className="text-g300">·</span>
-                        <span className="text-[9px] text-g400 font-mono">{fmtIST(parseISO(log.ts), 'dd MMM, hh:mm aa')}</span>
-                      </div>
-                      <p className="text-[12.5px] text-blk leading-relaxed whitespace-pre-wrap">{log.note}</p>
-                      {log.nextDate && (
-                        <div className="text-[11px] font-semibold text-sR mt-1.5">
-                          → Next: {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
-                          {log.nextNote && <div className="text-[10.5px] italic text-g500 font-normal mt-0.5">{log.nextNote}</div>}
+                <div className="space-y-2">
+                  {/* Chat-style: 'what happened' on the LEFT (customer side),
+                      'next to-do' on the RIGHT (our side). Stored newest-first,
+                      so reverse to read oldest → newest like a conversation. */}
+                  {[...logs].reverse().map((log, idx) => {
+                    const cfg = CHANNEL_PILL[log.channel] ?? CHANNEL_PILL.Called;
+                    return (
+                      <React.Fragment key={idx}>
+                        {/* LEFT — what happened */}
+                        <div className="flex justify-start">
+                          <div className={cn('max-w-[80%] rounded-[14px] rounded-tl-[4px] border px-3 py-2', cfg.bg, cfg.border)}>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-[10px]">{cfg.icon}</span>
+                              <span className={cn('text-[8.5px] font-bold uppercase tracking-widest', cfg.text)}>{log.channel}</span>
+                            </div>
+                            <p className="text-[12.5px] text-blk leading-relaxed whitespace-pre-wrap">{log.note}</p>
+                            <div className="text-[8.5px] text-g400 mt-1 text-right">
+                              {log.who} · {fmtIST(parseISO(log.ts), 'dd MMM, hh:mm aa')}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div className="text-[9px] text-g400 mt-1">{log.who}</div>
-                    </div>
-                  ))}
+
+                        {/* RIGHT — next to-do (only when a next step was planned) */}
+                        {log.nextDate && (
+                          <div className="flex justify-end">
+                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] bg-emerald-600 text-white px-3 py-2 shadow-sm">
+                              <div className="text-[8.5px] font-bold uppercase tracking-widest opacity-80 mb-0.5">
+                                To-Do{log.nextChannel ? ` · ${log.nextChannel}` : ''}
+                              </div>
+                              <div className="text-[12px] font-semibold">
+                                {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}
+                              </div>
+                              {log.nextNote && (
+                                <p className="text-[11.5px] leading-relaxed whitespace-pre-wrap mt-1 opacity-95">{log.nextNote}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               )}
             </div>
