@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount } from '../lib/types';
+import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount, PipelineStage, PipelineOutcome } from '../lib/types';
 import { supabase, signOut, getSettings } from '../lib/supabase';
 import { uploadToS3 } from '../lib/s3';
 import { fetchLabelledEmails, fetchEmailAttachments } from '../lib/gmail';
@@ -28,8 +28,9 @@ interface AppContextType {
   updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   addFollowUpLog: (quoteId: string, log: FollowUpLog, nextDate?: string | null, nextTime?: string | null, owner?: string) => Promise<void>;
-  closeFollowUp: (quoteId: string) => Promise<void>;
+  closeFollowUp: (quoteId: string, outcome?: PipelineOutcome) => Promise<void>;
   reopenFollowUp: (quoteId: string) => Promise<void>;
+  setFollowUpStage: (quoteId: string, stage: PipelineStage, outcome?: PipelineOutcome | null) => Promise<void>;
   addSignatory: (sig: AuthorizedSignatory) => Promise<void>;
   updateSignatory: (id: string, updates: Partial<AuthorizedSignatory>) => Promise<void>;
   deleteSignatory: (id: string) => Promise<void>;
@@ -350,7 +351,12 @@ const mapEnquiryToDB = (e: any) => {
         quotes: (quotes || []).map(mapQuoteFromDB),
         orders: (orders || []).map(mapOrderFromDB),
         customers: (customers || []).map(mapCustomerFromDB),
-        followups: followups || [],
+        followups: (followups || []).map((f: any) => ({
+          ...f,
+          // Backfill stage for rows created before the pipeline existed.
+          stage: f.stage || (f.status === 'closed' ? 'Closed' : 'Sent Quotation'),
+          stage_entered_at: f.stage_entered_at || f.updated_at || f.created_at,
+        })),
         settings: (settings as any) || null,
         signatories: signatories || [],
         units: units || [],
@@ -546,6 +552,7 @@ const mapEnquiryToDB = (e: any) => {
         throw error;
       }
     } else {
+      const nowIso = new Date().toISOString();
       const newFollowUp = {
         id: quoteId,
         quote_id: quoteId,
@@ -553,9 +560,12 @@ const mapEnquiryToDB = (e: any) => {
         next_date: nextDate,
         next_time: nextTime,
         status: 'open' as const,
+        stage: 'Sent Quotation' as PipelineStage,
+        stage_entered_at: nowIso,
+        outcome: null,
         logs: [log],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: nowIso,
+        updated_at: nowIso
       };
 
       const { error } = await supabase.from('followups').insert([newFollowUp]);
@@ -571,16 +581,24 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
-  const closeFollowUp = async (quoteId: string) => {
+  const closeFollowUp = async (quoteId: string, outcome: PipelineOutcome = 'Other') => {
     const { error } = await supabase
       .from('followups')
-      .update({ status: 'closed', next_date: null, next_time: null, updated_at: new Date().toISOString() })
+      .update({
+        status: 'closed',
+        stage: 'Closed',
+        outcome,
+        stage_entered_at: new Date().toISOString(),
+        next_date: null,
+        next_time: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('quote_id', quoteId);
     if (!error) {
       setData(prev => ({
         ...prev,
         followups: prev.followups.map(f => f.quote_id === quoteId
-          ? { ...f, status: 'closed' as const, next_date: null, next_time: null }
+          ? { ...f, status: 'closed' as const, stage: 'Closed' as PipelineStage, outcome, next_date: null, next_time: null }
           : f)
       }));
     } else {
@@ -589,16 +607,64 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
+  // Move a quote's card to a pipeline stage and reset its TAT clock.
+  // Moving to 'Closed' also flips status to closed; moving out of Closed reopens.
+  const setFollowUpStage = async (quoteId: string, stage: PipelineStage, outcome: PipelineOutcome | null = null) => {
+    const nowIso = new Date().toISOString();
+    const isClosed = stage === 'Closed';
+    const existing = data.followups.find(f => f.quote_id === quoteId);
+
+    const update: Record<string, any> = {
+      stage,
+      stage_entered_at: nowIso,
+      status: isClosed ? 'closed' : 'open',
+      outcome: isClosed ? (outcome ?? 'Other') : null,
+      updated_at: nowIso,
+    };
+    if (isClosed) { update.next_date = null; update.next_time = null; }
+
+    if (existing) {
+      const { error } = await supabase.from('followups').update(update).eq('quote_id', quoteId);
+      if (error) { console.error('Error setting stage:', error); throw error; }
+      setData(prev => ({
+        ...prev,
+        followups: prev.followups.map(f => f.quote_id === quoteId
+          ? { ...f, stage, stage_entered_at: nowIso, status: (isClosed ? 'closed' : 'open') as 'open' | 'closed',
+              outcome: isClosed ? (outcome ?? 'Other') : null,
+              ...(isClosed ? { next_date: null, next_time: null } : {}) }
+          : f)
+      }));
+    } else {
+      // No follow-up row yet (e.g. quote sent but never logged) — create one.
+      const row = {
+        id: quoteId,
+        quote_id: quoteId,
+        owner: user?.user_metadata?.full_name || user?.email || 'Unknown',
+        next_date: null,
+        next_time: null,
+        logs: [],
+        created_at: nowIso,
+        ...update,
+      };
+      const { error } = await supabase.from('followups').insert([row]);
+      if (error) { console.error('Error creating follow-up on stage move:', error); throw error; }
+      setData(prev => ({ ...prev, followups: [...prev.followups, row as FollowUp] }));
+    }
+  };
+
   const reopenFollowUp = async (quoteId: string) => {
+    // Reopening pulls the card out of Closed back into Negotiation and
+    // restarts that stage's TAT clock.
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from('followups')
-      .update({ status: 'open', updated_at: new Date().toISOString() })
+      .update({ status: 'open', stage: 'Negotiation', outcome: null, stage_entered_at: nowIso, updated_at: nowIso })
       .eq('quote_id', quoteId);
     if (!error) {
       setData(prev => ({
         ...prev,
         followups: prev.followups.map(f => f.quote_id === quoteId
-          ? { ...f, status: 'open' as const }
+          ? { ...f, status: 'open' as const, stage: 'Negotiation' as PipelineStage, outcome: null, stage_entered_at: nowIso }
           : f)
       }));
     } else {
@@ -822,6 +888,7 @@ const mapEnquiryToDB = (e: any) => {
         addFollowUpLog,
         closeFollowUp,
         reopenFollowUp,
+        setFollowUpStage,
         addSignatory,
         updateSignatory,
         deleteSignatory,

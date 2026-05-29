@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { getSettings, updateSettings } from '../lib/supabase';
 import { useAppStore } from '../store';
 import { hasActiveToken } from '../lib/gmail';
-import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X } from 'lucide-react';
+import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X, GitBranch } from 'lucide-react';
 import { UnitsManager } from '../components/UnitsManager';
+import { BOARD_LANES, DEFAULT_STAGE_TAT, type BoardLane } from '../lib/types';
 
-type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations';
+type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations' | 'pipeline';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -36,6 +37,9 @@ export function Settings() {
 
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [sheetsDriveFolderId, setSheetsDriveFolderId] = useState('');
+
+  // Pipeline TAT (days per lane)
+  const [pipelineTat, setPipelineTat] = useState<Record<BoardLane, number>>({ ...DEFAULT_STAGE_TAT });
 
   // Gmail
   const [gmailEnabled, setGmailEnabled] = useState(false);
@@ -86,6 +90,7 @@ export function Settings() {
       setIntelPin(s.intelligence_pin ?? '');
       setSheetsUrl(s.sheets_webhook_url ?? '');
       setSheetsDriveFolderId(s.sheets_drive_folder_id ?? '');
+      if (s.pipeline_tat) setPipelineTat({ ...DEFAULT_STAGE_TAT, ...s.pipeline_tat });
     });
   }, []);
 
@@ -104,6 +109,7 @@ export function Settings() {
         intelligence_pin: intelPin.trim() || undefined,
         sheets_webhook_url: sheetsUrl.trim() || undefined,
         sheets_drive_folder_id: sheetsDriveFolderId.trim() || undefined,
+        pipeline_tat: pipelineTat,
       });
       if (error) throw error;
       await refreshData();
@@ -126,6 +132,7 @@ export function Settings() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'units',       label: 'Units & Bank',  icon: <Landmark size={13} /> },
     { id: 'signatories', label: 'Signatories',   icon: <Star size={13} /> },
+    { id: 'pipeline', label: 'Pipeline TAT',    icon: <GitBranch size={13} /> },
     { id: 'gmail', label: 'Gmail Integration',  icon: <Mail size={13} /> },
     { id: 'intel', label: 'Intelligence',       icon: <Lock size={13} /> },
     { id: 'integrations', label: 'Integrations', icon: <Puzzle size={13} /> },
@@ -305,6 +312,58 @@ export function Settings() {
 
         {/* ── Units & Bank Accounts ── */}
         {tab === 'units' && <UnitsManager />}
+
+        {/* ── Pipeline TAT ── */}
+        {tab === 'pipeline' && (
+          <div className="max-w-xl space-y-5">
+            <div className="bg-white border border-g200 rounded-[4px] overflow-hidden">
+              <div className="px-5 py-3 border-b border-g200 bg-g50 flex items-center gap-2">
+                <GitBranch size={12} className="text-g400" />
+                <span className="text-[11px] font-bold tracking-[1.5px] uppercase text-g600">Stage Turnaround Times (TAT)</span>
+              </div>
+              <div className="p-5">
+                <p className="text-[12px] text-g500 mb-4">
+                  How many days a card may sit in each pipeline stage before it's flagged.
+                  Cards turn <span className="font-semibold text-amber-600">amber at 80%</span> of the TAT and
+                  <span className="font-semibold text-red-mrt"> red once breached</span>. The pre-quote lanes use
+                  the enquiry's urgency SLA, so the value below is only a fallback.
+                </p>
+                <div className="space-y-2">
+                  {BOARD_LANES.filter(l => l !== 'Closed').map(lane => (
+                    <div key={lane} className="flex items-center justify-between gap-3 py-1.5 border-b border-g100 last:border-0">
+                      <span className="text-[13px] text-blk font-medium">{lane}</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          aria-label={`${lane} TAT in days`}
+                          className="w-20 font-mono text-[13px] text-right bg-white border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
+                          value={pipelineTat[lane]}
+                          onChange={e => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            setPipelineTat(prev => ({ ...prev, [lane]: v }));
+                          }}
+                        />
+                        <span className="text-[11px] text-g400 w-8">days</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setPipelineTat({ ...DEFAULT_STAGE_TAT })}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-wider uppercase text-g500 hover:text-blk transition-colors"
+                  >
+                    <RotateCcw size={11} /> Reset to defaults
+                  </button>
+                  <span className="text-[10px] text-g400">Closed lane has no TAT.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Gmail Integration ── */}
         {tab === 'gmail' && (

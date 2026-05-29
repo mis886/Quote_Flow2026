@@ -74,6 +74,36 @@ export const calculateAgeHours = (dateString: string) => {
   return Math.max(0, (now.getTime() - date.getTime()) / 3600000);
 };
 
+// TAT (turnaround) health for a card sitting in a stage.
+// `enteredAt` = when it entered the stage, `tatHours` = allowed hours.
+// Returns 'none' when no TAT (e.g. Closed), else green→amber(≥80%)→red(breached).
+export type TatHealth = 'ok' | 'warn' | 'breach' | 'none';
+export function tatHealth(
+  enteredAt: string | null | undefined,
+  tatHours: number
+): { health: TatHealth; elapsedH: number; pct: number; overdueH: number } {
+  if (!enteredAt || !tatHours || tatHours <= 0) {
+    return { health: 'none', elapsedH: 0, pct: 0, overdueH: 0 };
+  }
+  const elapsedH = calculateAgeHours(enteredAt);
+  const pct = elapsedH / tatHours;
+  const overdueH = Math.max(0, elapsedH - tatHours);
+  let health: TatHealth = 'ok';
+  if (pct >= 1) health = 'breach';
+  else if (pct >= 0.8) health = 'warn';
+  return { health, elapsedH, pct, overdueH };
+}
+
+// Compact "2d 4h" / "5h" elapsed label.
+export function fmtElapsed(hours: number): string {
+  const h = Math.floor(hours);
+  if (h < 1) return '<1h';
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  const rem = h % 24;
+  return rem ? `${d}d ${rem}h` : `${d}d`;
+}
+
 // Working hours: Mon–Sat 09:00–18:00
 export function addWorkingHours(from: Date, hours: number): { date: string; time: string } {
   let d = new Date(from);

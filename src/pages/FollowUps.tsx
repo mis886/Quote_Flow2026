@@ -29,6 +29,7 @@ import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
+import PipelineBoard from '../components/PipelineBoard';
 
 function getOffsetWeekRange(offset: number) {
   const { start: baseStart } = getThisWeekRange();
@@ -92,7 +93,7 @@ export default function FollowUps() {
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
   const [quickFilter, setQuickFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled'>('all');
-  const [viewTab, setViewTab] = useState<'queue' | 'thisweek' | 'calendar'>('queue');
+  const [viewTab, setViewTab] = useState<'board' | 'thisweek' | 'calendar'>('board');
   const [calWeekOffset, setCalWeekOffset] = useState(0);
 
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
@@ -306,6 +307,60 @@ export default function FollowUps() {
 
   const isClosedTab = queueTab === 'closed';
 
+  // ── Board view: full-width Kanban (replaces the old Queue list) ──
+  if (viewTab === 'board') {
+    return (
+      <div className="flex flex-col h-full bg-cream overflow-hidden">
+        <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
+        <div className="px-4 py-3 border-b border-g200 bg-white flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="font-mono text-[10px] font-bold tracking-[2px] uppercase text-red-mrt mb-0.5">Pipeline</div>
+              <h1 className="text-xl font-serif text-blk italic leading-none">Command Centre</h1>
+            </div>
+            {/* View tabs */}
+            <div className="flex gap-1 bg-g100 rounded-[4px] p-1">
+              {(['board', 'thisweek', 'calendar'] as const).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setViewTab(tab)}
+                  className={cn(
+                    "px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                    viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
+                  )}
+                >
+                  {tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-g400" size={14} />
+              <input
+                type="text"
+                placeholder="Search customer or ref…"
+                className="w-[220px] pl-8 pr-3 py-1.5 bg-g50 border border-g200 rounded-[5px] text-[12px] focus:outline-none focus:border-red-mrt/30"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <select
+              title="Filter by owner"
+              className="bg-g50 border border-g200 rounded-[4px] px-2 py-1.5 text-[11px] font-medium"
+              value={filterOwner}
+              onChange={e => setFilterOwner(e.target.value)}
+            >
+              {owners.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <PipelineBoard ownerFilter={filterOwner} search={searchQuery} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full bg-cream overflow-hidden">
       {/* Left Panel: Queue */}
@@ -371,7 +426,7 @@ export default function FollowUps() {
 
           {/* View tabs */}
           <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
-            {(['queue', 'thisweek', 'calendar'] as const).map(tab => (
+            {(['board', 'thisweek', 'calendar'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -381,7 +436,7 @@ export default function FollowUps() {
                   viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                 )}
               >
-                {tab === 'queue' ? 'Queue' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+                {tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
               </button>
             ))}
           </div>
@@ -527,16 +582,7 @@ export default function FollowUps() {
             <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
               <Calendar className="mx-auto text-g300 mb-2" size={24} />
               <div className="text-[12px] font-bold text-g500">No follow-ups due this week</div>
-              <div className="text-[10px] text-g400">Check Queue or Calendar for other items</div>
-            </div>
-          )}
-          {viewTab === 'queue' && followUpQueue.length === 0 && (
-            <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
-              <Users className="mx-auto text-g300 mb-2" size={24} />
-              <div className="text-[12px] font-bold text-g500">
-                {isClosedTab ? 'No closed follow-ups' : 'No follow-ups match'}
-              </div>
-              <div className="text-[10px] text-g400">Try adjusting your filters</div>
+              <div className="text-[10px] text-g400">Check the Board or Calendar for other items</div>
             </div>
           )}
         </div>

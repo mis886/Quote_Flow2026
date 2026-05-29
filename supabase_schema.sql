@@ -76,10 +76,25 @@ CREATE TABLE IF NOT EXISTS followups (
     quote_id TEXT REFERENCES quotes(id) UNIQUE,
     owner TEXT,
     next_date DATE,
+    next_time TEXT,
+    status TEXT DEFAULT 'open',
+    stage TEXT DEFAULT 'Sent Quotation',     -- pipeline lane
+    stage_entered_at TIMESTAMPTZ,            -- TAT clock for current stage
+    outcome TEXT,                            -- Won/Lost/Rejected/Other when Closed
     logs JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent column adds for existing deployments
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS next_time TEXT;
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open';
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT 'Sent Quotation';
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS stage_entered_at TIMESTAMPTZ;
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS outcome TEXT;
+
+-- Per-lane TAT config (JSON map of lane -> days) on the settings singleton
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pipeline_tat JSONB;
 
 -- ENABLE RLS
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;

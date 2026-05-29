@@ -208,6 +208,51 @@ export interface FollowUpLog {
   nextNote?: string;
 }
 
+// ── Pipeline / Kanban ──────────────────────────────────────────────
+// The board tracks an enquiry all the way to won. The first two lanes are
+// derived from enquiry status (no quote yet); the rest are quote stages
+// stored on the FollowUp record.
+
+// Quote-stage values persisted on FollowUp.stage. 'Closed' is one lane;
+// the actual result lives in `outcome`.
+export type PipelineStage =
+  | 'Sent Quotation'
+  | 'Offer Acknowledged'
+  | '1st Follow-up'
+  | '2nd Follow-up'
+  | 'Negotiation'
+  | 'Closed';
+
+export type PipelineOutcome = 'Won' | 'Lost' | 'Rejected' | 'Other';
+
+// All board lanes left→right. 'New Enquiry' and 'To Quote' are enquiry-backed
+// (pre-quote); the remainder map 1:1 to PipelineStage.
+export type BoardLane = 'New Enquiry' | 'To Quote' | PipelineStage;
+
+export const PIPELINE_STAGES: PipelineStage[] = [
+  'Sent Quotation',
+  'Offer Acknowledged',
+  '1st Follow-up',
+  '2nd Follow-up',
+  'Negotiation',
+  'Closed',
+];
+
+export const BOARD_LANES: BoardLane[] = ['New Enquiry', 'To Quote', ...PIPELINE_STAGES];
+
+// Default turnaround time (in days) allowed in each lane before a TAT warning.
+// 'Closed' has no TAT — the clock stops once closed.
+export const DEFAULT_STAGE_TAT: Record<BoardLane, number> = {
+  'New Enquiry': 1,
+  'To Quote': 2,
+  'Sent Quotation': 1,
+  'Offer Acknowledged': 2,
+  '1st Follow-up': 3,
+  '2nd Follow-up': 4,
+  'Negotiation': 7,
+  'Closed': 0,
+};
+
 export interface FollowUp {
   id: string; // quote_id
   quote_id: string;
@@ -215,6 +260,9 @@ export interface FollowUp {
   next_date: string | null;
   next_time?: string | null;
   status?: 'open' | 'closed';
+  stage?: PipelineStage;            // current quote-stage lane
+  stage_entered_at?: string;        // ISO ts the card entered `stage` (TAT clock)
+  outcome?: PipelineOutcome | null; // result when stage === 'Closed'
   logs: FollowUpLog[];
   created_at?: string;
   updated_at?: string;
@@ -255,4 +303,6 @@ export interface AppSettings {
   intelligence_pin?: string;
   sheets_webhook_url?: string;
   sheets_drive_folder_id?: string;
+  // Per-lane TAT in days, editable in Settings. Falls back to DEFAULT_STAGE_TAT.
+  pipeline_tat?: Partial<Record<BoardLane, number>>;
 }
