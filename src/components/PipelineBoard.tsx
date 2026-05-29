@@ -31,6 +31,7 @@ import {
   MessageCircle,
   Mail,
   Plus,
+  Paperclip,
 } from 'lucide-react';
 
 const PRE_QUOTE_LANES: BoardLane[] = ['New Enquiry', 'To Quote'];
@@ -432,8 +433,16 @@ function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: ()
 
 // Right-side slide-over: contact strip + activity history + inline log form.
 function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose: () => void; onCreateQuote: () => void }) {
-  const { data, user, addFollowUpLog } = useAppStore();
+  const { data, user, addFollowUpLog, openAttachmentModal } = useAppStore();
   const isEnquiry = card.kind === 'enquiry';
+
+  // Open the cross-chain document modal (enquiry + all quotes + all orders +
+  // customer PO uploads), resolved from this card's entity (PROCESS_MAP §6.1).
+  const openDocs = () => {
+    if (isEnquiry && card.enquiry) openAttachmentModal('enquiry', card.enquiry.id);
+    else if (card.quote) openAttachmentModal('quote', card.quote.id);
+    onClose(); // hand focus fully to the document modal
+  };
 
   const cust = data.customers.find(c => c.name === card.cust);
   const siteId = isEnquiry ? card.enquiry?.siteId : (card.quote?.siteId || data.enquiries.find(e => e.id === card.quote?.enqRef)?.siteId);
@@ -485,7 +494,15 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
               </h2>
               <div className="font-mono text-[11px] text-sQ mt-0.5">{card.title}</div>
             </div>
-            <button type="button" onClick={onClose} title="Close" className="text-g400 hover:text-blk shrink-0"><X size={18} /></button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button" onClick={openDocs} title="View all documents (enquiry, quotes, orders, POs)"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
+              >
+                <Paperclip size={12} /> Docs
+              </button>
+              <button type="button" onClick={onClose} title="Close" className="text-g400 hover:text-blk p-1"><X size={18} /></button>
+            </div>
           </div>
 
           {/* Contact strip */}
