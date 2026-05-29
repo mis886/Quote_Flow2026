@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { parseISO, isToday } from 'date-fns';
 import { useAppStore } from '../store';
 import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth } from '../lib/utils';
 import {
@@ -11,6 +12,7 @@ import {
   type Enquiry,
   type Quote,
   type FollowUp,
+  type FollowUpLog,
 } from '../lib/types';
 import {
   ChevronRight,
@@ -24,6 +26,11 @@ import {
   Ban,
   ThumbsDown,
   CircleDot,
+  History,
+  Phone,
+  MessageCircle,
+  Mail,
+  Plus,
 } from 'lucide-react';
 
 const PRE_QUOTE_LANES: BoardLane[] = ['New Enquiry', 'To Quote'];
@@ -81,6 +88,7 @@ export default function PipelineBoard({
   const navigate = useNavigate();
   const { data, setFollowUpStage, closeFollowUp } = useAppStore();
   const [closing, setClosing] = useState<BoardCard | null>(null);
+  const [viewingKey, setViewingKey] = useState<string | null>(null);
 
   // Resolve TAT (in hours) for a lane from settings → defaults.
   const tatHoursFor = (lane: BoardLane): number => {
@@ -184,6 +192,12 @@ export default function PipelineBoard({
 
   const laneBreaches = (lane: BoardLane) => lanes[lane].filter(c => c.tat.health === 'breach').length;
 
+  // Resolve the open drawer's card from the live lane map so it reflects the
+  // latest data (e.g. right after logging an activity).
+  const viewingCard = viewingKey
+    ? BOARD_LANES.flatMap(l => lanes[l]).find(c => c.key === viewingKey) ?? null
+    : null;
+
   // ── Card move handlers ──
   const advance = async (card: BoardCard) => {
     if (card.kind === 'enquiry') {
@@ -254,6 +268,7 @@ export default function PipelineBoard({
                     card={card}
                     onAdvance={() => advance(card)}
                     onBack={() => goBack(card)}
+                    onOpen={() => setViewingKey(card.key)}
                   />
                 ))}
               </div>
@@ -269,39 +284,61 @@ export default function PipelineBoard({
           onPick={(o) => doClose(closing, o)}
         />
       )}
+
+      {viewingCard && (
+        <CardDrawer
+          card={viewingCard}
+          onClose={() => setViewingKey(null)}
+          onCreateQuote={() => navigate(`/quotes/new?enqRef=${encodeURIComponent(viewingCard.enquiry!.id)}`)}
+        />
+      )}
     </div>
   );
 }
 
-function Card({ card, onAdvance, onBack }: { card: BoardCard; onAdvance: () => void; onBack: () => void }) {
+function Card({ card, onAdvance, onBack, onOpen }: { card: BoardCard; onAdvance: () => void; onBack: () => void; onOpen: () => void }) {
   const isClosed = card.lane === 'Closed';
   const canBack = card.kind === 'quote' && !['Sent Quotation'].includes(card.lane);
   const advanceLabel =
     card.kind === 'enquiry' ? 'Create Quote' :
     card.lane === 'Negotiation' ? 'Close' :
     card.lane === 'Closed' ? '' : 'Next';
+  const logCount = card.followUp?.logs?.length ?? 0;
 
   return (
     <div className={cn('rounded-[6px] border bg-white p-2.5 shadow-sm', HEALTH_RING[card.tat.health])}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[12px] font-bold text-blk truncate">
-            {card.cust}
-            {card.site && <span className="font-normal text-g500"> — {card.site}</span>}
+      {/* Clickable body — opens the activity drawer */}
+      <button type="button" onClick={onOpen} className="w-full text-left focus:outline-none group">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[12px] font-bold text-blk truncate group-hover:text-red-mrt transition-colors">
+              {card.cust}
+              {card.site && <span className="font-normal text-g500"> — {card.site}</span>}
+            </div>
+            <div className="font-mono text-[10px] text-sQ truncate">{card.title}</div>
           </div>
-          <div className="font-mono text-[10px] text-sQ truncate">{card.title}</div>
+          {isClosed && card.outcome && (
+            <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8px] font-bold uppercase tracking-wide shrink-0', OUTCOME_META[card.outcome].cls)}>
+              {OUTCOME_META[card.outcome].icon}{OUTCOME_META[card.outcome].label}
+            </span>
+          )}
         </div>
-        {isClosed && card.outcome && (
-          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8px] font-bold uppercase tracking-wide shrink-0', OUTCOME_META[card.outcome].cls)}>
-            {OUTCOME_META[card.outcome].icon}{OUTCOME_META[card.outcome].label}
-          </span>
-        )}
-      </div>
 
-      <div className="flex items-center justify-between mt-1.5 text-[10px] text-g500">
-        <span className="truncate">{card.subtitle}</span>
-        {card.value > 0 && <span className="font-mono shrink-0">Rs{card.value.toLocaleString('en-IN')}</span>}
-      </div>
+        <div className="flex items-center justify-between mt-1.5 text-[10px] text-g500">
+          <span className="truncate">{card.subtitle}</span>
+          {card.value > 0 && <span className="font-mono shrink-0">Rs{card.value.toLocaleString('en-IN')}</span>}
+        </div>
+
+        {/* Activity hint */}
+        {card.kind === 'quote' && (
+          <div className="flex items-center gap-1 mt-1 text-[9px] text-g400 group-hover:text-g600 transition-colors">
+            <History size={9} />
+            {logCount > 0
+              ? <span>{logCount} log{logCount === 1 ? '' : 's'}{card.followUp?.logs?.[0] ? ` · last ${fmtIST(parseISO(card.followUp.logs[0].ts), 'dd MMM')}` : ''}</span>
+              : <span>No activity yet — click to log</span>}
+          </div>
+        )}
+      </button>
 
       {/* TAT line */}
       {!isClosed && card.tatHours > 0 && (
@@ -388,6 +425,193 @@ function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: ()
         <div className="mt-3 flex items-center gap-1.5 text-[10px] text-g400">
           <CheckCircle2 size={11} /> Closing stops the TAT clock and moves the card to the Closed lane.
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Right-side slide-over: contact strip + activity history + inline log form.
+function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose: () => void; onCreateQuote: () => void }) {
+  const { data, user, addFollowUpLog } = useAppStore();
+  const isEnquiry = card.kind === 'enquiry';
+
+  const cust = data.customers.find(c => c.name === card.cust);
+  const siteId = isEnquiry ? card.enquiry?.siteId : (card.quote?.siteId || data.enquiries.find(e => e.id === card.quote?.enqRef)?.siteId);
+  const site = (siteId && cust?.sites.find(s => s.id === siteId)) || cust?.sites.find(s => s.isPrimary) || cust?.sites?.[0];
+  const contacts = site?.contacts ?? [];
+
+  const logs = card.followUp?.logs ?? [];
+
+  const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
+  const [note, setNote] = useState('');
+  const [nextDate, setNextDate] = useState('');
+  const [nextTime, setNextTime] = useState('');
+  const [nextNote, setNextNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSave = async () => {
+    if (!note.trim() || !card.quote) return;
+    setSaving(true); setErrorMsg('');
+    try {
+      const log: FollowUpLog = {
+        ts: new Date().toISOString(),
+        who: user?.user_metadata?.full_name ?? user?.email ?? 'Unknown',
+        channel,
+        note: note.trim(),
+        nextDate: nextDate || undefined,
+        nextChannel: nextDate ? channel : undefined,
+        nextNote: nextDate ? (nextNote.trim() || undefined) : undefined,
+      };
+      await addFollowUpLog(card.quote.id, log, nextDate || null, nextTime || null);
+      setNote(''); setNextDate(''); setNextTime(''); setNextNote('');
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to log activity.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md h-full bg-white shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-g200 shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-red-mrt mb-0.5">{card.lane}</div>
+              <h2 className="text-[17px] font-serif italic text-blk truncate">
+                {card.cust}{card.site && <span className="text-g500 not-italic font-sans text-[13px]"> — {card.site}</span>}
+              </h2>
+              <div className="font-mono text-[11px] text-sQ mt-0.5">{card.title}</div>
+            </div>
+            <button type="button" onClick={onClose} title="Close" className="text-g400 hover:text-blk shrink-0"><X size={18} /></button>
+          </div>
+
+          {/* Contact strip */}
+          {contacts.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {contacts.map(ct => (
+                <div key={ct.id} className="flex items-center gap-2 flex-wrap text-[11px]">
+                  <span className="font-semibold text-blk">{ct.name}</span>
+                  {ct.role && <span className="px-1.5 py-0.5 bg-g100 rounded text-[8px] font-bold uppercase text-g500 tracking-wide">{ct.role}</span>}
+                  {ct.phone && (
+                    <a href={`tel:${ct.phone}`} className="inline-flex items-center gap-1 text-blk hover:text-red-mrt"><Phone size={10} className="text-g400" />{ct.phone}</a>
+                  )}
+                  {ct.phone && (
+                    <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900"><MessageCircle size={10} />WhatsApp</a>
+                  )}
+                  {ct.email && (
+                    <a href={`mailto:${ct.email}`} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"><Mail size={10} />Email</a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        {isEnquiry ? (
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="text-[12px] text-g600 leading-relaxed">
+              This enquiry hasn't been quoted yet. Activity tracking begins once a quotation is created.
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2">
+                <div className="text-[9px] uppercase font-bold text-g400">Urgency</div>
+                <div className="font-semibold text-blk mt-0.5">{card.enquiry?.urg}</div>
+              </div>
+              <div className="bg-g50 border border-g200 rounded-[4px] px-3 py-2">
+                <div className="text-[9px] uppercase font-bold text-g400">Items</div>
+                <div className="font-semibold text-blk mt-0.5">{card.enquiry?.items.length ?? 0}</div>
+              </div>
+            </div>
+            <button
+              type="button" onClick={onCreateQuote}
+              className="mt-4 w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-[5px] bg-indigo-600 text-white text-[12px] font-bold uppercase tracking-wide hover:bg-indigo-700 transition-colors"
+            >
+              <FilePlus2 size={13} /> Create Quote
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Activity history */}
+            <div className="flex-1 overflow-y-auto p-5 bg-g50">
+              <div className="flex items-center gap-2 mb-3">
+                <History size={14} className="text-g400" />
+                <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
+              </div>
+              {logs.length === 0 ? (
+                <div className="py-8 text-center text-g400 text-[12px]">No activity logged yet.</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="bg-white border border-g200 rounded-[8px] px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-g500">{log.channel}</span>
+                        <span className="text-g300">·</span>
+                        <span className="text-[9px] text-g400 font-mono">{fmtIST(parseISO(log.ts), 'dd MMM, hh:mm aa')}</span>
+                      </div>
+                      <p className="text-[12.5px] text-blk leading-relaxed whitespace-pre-wrap">{log.note}</p>
+                      {log.nextDate && (
+                        <div className="text-[11px] font-semibold text-sR mt-1.5">
+                          → Next: {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                          {log.nextNote && <div className="text-[10.5px] italic text-g500 font-normal mt-0.5">{log.nextNote}</div>}
+                        </div>
+                      )}
+                      <div className="text-[9px] text-g400 mt-1">{log.who}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Inline log form */}
+            <div className="shrink-0 border-t border-g200 p-4 bg-white">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Plus size={12} className="text-red-mrt" />
+                <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-red-mrt">Log Activity</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <select
+                  title="Channel" value={channel} onChange={e => setChannel(e.target.value as FollowUpLog['channel'])}
+                  className="bg-white border border-g300 rounded-[3px] px-2 py-[6px] text-[11.5px] outline-none focus:border-red-mrt"
+                >
+                  <option>Called</option><option>WhatsApp</option><option>Email</option><option>Meeting</option><option>Visit</option>
+                </select>
+                <input
+                  type="date" title="Next follow-up date" value={nextDate} onChange={e => setNextDate(e.target.value)}
+                  className="bg-white border border-g300 rounded-[3px] px-2 py-[6px] text-[11.5px] outline-none focus:border-red-mrt"
+                />
+                <input
+                  type="time" title="Next follow-up time" value={nextTime} onChange={e => setNextTime(e.target.value)}
+                  className="bg-white border border-g300 rounded-[3px] px-2 py-[6px] text-[11.5px] outline-none focus:border-red-mrt"
+                />
+              </div>
+              {nextDate && (
+                <textarea
+                  value={nextNote} onChange={e => setNextNote(e.target.value)} rows={2}
+                  placeholder="What to do on next follow-up? (optional)"
+                  className="w-full bg-white border border-g300 rounded-[3px] px-2 py-1.5 text-[11.5px] outline-none focus:border-red-mrt resize-none mb-2"
+                />
+              )}
+              <textarea
+                value={note} onChange={e => setNote(e.target.value)} rows={2}
+                placeholder="What happened? What did the customer say?"
+                className="w-full bg-white border border-g300 rounded-[3px] px-2 py-1.5 text-[12px] outline-none focus:border-red-mrt resize-none"
+              />
+              {errorMsg && <div className="text-[10px] text-red-mrt font-medium mt-1">{errorMsg}</div>}
+              <div className="flex justify-end mt-2">
+                <button
+                  type="button" onClick={handleSave} disabled={!note.trim() || saving}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-mrt text-white text-[10px] font-bold tracking-wider uppercase rounded-[3px] hover:bg-red-h disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle2 size={11} /> {saving ? 'Saving…' : 'Save Activity'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
