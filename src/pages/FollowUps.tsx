@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
@@ -90,6 +91,7 @@ export default function FollowUps() {
   const [filterOwner, setFilterOwner] = useState<string>('All Owners');
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled'>('all');
   const [viewTab, setViewTab] = useState<'queue' | 'thisweek' | 'calendar'>('queue');
   const [calWeekOffset, setCalWeekOffset] = useState(0);
 
@@ -108,18 +110,35 @@ export default function FollowUps() {
     return activeQuotes.map(quote => {
       const followUp = data.followups.find(f => f.quote_id === quote.id);
 
-      let priority: 'overdue' | 'today' | 'upcoming' | 'none' = 'none';
+      // Days since the quote was issued — used to escalate quotes that have
+      // been sent but never had a next touch scheduled.
+      let daysSinceQuote = 0;
+      try {
+        const qDate = parseISO(quote.date);
+        daysSinceQuote = Math.max(0, Math.floor((today.getTime() - startOfDay(qDate).getTime()) / 86400000));
+      } catch { /* malformed date — leave at 0 */ }
+
+      const isClosed = (followUp?.status ?? 'open') === 'closed';
+
+      let priority: 'overdue' | 'today' | 'upcoming' | 'unscheduled' | 'none' = 'none';
       if (followUp?.next_date) {
         const d = parseISO(followUp.next_date);
         if (isBefore(d, today)) priority = 'overdue';
         else if (isToday(d)) priority = 'today';
         else priority = 'upcoming';
+      } else if (!isClosed) {
+        // Active quote with no next follow-up planned — this is the gap that
+        // lets quotations slip. Surface it loudly instead of silently as "New".
+        priority = 'unscheduled';
       }
 
-      return { quote, followUp, priority };
+      return { quote, followUp, priority, daysSinceQuote };
     }).filter(item => {
       const status = item.followUp?.status ?? 'open';
       if (status !== queueTab) return false;
+
+      // Quick-filter from the stat cards (only meaningful on the Active tab).
+      if (queueTab === 'open' && quickFilter !== 'all' && item.priority !== quickFilter) return false;
 
       const matchesSearch =
         item.quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,22 +147,28 @@ export default function FollowUps() {
       const owner = item.followUp?.owner || 'Unassigned';
       const matchesOwner = filterOwner === 'All Owners' || owner === filterOwner;
 
-      // Global date range filter (next_date)
+      // Global date range filter (next_date). Unscheduled items have no
+      // next_date — they're the at-risk pile, so they stay visible regardless
+      // of the date range rather than being silently filtered out.
       const nextDate = item.followUp?.next_date;
-      if (globalDateRange && !isInDateRange(nextDate, globalDateRange)) return false;
+      if (globalDateRange && item.priority !== 'unscheduled' && !isInDateRange(nextDate, globalDateRange)) return false;
 
       return matchesSearch && matchesOwner;
     }).sort((a, b) => {
-      const priorityOrder = { overdue: 0, today: 1, upcoming: 2, none: 3 };
+      const priorityOrder = { overdue: 0, today: 1, unscheduled: 2, upcoming: 3, none: 4 };
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
         return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }
+      // Within "unscheduled", the longest-silent quotes float to the top.
+      if (a.priority === 'unscheduled' && b.priority === 'unscheduled') {
+        return b.daysSinceQuote - a.daysSinceQuote;
       }
       if (a.followUp?.next_date && b.followUp?.next_date) {
         return a.followUp.next_date.localeCompare(b.followUp.next_date);
       }
       return 0;
     });
-  }, [data.quotes, data.followups, searchQuery, filterOwner, queueTab]);
+  }, [data.quotes, data.followups, searchQuery, filterOwner, queueTab, quickFilter]);
 
   const allOpen = useMemo(() =>
     data.quotes.filter(q => q.status !== 'Lost').filter(q => {
@@ -202,6 +227,11 @@ export default function FollowUps() {
     upcoming: allOpen.filter(q => {
       const f = data.followups.find(fu => fu.quote_id === q.id);
       return f?.next_date && !isBefore(parseISO(f.next_date), today) && !isToday(parseISO(f.next_date));
+    }).length,
+    // Active quotes with no next follow-up planned — the "could be missed" pile.
+    unscheduled: allOpen.filter(q => {
+      const f = data.followups.find(fu => fu.quote_id === q.id);
+      return !f?.next_date;
     }).length,
   };
 
@@ -289,19 +319,54 @@ export default function FollowUps() {
             </div>
           </div>
 
-          <div className="flex gap-2 mb-4">
-            <div className="flex-1 px-2.5 py-1.5 bg-red-lt rounded-[4px] border border-red-mrt/10">
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => { setQuickFilter(f => f === 'overdue' ? 'all' : 'overdue'); setSelectedQuoteId(null); }}
+              className={cn(
+                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
+                quickFilter === 'overdue' ? "bg-red-mrt/10 border-red-mrt ring-1 ring-red-mrt/30" : "bg-red-lt border-red-mrt/10 hover:border-red-mrt/30"
+              )}
+            >
               <div className="text-[10px] uppercase font-bold text-red-mrt opacity-60">Overdue</div>
               <div className="text-lg font-mono font-bold text-red-mrt leading-none mt-1">{stats.overdue}</div>
-            </div>
-            <div className="flex-1 px-2.5 py-1.5 bg-sR/5 rounded-[4px] border border-sR/10">
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQuickFilter(f => f === 'unscheduled' ? 'all' : 'unscheduled'); setSelectedQuoteId(null); }}
+              className={cn(
+                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all relative",
+                quickFilter === 'unscheduled' ? "bg-orange-100 border-orange-400 ring-1 ring-orange-300" : "bg-orange-50 border-orange-200 hover:border-orange-400"
+              )}
+            >
+              <div className="text-[10px] uppercase font-bold text-orange-600 opacity-80 flex items-center gap-1">
+                {stats.unscheduled > 0 && <AlertTriangle size={10} className="text-orange-500" />}
+                No Next Step
+              </div>
+              <div className="text-lg font-mono font-bold text-orange-600 leading-none mt-1">{stats.unscheduled}</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQuickFilter(f => f === 'today' ? 'all' : 'today'); setSelectedQuoteId(null); }}
+              className={cn(
+                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
+                quickFilter === 'today' ? "bg-sR/10 border-sR ring-1 ring-sR/30" : "bg-sR/5 border-sR/10 hover:border-sR/30"
+              )}
+            >
               <div className="text-[10px] uppercase font-bold text-sR opacity-60">Today</div>
               <div className="text-lg font-mono font-bold text-sR leading-none mt-1">{stats.today}</div>
-            </div>
-            <div className="flex-1 px-2.5 py-1.5 bg-sW/5 rounded-[4px] border border-sW/10">
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQuickFilter(f => f === 'upcoming' ? 'all' : 'upcoming'); setSelectedQuoteId(null); }}
+              className={cn(
+                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
+                quickFilter === 'upcoming' ? "bg-sW/10 border-sW ring-1 ring-sW/30" : "bg-sW/5 border-sW/10 hover:border-sW/30"
+              )}
+            >
               <div className="text-[10px] uppercase font-bold text-sW opacity-60">Upcoming</div>
               <div className="text-lg font-mono font-bold text-sW leading-none mt-1">{stats.upcoming}</div>
-            </div>
+            </button>
           </div>
 
           {/* View tabs */}
@@ -386,7 +451,7 @@ export default function FollowUps() {
           />
         ) : (
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority }) => (
+          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => (
             <button
               key={quote.id}
               type="button"
@@ -405,6 +470,7 @@ export default function FollowUps() {
                     isClosedTab ? "bg-emerald-100 text-emerald-700" :
                     priority === 'overdue' ? "bg-red-mrt text-white shadow-[0_2px_8px_rgba(212,32,39,0.2)]" :
                     priority === 'today' ? "bg-sR text-white" :
+                    priority === 'unscheduled' ? "bg-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.2)]" :
                     priority === 'upcoming' ? "bg-sW text-white" :
                     "bg-g100 text-g500"
                   )}>
@@ -420,10 +486,13 @@ export default function FollowUps() {
                   isClosedTab ? "border-emerald-300 text-emerald-700 bg-emerald-50" :
                   priority === 'overdue' ? "border-red-mrt text-red-mrt bg-red-lt" :
                   priority === 'today' ? "border-sR text-sR bg-sR/5" :
+                  priority === 'unscheduled' ? "border-orange-400 text-orange-600 bg-orange-50" :
                   priority === 'upcoming' ? "border-sW text-sW bg-sW/5" :
                   "border-g300 text-g500 bg-g100"
                 )}>
-                  {isClosedTab ? 'Closed' : priority === 'none' ? 'New' : priority}
+                  {isClosedTab ? 'Closed' :
+                    priority === 'unscheduled' ? 'No Next Step' :
+                    priority === 'none' ? 'New' : priority}
                 </div>
               </div>
 
@@ -435,13 +504,20 @@ export default function FollowUps() {
                   <span className="w-1 h-1 rounded-full bg-g300" />
                   <span>{quote.items.length} Items</span>
                 </div>
-                <div className="flex items-center gap-1 font-medium">
-                  {!isClosedTab && followUp?.next_date && (priority === 'overdue' || priority === 'today') ? (
+                <div className={cn(
+                  "flex items-center gap-1 font-medium",
+                  !isClosedTab && priority === 'unscheduled' && "text-orange-600"
+                )}>
+                  {!isClosedTab && priority === 'unscheduled' ? (
+                    <AlertTriangle size={11} className="text-orange-500" />
+                  ) : !isClosedTab && followUp?.next_date && (priority === 'overdue' || priority === 'today') ? (
                     <Clock size={11} className={priority === 'overdue' ? 'text-red-mrt animate-pulse' : 'text-sR'} />
                   ) : <Calendar size={11} />}
                   <span>
                     {isClosedTab ? 'Closed' :
-                      formatDue(followUp?.next_date, followUp?.next_time) ?? 'No Date'}
+                      priority === 'unscheduled'
+                        ? (daysSinceQuote > 0 ? `Silent ${daysSinceQuote}d — set next step` : 'Set next step')
+                        : formatDue(followUp?.next_date, followUp?.next_time) ?? 'No Date'}
                   </span>
                 </div>
               </div>
@@ -598,20 +674,29 @@ export default function FollowUps() {
                   "p-4 rounded-lg flex flex-col items-center justify-center min-w-[120px]",
                   isClosedTab ? "bg-emerald-50 border border-emerald-100" :
                   selectedItem.priority === 'overdue' ? "bg-red-lt border border-red-mrt/10" :
-                  selectedItem.priority === 'today' ? "bg-sR/5 border border-sR/10" : "bg-g50"
+                  selectedItem.priority === 'today' ? "bg-sR/5 border border-sR/10" :
+                  selectedItem.priority === 'unscheduled' ? "bg-orange-50 border border-orange-200" : "bg-g50"
                 )}>
                   <div className="text-[10px] uppercase font-bold text-g400 mb-1">Status</div>
                   <div className={cn(
-                    "text-sm font-bold uppercase tracking-wider",
+                    "text-sm font-bold uppercase tracking-wider text-center",
                     isClosedTab ? "text-emerald-700" :
                     selectedItem.priority === 'overdue' ? "text-red-mrt" :
-                    selectedItem.priority === 'today' ? "text-sR" : "text-g500"
+                    selectedItem.priority === 'today' ? "text-sR" :
+                    selectedItem.priority === 'unscheduled' ? "text-orange-600" : "text-g500"
                   )}>
-                    {isClosedTab ? 'Closed' : selectedItem.priority === 'none' ? 'Not Scheduled' : selectedItem.priority}
+                    {isClosedTab ? 'Closed' :
+                      selectedItem.priority === 'unscheduled' ? 'No Next Step' :
+                      selectedItem.priority === 'none' ? 'Not Scheduled' : selectedItem.priority}
                   </div>
                   {!isClosedTab && selectedItem.followUp?.next_date && (
                     <div className="text-[11px] font-medium text-g500 mt-1">
                       {formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)}
+                    </div>
+                  )}
+                  {!isClosedTab && selectedItem.priority === 'unscheduled' && selectedItem.daysSinceQuote > 0 && (
+                    <div className="text-[11px] font-medium text-orange-500 mt-1">
+                      Silent {selectedItem.daysSinceQuote}d
                     </div>
                   )}
                 </div>
@@ -620,6 +705,17 @@ export default function FollowUps() {
 
             {/* Content: Chat Timeline & Form */}
             <div className="flex-1 overflow-hidden flex flex-col bg-g50 relative">
+              {/* Nudge when this quote has no next step planned */}
+              {!isClosedTab && selectedItem.priority === 'unscheduled' && (
+                <div className="shrink-0 flex items-center gap-2 px-6 py-2.5 bg-orange-50 border-b border-orange-200">
+                  <AlertTriangle size={14} className="text-orange-500 shrink-0" />
+                  <span className="text-[12px] text-orange-700 font-medium">
+                    No next step planned for this quotation
+                    {selectedItem.daysSinceQuote > 0 ? ` — silent ${selectedItem.daysSinceQuote} day${selectedItem.daysSinceQuote === 1 ? '' : 's'}.` : '.'}
+                    {' '}Log an activity below and set the next follow-up date so it never slips.
+                  </span>
+                </div>
+              )}
               {/* Chat-bubble activity log */}
               <div className="flex-1 overflow-y-auto p-6 pb-2">
                 <div className="flex items-center gap-2 mb-4">
