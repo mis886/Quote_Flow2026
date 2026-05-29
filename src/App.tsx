@@ -20,6 +20,10 @@ import { SubmitPO } from './pages/SubmitPO';
 import { IntelligenceBoard } from './pages/IntelligenceBoard';
 import { useAppStore } from './store';
 import { Loader2 } from 'lucide-react';
+import { ProductionLayout } from './production/components/ProductionLayout';
+import { ProductionDashboard } from './production/pages/ProductionDashboard';
+import { NewProductionJob } from './production/pages/NewProductionJob';
+import { Sequencer } from './production/pages/Sequencer';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAppStore();
@@ -70,6 +74,13 @@ export default function App() {
                   <Route path="settings" element={<Settings />} />
                   <Route path="intelligence" element={<IntelligenceBoard />} />
                   <Route path="*" element={<div className="p-8 text-[13px] font-mono">Module not found...</div>} />
+                </Route>
+                {/* Production workspace (BETA) — own layout, own sidebar */}
+                <Route path="/production" element={<ProductionLayout />}>
+                  <Route index element={<ProductionDashboard />} />
+                  <Route path="jobs/new" element={<NewProductionJob />} />
+                  <Route path="sequencer" element={<Sequencer />} />
+                  <Route path="sequencer/:tab" element={<Sequencer />} />
                 </Route>
               </Routes>
             </AuthWrapper>

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { hasActiveToken } from '../lib/gmail';
 import { GlobalDateRangePicker } from './GlobalDateRangePicker';
+import { WorkspaceSwitcher } from '../production/components/WorkspaceSwitcher';
 
 const PATH_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -70,6 +71,8 @@ export function Topbar() {
           <span className="hidden sm:inline">{isSyncing ? 'Syncing…' : lastSync ? `Synced ${lastSync}` : 'Sync Gmail'}</span>
         </button>
       )}
+
+      <WorkspaceSwitcher />
 
       <GlobalDateRangePicker />
 

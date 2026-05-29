@@ -1,0 +1,124 @@
+// ─────────────────────────────────────────────────────────────────
+// Production (BETA) — types
+// Lives under src/production/ to keep the Beta module isolated.
+// Never imported by CRM code.
+// ─────────────────────────────────────────────────────────────────
+
+export type JobStage =
+  | 'queued' | 'moulding' | 'finishing'
+  | 'inspection' | 'pdi' | 'dispatch' | 'dispatched';
+
+export type JobStatus =
+  | 'queued' | 'setup' | 'running' | 'in-progress'
+  | 'passed' | 'pending' | 'ncr' | 'awaiting' | 'in-review'
+  | 'ready' | 'dispatched' | 'late';
+
+export type Priority = 'normal' | 'emergency';
+export type PressStatus = 'idle' | 'setup' | 'running' | 'maintenance';
+export type Department = 'finishing' | 'inspection';
+
+export interface ProductionJob {
+  id: string;
+  job_card_no?: string | null;
+  order_id?: string | null;
+  order_line_seq?: number | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  product_desc: string;
+  qty: number;
+  qty_to_mould?: number | null;
+  qty_done?: number | null;
+  promised_date?: string | null;
+  lsd?: string | null;
+  order_start_date?: string | null;
+  target_completion_date?: string | null;
+  priority: Priority;
+  emergency_reason?: string | null;
+  notes?: string | null;
+  stage: JobStage;
+  status: JobStatus;
+
+  batch_code?: string | null;
+  batch_name?: string | null;
+  mould_code?: string | null;
+  cavities?: number | null;
+  cure_time_min?: number | null;
+  cure_temp_c?: number | null;
+  compound_code?: string | null;
+  tikli_size?: string | null;
+  press_id?: string | null;
+
+  inspector?: string | null;
+  inspection_result?: 'pending' | 'passed' | 'ncr' | null;
+
+  pdi_officer?: string | null;
+  inspection_passed_at?: string | null;
+
+  courier?: string | null;
+  consignment_no?: string | null;
+  dispatched_at?: string | null;
+  otd_result?: 'on-time' | 'late' | null;
+
+  fg_stock_at_print?: number | null;
+  wip_stock_at_print?: number | null;
+  press_operator_name?: string | null;
+  finishing_checked_by?: string | null;
+  inspection_checked_by?: string | null;
+  approved_by?: string | null;
+
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Press {
+  id: string;
+  name: string;
+  tonnage: string;
+  status: PressStatus;
+  active_job_id?: string | null;
+  pct_done?: number | null;
+  eta_text?: string | null;
+  updated_at?: string;
+}
+
+export interface Worker {
+  id: string;
+  name: string;
+  role: string;
+  department: Department;
+  present: boolean;
+  updated_at?: string;
+}
+
+export interface NCR {
+  id: string;
+  job_id: string;
+  defect_desc?: string | null;
+  defect_code?: string | null;
+  responsible_stage?: string | null;
+  action?: 'rework' | 'reject' | null;
+  raised_by?: string | null;
+  raised_at?: string;
+  resolved_at?: string | null;
+}
+
+export interface JobStageEvent {
+  id: number;
+  job_id: string;
+  from_stage?: JobStage | null;
+  to_stage: JobStage;
+  ts: string;
+  actor?: string | null;
+  notes?: string | null;
+}
+
+export interface ShopFloorSettings {
+  id: 'config';
+  shift_started: boolean;
+  shift_hours: number;
+  shift_hours_left: number;
+  overtime_max: number;
+  planned_finishers: number;
+  planned_inspectors: number;
+  emergency_active: boolean;
+}
