@@ -35,6 +35,7 @@ interface BoardCard {
   lane: BoardLane;
   kind: 'enquiry' | 'quote';
   cust: string;
+  site?: string;        // branch / site name shown next to the customer
   title: string;        // ref shown prominently (ENQ no. or quote id)
   subtitle: string;     // secondary ref
   value: number;
@@ -87,6 +88,17 @@ export default function PipelineBoard({
     return (days || 0) * 24;
   };
 
+  // Resolve the site/branch name for a customer + explicit siteId, falling
+  // back to the customer's primary/first site (PROCESS_MAP §6.4).
+  const siteNameFor = (custName: string, siteId?: string): string | undefined => {
+    const cust = data.customers.find(c => c.name === custName);
+    if (!cust?.sites?.length) return undefined;
+    const site = (siteId && cust.sites.find(s => s.id === siteId))
+      || cust.sites.find(s => s.isPrimary)
+      || cust.sites[0];
+    return site?.name || undefined;
+  };
+
   const lanes = useMemo(() => {
     const map: Record<BoardLane, BoardCard[]> = {} as any;
     for (const l of BOARD_LANES) map[l] = [];
@@ -114,6 +126,7 @@ export default function PipelineBoard({
         key: `enq:${enq.id}`,
         lane, kind: 'enquiry',
         cust: enq.cust,
+        site: siteNameFor(enq.cust, enq.siteId),
         title: enq.id,
         subtitle: `${enq.urg} · ${enq.src || 'RFQ'}`,
         value: 0,
@@ -146,6 +159,7 @@ export default function PipelineBoard({
         key: `q:${quote.id}`,
         lane, kind: 'quote',
         cust: quote.cust,
+        site: siteNameFor(quote.cust, quote.siteId || data.enquiries.find(e => e.id === quote.enqRef)?.siteId),
         title: quote.id,
         subtitle: `Ref: ${quote.enqRef}`,
         value: quote.items.reduce((a, i) => a + i.total, 0),
@@ -271,7 +285,10 @@ function Card({ card, onAdvance, onBack }: { card: BoardCard; onAdvance: () => v
     <div className={cn('rounded-[6px] border bg-white p-2.5 shadow-sm', HEALTH_RING[card.tat.health])}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[12px] font-bold text-blk truncate">{card.cust}</div>
+          <div className="text-[12px] font-bold text-blk truncate">
+            {card.cust}
+            {card.site && <span className="font-normal text-g500"> — {card.site}</span>}
+          </div>
           <div className="font-mono text-[10px] text-sQ truncate">{card.title}</div>
         </div>
         {isClosed && card.outcome && (

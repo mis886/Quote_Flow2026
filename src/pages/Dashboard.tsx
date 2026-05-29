@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { formatINR, cn, getThisWeekRange } from '../lib/utils';
+import { formatINR, cn, getThisWeekRange, localDateStr } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight, Calendar, ChevronLeft } from 'lucide-react';
@@ -423,7 +423,10 @@ export function Dashboard() {
     data.enquiries.forEach(e => {
       if ((e.status !== 'New' && e.status !== 'In Review') || !e.recv) return;
       if (e.ageH < (SLA_CAL[e.urg] ?? 48)) return;
-      const key = e.recv.slice(0, 10);
+      // `recv` is TIMESTAMPTZ — bucket by LOCAL date so the pin lands in the
+      // same day column the grid renders (slice(0,10) would use the UTC day
+      // and shift late-evening IST enquiries into the wrong day/week).
+      const key = localDateStr(new Date(e.recv));
       addEvent(key, {
         id: e.id,
         type: 'overdue-enq',
