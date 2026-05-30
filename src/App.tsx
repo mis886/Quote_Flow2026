@@ -24,6 +24,11 @@ import { ProductionLayout } from './production/components/ProductionLayout';
 import { ProductionDashboard } from './production/pages/ProductionDashboard';
 import { NewProductionJob } from './production/pages/NewProductionJob';
 import { Sequencer } from './production/pages/Sequencer';
+import { JobsList } from './production/pages/JobsList';
+import { JobDetail } from './production/pages/JobDetail';
+import { NCRLog } from './production/pages/NCRLog';
+import { ShopFloorSettingsPage } from './production/pages/ShopFloorSettings';
+import { PressBoardPage } from './production/pages/PressBoardPage';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAppStore();
@@ -78,9 +83,15 @@ export default function App() {
                 {/* Production workspace (BETA) — own layout, own sidebar */}
                 <Route path="/production" element={<ProductionLayout />}>
                   <Route index element={<ProductionDashboard />} />
-                  <Route path="jobs/new" element={<NewProductionJob />} />
                   <Route path="sequencer" element={<Sequencer />} />
                   <Route path="sequencer/:tab" element={<Sequencer />} />
+                  <Route path="presses" element={<PressBoardPage />} />
+                  <Route path="jobs" element={<JobsList />} />
+                  <Route path="jobs/new" element={<NewProductionJob />} />
+                  <Route path="jobs/:id" element={<JobDetail />} />
+                  <Route path="ncr" element={<NCRLog />} />
+                  <Route path="settings" element={<ShopFloorSettingsPage />} />
+                  <Route path="*" element={<div className="p-8 text-[13px] font-mono">Production module not found...</div>} />
                 </Route>
               </Routes>
             </AuthWrapper>

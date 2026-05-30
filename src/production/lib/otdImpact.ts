@@ -91,6 +91,104 @@ export function getJobImpact(
   return { job, remHrs, projEnd, promised, bufferHrs, risk, otHrs, extraWorkers: 0 };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Stage Milestone planner — ports v2 calcMilestones() (line 3354).
+// Given a job's promised date + cure/cavity + planned headcount,
+// returns planned start/end dates for each stage, working backward
+// from a "ready by" date that's 3 days before delivery.
+// ─────────────────────────────────────────────────────────────────
+
+export interface JobMilestones {
+  pmReadyDate:   string;  // 3 days before promised — when goods must be ready
+  pmPDIEnd:      string;
+  pmPDIStart:    string;
+  pmInspEnd:     string;
+  pmInspStart:   string;
+  pmFinishEnd:   string;
+  pmFinishStart: string;
+  pmMouldEnd:    string;
+  pmMouldStart:  string;  // = LSD (latest start date)
+}
+
+function subDays(iso: string, n: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+export function calcMilestones(
+  job: ProductionJob,
+  plannedFinishers: number,
+  plannedInspectors: number,
+  refQty = 200,
+  bufferDays = 3,
+): JobMilestones | null {
+  if (!job.promised_date) return null;
+  const r: Required<JobRatesHint> = {
+    setupTime: DEFAULTS.setupTime,
+    finishRate: DEFAULTS.finishRate,
+    inspRate: DEFAULTS.inspRate,
+    pdiTime: DEFAULTS.pdiTime,
+    cureTime: job.cure_time_min ?? DEFAULTS.cureTime,
+    cavities: job.cavities ?? DEFAULTS.cavities,
+  };
+  const mR = (60 / r.cureTime) * r.cavities;                    // pcs/hr from press
+  const SHIFT_HRS = 8;
+  const mDays   = Math.max(1, Math.ceil((refQty / mR + r.setupTime) / SHIFT_HRS));
+  const fDays   = Math.max(1, Math.ceil(refQty / (r.finishRate * Math.max(1, plannedFinishers))  / SHIFT_HRS));
+  const iDays   = Math.max(1, Math.ceil(refQty / (r.inspRate   * Math.max(1, plannedInspectors)) / SHIFT_HRS));
+  const pdiDays = Math.max(1, Math.ceil(r.pdiTime));
+
+  const pmReadyDate   = subDays(job.promised_date, bufferDays);
+  const pmPDIEnd      = pmReadyDate;
+  const pmPDIStart    = subDays(pmPDIEnd, pdiDays);
+  const pmInspEnd     = pmPDIStart;
+  const pmInspStart   = subDays(pmInspEnd, iDays);
+  const pmFinishEnd   = pmInspStart;
+  const pmFinishStart = subDays(pmFinishEnd, fDays);
+  const pmMouldEnd    = pmFinishStart;
+  const pmMouldStart  = subDays(pmMouldEnd, mDays);
+
+  return {
+    pmReadyDate, pmPDIEnd, pmPDIStart,
+    pmInspEnd, pmInspStart,
+    pmFinishEnd, pmFinishStart,
+    pmMouldEnd, pmMouldStart,
+  };
+}
+
+export type StageRAGDot = 'green' | 'amber' | 'red' | 'gray';
+
+export interface StageRAG {
+  dot: StageRAGDot;
+  label: string;
+  diff: number;     // days from today (negative = missed)
+}
+
+export function stageRAG(planDate: string | null, today: Date = new Date()): StageRAG {
+  if (!planDate) return { dot: 'gray', label: '—', diff: 0 };
+  const todayStr = today.toISOString().slice(0, 10);
+  const t = new Date(todayStr + 'T00:00:00').getTime();
+  const p = new Date(planDate + 'T00:00:00').getTime();
+  const diff = Math.floor((p - t) / 86_400_000);
+  if (diff <  0) return { dot: 'red',   label: `Missed ${Math.abs(diff)}d ago`, diff };
+  if (diff === 0) return { dot: 'amber', label: 'Due today',    diff };
+  if (diff === 1) return { dot: 'amber', label: 'Due tomorrow', diff };
+  return                  { dot: 'green', label: `+${diff}d`,     diff };
+}
+
+// Plan date for the job's *current* stage — used to sort the milestone tracker.
+export function currentStagePlan(job: ProductionJob, ms: JobMilestones | null): string | null {
+  if (!ms) return null;
+  switch (job.stage) {
+    case 'moulding':   return ms.pmMouldStart;
+    case 'finishing':  return ms.pmFinishStart;
+    case 'inspection': return ms.pmInspStart;
+    case 'pdi':        return ms.pmPDIStart;
+    default:           return null;
+  }
+}
+
 export function getOTDImpactSummary(jobs: ProductionJob[], hc: Headcount) {
   const impacts = jobs
     .filter(j => ['moulding', 'finishing', 'inspection', 'pdi'].includes(j.stage))
