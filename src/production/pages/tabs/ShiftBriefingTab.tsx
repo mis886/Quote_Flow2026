@@ -1,30 +1,75 @@
-// Shift Briefing — worker attendance + live OTD impact summary.
-// Styled to match MRT ERP v2 design system.
+// Shift Briefing — worker attendance + live OTD impact table.
+// Ports MRT_ERP_Phase1_2_v2.html renderShiftBriefing() (line 3877+).
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sunrise, Users, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import type { ProductionData } from '../../lib/useProductionData';
-import { getOTDImpactSummary } from '../../lib/otdImpact';
+import { getOTDImpactSummary, getJobImpact } from '../../lib/otdImpact';
 import { toggleWorkerPresence } from '../../lib/actions';
+import { updateShopFloorSettings } from '../../lib/db';
+import { fmtIST } from '../../../lib/utils';
 
 export function ShiftBriefingTab({ data }: { data: ProductionData }) {
   const { workers, jobs, settings, refresh } = data;
+  const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [savingHrs, setSavingHrs] = useState(false);
+
+  // Local state for editable shift config — seeds from DB settings
+  const [shiftLeft, setShiftLeft] = useState<string>(
+    settings ? String(settings.shift_hours_left ?? 8) : '8'
+  );
+  const [otBudget, setOtBudget] = useState<string>(
+    settings ? String(settings.overtime_max ?? 2) : '2'
+  );
 
   const present = {
     finishing:  workers.filter(w => w.department === 'finishing'  && w.present).length,
     inspection: workers.filter(w => w.department === 'inspection' && w.present).length,
   };
-  const { safe, atrisk, breach } = getOTDImpactSummary(jobs, {
-    finishers:  present.finishing,
-    inspectors: present.inspection,
-  });
+  const totalF = workers.filter(w => w.department === 'finishing').length;
+  const totalI = workers.filter(w => w.department === 'inspection').length;
+
+  const hc = {
+    finishers:  Math.max(1, present.finishing),
+    inspectors: Math.max(1, present.inspection),
+  };
+
+  const { safe, atrisk, breach } = getOTDImpactSummary(jobs, hc);
+
+  // Full per-job impact list for the OTD table
+  const impactRows = useMemo(() => {
+    return jobs
+      .filter(j => ['moulding', 'finishing', 'inspection', 'pdi'].includes(j.stage))
+      .map(j => ({ job: j, impact: getJobImpact(j, hc) }))
+      .sort((a, b) => {
+        // breach → atrisk → safe, then by promised date
+        const r = { breach: 0, atrisk: 1, safe: 2 } as const;
+        const rd = r[a.impact.risk] - r[b.impact.risk];
+        if (rd !== 0) return rd;
+        return (a.job.promised_date || '').localeCompare(b.job.promised_date || '');
+      });
+  }, [jobs, hc.finishers, hc.inspectors]);
 
   const toggle = async (id: string, next: boolean) => {
     setBusyId(id);
     try { await toggleWorkerPresence(id, next); await refresh(); }
     finally { setBusyId(null); }
   };
+
+  const saveSettings = async () => {
+    setSavingHrs(true);
+    try {
+      await updateShopFloorSettings({
+        shift_hours_left: parseFloat(shiftLeft) || 8,
+        overtime_max: parseFloat(otBudget) || 2,
+      });
+      await refresh();
+    } finally { setSavingHrs(false); }
+  };
+
+  const today = fmtIST(new Date(), 'dd MMM yyyy');
 
   return (
     <div className="space-y-3">
@@ -33,27 +78,203 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
         <Sunrise size={18} className="text-[#E9730C] flex-shrink-0" />
         <div className="flex-1">
           <div className="text-[13px] font-semibold text-[#32363A]">Shift Briefing — start of day</div>
-          <div className="text-[11px] text-[#6A6D70]">Toggle worker attendance. OTD risk numbers update live.</div>
+          <div className="text-[11px] text-[#6A6D70]">Toggle worker attendance. OTD projections update instantly.</div>
         </div>
-        {settings && (
-          <div className="text-[11px] text-[#32363A] font-mono">
-            Shift: {settings.shift_hours}h · OT {settings.overtime_max}h
-          </div>
-        )}
+        <div className="text-[11px] text-[#32363A] font-mono text-right">
+          {today} · Day Shift
+        </div>
       </div>
 
-      {/* OTD impact summary cards */}
-      <div className="grid grid-cols-3 gap-2">
-        <RiskCard label="On Track" count={safe}   borderColor="border-t-[#107E3E]" bg="bg-[#E8F5E9]" textColor="text-[#107E3E]" />
-        <RiskCard label="At Risk"  count={atrisk} borderColor="border-t-[#E9730C]" bg="bg-[#FFF3E0]" textColor="text-[#E9730C]" icon={<AlertTriangle size={13} />} />
-        <RiskCard label="Breach"   count={breach} borderColor="border-t-[#BB0000]" bg="bg-[#FFEBEE]" textColor="text-[#BB0000]" icon={<AlertTriangle size={13} />} />
+      {/* 4 summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <SummaryCard
+          value={present.finishing}
+          label="Finishers Present"
+          sub={present.finishing === totalF ? '✓ Full strength' : `${totalF - present.finishing} absent`}
+          accentClass="border-t-[#0A6ED1]"
+          subClass={present.finishing === totalF ? 'text-[#107E3E]' : 'text-[#E9730C]'}
+        />
+        <SummaryCard
+          value={present.inspection}
+          label="Inspectors Present"
+          sub={present.inspection === totalI ? '✓ Full strength' : `${totalI - present.inspection} absent`}
+          accentClass="border-t-[#107E3E]"
+          subClass={present.inspection === totalI ? 'text-[#107E3E]' : 'text-[#E9730C]'}
+        />
+        <SummaryCard
+          value={safe}
+          label="Jobs — On Track"
+          sub="Will meet promised date"
+          accentClass="border-t-[#107E3E]"
+          subClass="text-[#107E3E]"
+        />
+        <SummaryCard
+          value={atrisk + breach}
+          label="At Risk / Breach"
+          sub={breach > 0 ? `${breach} breach · ${atrisk} at risk` : atrisk > 0 ? `${atrisk} at risk` : 'All on track'}
+          accentClass={breach > 0 ? 'border-t-[#BB0000]' : atrisk > 0 ? 'border-t-[#E9730C]' : 'border-t-[#107E3E]'}
+          subClass={breach > 0 ? 'text-[#BB0000]' : atrisk > 0 ? 'text-[#E9730C]' : 'text-[#107E3E]'}
+          icon={atrisk + breach > 0 ? <AlertTriangle size={13} /> : undefined}
+        />
       </div>
 
-      {/* Worker rosters */}
+      {/* Worker rosters + shift config */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Roster dept="finishing"  label="Finishing Team"  accentColor="border-t-[#0A6ED1]" workers={workers} busyId={busyId} onToggle={toggle} />
-        <Roster dept="inspection" label="Inspection Team" accentColor="border-t-[#107E3E]" workers={workers} busyId={busyId} onToggle={toggle} />
+        <Roster dept="finishing"  label="✂ Finishing"  accentColor="border-t-[#0A6ED1]" workers={workers} busyId={busyId} onToggle={toggle} />
+        <Roster dept="inspection" label="🔍 Inspection" accentColor="border-t-[#107E3E]" workers={workers} busyId={busyId} onToggle={toggle} />
       </div>
+
+      {/* Shift config row */}
+      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2.5 flex flex-wrap items-center gap-4 text-[12px] text-[#32363A]">
+        <span className="text-[#6A6D70]"><strong className="text-[#32363A]">{present.finishing}</strong> finishers on floor</span>
+        <span className="text-[#6A6D70]"><strong className="text-[#32363A]">{present.inspection}</strong> inspectors on floor</span>
+        <span className="flex items-center gap-1.5 text-[#6A6D70]">
+          Shift hrs left:
+          <input
+            type="number" step="0.5" min="0" max="12"
+            value={shiftLeft}
+            onChange={e => setShiftLeft(e.target.value)}
+            onBlur={saveSettings}
+            className="w-[52px] font-mono text-[11px] text-[#32363A] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
+            title="Shift hours left"
+          />
+          <span>hrs</span>
+        </span>
+        <span className="flex items-center gap-1.5 text-[#6A6D70]">
+          OT authorised:
+          <input
+            type="number" step="0.5" min="0" max="4"
+            value={otBudget}
+            onChange={e => setOtBudget(e.target.value)}
+            onBlur={saveSettings}
+            className="w-[52px] font-mono text-[11px] text-[#32363A] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
+            title="OT authorised (hours)"
+          />
+          <span>hrs</span>
+        </span>
+        {savingHrs && <span className="text-[10px] text-[#6A6D70]">Saving…</span>}
+      </div>
+
+      {/* OTD Impact table */}
+      <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
+        <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+          <div className="text-[12px] font-semibold text-[#32363A] flex-1">OTD Impact — Today's WIP</div>
+          <div className="text-[10px] text-[#6A6D70]">Recalculates when attendance or hours change · click row to jump to that stage</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[12px] text-[#32363A]">
+            <thead className="bg-[#FAFAFA]">
+              <tr>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Job</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Product</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Customer</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Stage</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Qty</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Rem. TAT</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Proj. End</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Promised</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Buffer</th>
+                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Risk &amp; Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {impactRows.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-5 text-[#6A6D70] italic">No active jobs.</td>
+                </tr>
+              ) : impactRows.map(({ job, impact }) => {
+                const stageTab = job.stage === 'moulding' ? 'mould' : job.stage === 'finishing' ? 'finish' : job.stage === 'inspection' ? 'insp' : job.stage === 'pdi' ? 'pdi' : 'mould';
+                const bufferOk = impact.bufferHrs >= 0;
+                const otBudgetNum = parseFloat(otBudget) || 2;
+                const riskLabel = impact.risk === 'breach'
+                  ? `🔴 OTD Breach`
+                  : impact.risk === 'atrisk'
+                  ? '🟡 At Risk'
+                  : '✓ Safe';
+                const actionNote = impact.risk !== 'safe'
+                  ? (impact.otHrs > otBudgetNum
+                    ? `✗ Needs +${impact.otHrs.toFixed(1)}h OT — exceeds ${otBudgetNum}h budget. Escalate.`
+                    : `⚠ Needs +${impact.otHrs.toFixed(1)}h OT — within budget.`)
+                  : null;
+
+                return (
+                  <tr
+                    key={job.id}
+                    onClick={() => navigate(`/production/sequencer/${stageTab}`)}
+                    className="border-b border-[#F3F3F3] last:border-b-0 cursor-pointer hover:bg-[#EEF4FF]"
+                  >
+                    <td className="px-[10px] py-[7px] whitespace-nowrap">
+                      <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
+                        {job.priority === 'emergency' && <span className="text-[#BB0000] mr-0.5">🔴 EMERGENCY</span>}
+                        {job.id}
+                      </span>
+                    </td>
+                    <td className="px-[10px] py-[7px] font-semibold text-[#32363A] whitespace-nowrap">{job.product_desc}</td>
+                    <td className="px-[10px] py-[7px] text-[#6A6D70] whitespace-nowrap">{job.customer_name || '—'}</td>
+                    <td className="px-[10px] py-[7px] whitespace-nowrap">
+                      <span className={[
+                        'inline-block text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] capitalize',
+                        job.stage === 'moulding'   ? 'bg-[#FFF3E0] text-[#E9730C]' :
+                        job.stage === 'finishing'  ? 'bg-[#E8F0FD] text-[#0A6ED1]' :
+                        job.stage === 'inspection' ? 'bg-[#FFF3E0] text-[#E9730C]' :
+                        job.stage === 'pdi'        ? 'bg-[#E8F0FD] text-[#0A6ED1]' :
+                        'bg-[#F5F6F7] text-[#6A6D70]'
+                      ].join(' ')}>
+                        {job.stage}
+                      </span>
+                    </td>
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap">
+                      {job.qty.toLocaleString()} pcs · {(job.qty_done || 0)} done
+                    </td>
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap">{fmtHrs(impact.remHrs)}</td>
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#6A6D70]">
+                      {fmtIST(impact.projEnd, 'hh:mm aa, dd MMM')}
+                    </td>
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#6A6D70]">
+                      {job.promised_date || '—'}
+                    </td>
+                    <td className={[
+                      'px-[10px] py-[7px] font-mono text-[11px] font-semibold whitespace-nowrap',
+                      bufferOk ? 'text-[#107E3E]' : 'text-[#BB0000]',
+                    ].join(' ')}>
+                      {bufferOk ? '+' : ''}{impact.bufferHrs.toFixed(1)}h {bufferOk ? 'buffer' : 'overrun'}
+                    </td>
+                    <td className="px-[10px] py-[7px] whitespace-nowrap">
+                      <div className={[
+                        'text-[11px] font-semibold',
+                        impact.risk === 'breach' ? 'text-[#BB0000]' :
+                        impact.risk === 'atrisk' ? 'text-[#E9730C]' : 'text-[#107E3E]',
+                      ].join(' ')}>
+                        {riskLabel}
+                      </div>
+                      {actionNote && (
+                        <div className="text-[10px] text-[#6A6D70] mt-0.5">{actionNote}</div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function SummaryCard({ value, label, sub, accentClass, subClass, icon }: {
+  value: number; label: string; sub: string;
+  accentClass: string; subClass: string; icon?: React.ReactNode;
+}) {
+  return (
+    <div className={`bg-white border border-[#E4E5E6] border-t-[3px] rounded-[3px] px-[14px] py-3 ${accentClass}`}>
+      <div className="text-[26px] font-light leading-none text-[#32363A] flex items-center gap-1.5">
+        {icon}{value}
+      </div>
+      <div className="text-[10px] text-[#6A6D70] mt-[3px]">{label}</div>
+      <div className={`text-[10px] mt-[5px] ${subClass}`}>{sub}</div>
     </div>
   );
 }
@@ -64,7 +285,7 @@ function Roster({
   dept: 'finishing' | 'inspection';
   label: string;
   accentColor: string;
-  workers: ReturnType<typeof import('../../lib/useProductionData').useProductionData>['workers'];
+  workers: ProductionData['workers'];
   busyId: string | null;
   onToggle: (id: string, next: boolean) => void;
 }) {
@@ -75,20 +296,25 @@ function Roster({
     <div className={`bg-white border border-[#E4E5E6] border-t-[3px] rounded-[3px] ${accentColor}`}>
       <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
         <Users size={13} className="text-[#6A6D70]" />
-        <div className="text-[12px] font-semibold text-[#32363A] flex-1">{label}</div>
+        <div className="text-[12px] font-semibold text-[#32363A] flex-1">
+          {label}
+          <span className="ml-2 text-[10px] font-normal text-[#6A6D70]">
+            {here} present · {out} absent of {list.length}
+          </span>
+        </div>
         <span className="text-[10.5px] text-[#107E3E] flex items-center gap-0.5">
-          <CheckCircle2 size={10} />{here} present
+          <CheckCircle2 size={10} />{here}
         </span>
-        <span className="text-[10.5px] text-[#BB0000] flex items-center gap-0.5 ml-2">
-          <XCircle size={10} />{out} absent
+        <span className="text-[10.5px] text-[#BB0000] flex items-center gap-0.5 ml-1">
+          <XCircle size={10} />{out}
         </span>
       </div>
       <div className="divide-y divide-[#F3F3F3]">
         {list.map(w => (
-          <div key={w.id} className="px-3 py-2 flex items-center gap-3">
+          <div key={w.id} className={`px-3 py-2 flex items-center gap-3 ${!w.present ? 'bg-[#FFF1F0]' : ''}`}>
             <div className="flex-1">
               <div className="text-[12px] font-medium text-[#32363A]">{w.name}</div>
-              <div className="text-[10px] text-[#6A6D70]">{w.id} · {w.role}</div>
+              <div className="text-[10px] text-[#6A6D70]">{w.role}</div>
             </div>
             <button
               type="button"
@@ -110,18 +336,9 @@ function Roster({
   );
 }
 
-function RiskCard({
-  label, count, borderColor, bg, textColor, icon,
-}: {
-  label: string; count: number; borderColor: string;
-  bg: string; textColor: string; icon?: React.ReactNode;
-}) {
-  return (
-    <div className={`border border-[#E4E5E6] border-t-[3px] rounded-[3px] px-3 py-2.5 ${borderColor} ${bg}`}>
-      <div className={`text-[24px] font-light leading-none flex items-center gap-1.5 ${textColor}`}>
-        {icon}{count}
-      </div>
-      <div className={`text-[10px] mt-1 ${textColor}`}>{label}</div>
-    </div>
-  );
+function fmtHrs(h: number) {
+  if (!isFinite(h)) return '—';
+  const abs = Math.abs(h);
+  if (abs >= 24) return `${(h / 24).toFixed(1)}d`;
+  return `${h.toFixed(1)} hrs`;
 }
