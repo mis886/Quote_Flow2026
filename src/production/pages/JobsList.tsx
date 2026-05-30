@@ -75,7 +75,7 @@ export function JobsList() {
       <div
         onClick={() => setTab(current)}
         className={`px-[11px] py-1 rounded-[3px] text-[11.5px] font-medium cursor-pointer transition-colors whitespace-nowrap select-none ${
-          isActive ? 'bg-white text-blk font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : 'text-g600 hover:text-blk'
+          isActive ? 'bg-white text-[#32363A] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : 'text-[#666] hover:text-[#32363A]'
         }`}
       >
         {label} ({counts[current]})
@@ -103,7 +103,7 @@ export function JobsList() {
       />
 
       <FilterBar>
-        <div className="flex gap-[1px] bg-g100 border border-g200 rounded p-[2px]">
+        <div className="flex gap-[1px] bg-[#FAFAFA] border border-[#E4E5E6] rounded p-[2px]">
           <TabSelect current="All" label="All" />
           <TabSelect current="Queued" label="Queued" />
           <TabSelect current="Moulding" label="Moulding" />
@@ -114,22 +114,22 @@ export function JobsList() {
           <TabSelect current="Dispatched" label="Dispatched" />
         </div>
 
-        <div className="w-px h-[18px] bg-g200 shrink-0 mx-1" />
+        <div className="w-px h-[18px] bg-[#EBEBEB] shrink-0 mx-1" />
 
-        <div className="flex items-center gap-1.5 bg-white border border-g200 rounded px-2 h-7 min-w-[200px] transition-colors focus-within:border-red-mrt focus-within:ring-2 focus-within:ring-red-lt">
-          <Search size={11} className="text-g400 shrink-0" />
+        <div className="flex items-center gap-1.5 bg-white border border-[#E4E5E6] rounded px-2 h-7 min-w-[200px] transition-colors focus-within:border-[#0A6ED1] focus-within:ring-2 focus-within:ring-red-lt">
+          <Search size={11} className="text-[#9E9E9E] shrink-0" />
           <input
             type="text"
             placeholder="Job ID, product, customer, PO…"
             value={q}
             onChange={e => setQ(e.target.value)}
-            className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"
+            className="bg-transparent border-none outline-none font-sans text-xs text-[#32363A] w-full placeholder:text-[#9E9E9E]"
           />
         </div>
 
         <select
           title="Filter by priority"
-          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
+          className="font-sans text-xs text-[#32363A] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
           value={pri}
           onChange={e => setPri(e.target.value)}
         >
@@ -138,7 +138,7 @@ export function JobsList() {
           <option value="normal">Normal</option>
         </select>
 
-        <div className="ml-auto font-mono text-[10px] text-g500">
+        <div className="ml-auto font-mono text-[10px] text-[#6A6D70]">
           {filtered.length} jobs
         </div>
       </FilterBar>
@@ -167,28 +167,28 @@ export function JobsList() {
             ) : filtered.map(j => (
               <TR key={j.id} onClick={() => navigate(`/production/jobs/${j.id}`)}>
                 <TD>
-                  <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                  <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                     {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                   </span>
                 </TD>
-                <TD className="font-mono text-[11px] text-g600">
-                  {j.job_card_no || <span className="text-g400">—</span>}
+                <TD className="font-mono text-[11px] text-[#666]">
+                  {j.job_card_no || <span className="text-[#9E9E9E]">—</span>}
                 </TD>
                 <TD>
-                  <div className="font-semibold text-blk text-[12.5px]">{j.product_desc}</div>
-                  {j.mould_code && <div className="text-[10.5px] text-g500">Mould {j.mould_code}{j.cavities ? ` · ${j.cavities} cav` : ''}</div>}
+                  <div className="font-semibold text-[#32363A] text-[12.5px]">{j.product_desc}</div>
+                  {j.mould_code && <div className="text-[10.5px] text-[#6A6D70]">Mould {j.mould_code}{j.cavities ? ` · ${j.cavities} cav` : ''}</div>}
                 </TD>
                 <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
-                <TD className="font-mono text-[11px] text-g600">{j.lsd || '—'}</TD>
-                <TD className="font-mono text-[11px] text-g600">{j.promised_date || '—'}</TD>
+                <TD className="font-mono text-[11px] text-[#666]">{j.lsd || '—'}</TD>
+                <TD className="font-mono text-[11px] text-[#666]">{j.promised_date || '—'}</TD>
                 <TD><StatusPill status={j.stage} tone={toneForStage(j.stage)} /></TD>
                 <TD><StatusPill status={j.status} tone={toneForStatus(j.status)} /></TD>
-                <TD className="font-mono text-[11px] text-g600">
+                <TD className="font-mono text-[11px] text-[#666]">
                   {j.press_id ? (
-                    <span className="bg-g100 px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span>
+                    <span className="bg-[#FAFAFA] px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span>
                   ) : (
-                    <span className="text-g400">—</span>
+                    <span className="text-[#9E9E9E]">—</span>
                   )}
                 </TD>
               </TR>
@@ -196,7 +196,7 @@ export function JobsList() {
           </tbody>
         </Table>
 
-        <div className="mt-3 flex items-center gap-2 text-[11px] text-g500">
+        <div className="mt-3 flex items-center gap-2 text-[11px] text-[#6A6D70]">
           <FileText size={11} />
           <span>Click any row to open the job card detail.</span>
         </div>

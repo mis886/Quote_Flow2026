@@ -50,12 +50,12 @@ export function NCRModal({ open, job, onClose, onSubmit }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 border-b border-g200 flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-blk flex items-center gap-1.5">
-            <AlertTriangle size={14} className="text-red-mrt" />
+        <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
+          <div className="text-[13px] font-semibold text-[#32363A] flex items-center gap-1.5">
+            <AlertTriangle size={14} className="text-[#0A6ED1]" />
             Raise NCR — {job.id}
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-g500 hover:text-blk"><X size={16} /></button>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
@@ -81,8 +81,8 @@ export function NCRModal({ open, job, onClose, onSubmit }: Props) {
           </Field>
         </div>
 
-        <div className="px-4 py-3 border-t border-g200 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-g300 rounded-[3px] hover:bg-g100">Cancel</button>
+        <div className="px-4 py-3 border-t border-[#E4E5E6] flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-[#CCC] rounded-[3px] hover:bg-[#FAFAFA]">Cancel</button>
           <button
             type="button"
             onClick={submit}
@@ -97,13 +97,13 @@ export function NCRModal({ open, job, onClose, onSubmit }: Props) {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
-        {label} {required && <span className="text-red-mrt">*</span>}
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+        {label} {required && <span className="text-[#0A6ED1]">*</span>}
       </label>
       {children}
     </div>

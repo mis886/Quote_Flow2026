@@ -1,14 +1,15 @@
-// Shared table primitives for Production tables.
-// Matches the canonical CRM table look in src/pages/Enquiries.tsx
-// (mono uppercase headers, 12.5px body, hairline borders).
+// Shared table/layout primitives for the Production workspace.
+// Styled to match MRT ERP v2 design system (SAP-style blue/grey).
 
 import React from 'react';
 import { cn } from '../../lib/utils';
 
+// ── Table ──────────────────────────────────────────────────────
+
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('bg-white border border-g200 overflow-x-auto m-0', className)}>
-      <table className="w-full border-collapse text-[12.5px]">
+    <div className={cn('bg-white border border-[#E4E5E6] rounded-[3px] overflow-x-auto', className)}>
+      <table className="w-full border-collapse text-[12px] text-[#32363A]">
         {children}
       </table>
     </div>
@@ -16,14 +17,14 @@ export function Table({ children, className }: { children: React.ReactNode; clas
 }
 
 export function THead({ children }: { children: React.ReactNode }) {
-  return <thead className="bg-g100">{children}</thead>;
+  return <thead className="bg-[#FAFAFA]">{children}</thead>;
 }
 
 export function TH({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <th className={cn(
-      'font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500',
-      'px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200',
+      'text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px]',
+      'px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]',
       className
     )}>
       {children}
@@ -36,8 +37,8 @@ export function TR({ children, onClick, className }: { children: React.ReactNode
     <tr
       onClick={onClick}
       className={cn(
-        'transition-colors border-b border-g100 last:border-b-0',
-        onClick && 'cursor-pointer hover:bg-red-mrt/5',
+        'border-b border-[#F3F3F3] last:border-b-0',
+        onClick && 'cursor-pointer hover:bg-[#EEF4FF]',
         className
       )}
     >
@@ -57,7 +58,7 @@ export function TD({
 }) {
   return (
     <td
-      className={cn('px-[13px] py-[10px] align-middle whitespace-nowrap', className)}
+      className={cn('px-[10px] py-[7px] align-middle whitespace-nowrap', className)}
       title={title}
       onClick={onClick}
       colSpan={colSpan}
@@ -70,12 +71,14 @@ export function TD({
 export function EmptyRow({ colSpan, text }: { colSpan: number; text?: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="text-center p-8 text-g400 text-[13px]">
+      <td colSpan={colSpan} className="text-center py-5 px-3 text-[#6A6D70] text-[12px] italic">
         {text ?? 'No records.'}
       </td>
     </tr>
   );
 }
+
+// ── Page header ────────────────────────────────────────────────
 
 export function PageHeader({
   module, title, accent, subtitle, actions,
@@ -87,67 +90,57 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="pt-5 px-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-mono text-[9px] font-bold tracking-[3px] uppercase text-red-mrt mb-1">
-            {module}
-          </div>
-          <h1 className="font-serif text-2xl text-blk tracking-tight leading-tight">
-            {title}
-            {accent && <em className="italic text-red-mrt ml-2">{accent}</em>}
-          </h1>
-          {subtitle && <p className="text-xs text-g500 mt-1 font-light">{subtitle}</p>}
+    <div className="h-12 bg-white border-b border-[#E4E5E6] px-4 flex items-center gap-3 flex-shrink-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11px] text-[#6A6D70] font-medium hidden sm:inline">{module} ·</span>
+          <span className="text-[14px] font-semibold text-[#32363A] truncate">{title}</span>
+          {accent && <span className="text-[12px] text-[#6A6D70]">{accent}</span>}
         </div>
-        {actions && (
-          <div className="flex items-center gap-2 mt-1 shrink-0">
-            {actions}
-          </div>
-        )}
+        {subtitle && <div className="text-[10px] text-[#6A6D70] leading-none mt-0.5 truncate">{subtitle}</div>}
       </div>
+      {actions && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
 
+// ── Filter bar ─────────────────────────────────────────────────
+
 export function FilterBar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 px-6 py-2.5 bg-white border-b border-g200 flex-wrap mt-0">
+    <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-[#E4E5E6] flex-wrap">
       {children}
     </div>
   );
 }
 
-export function StatusPill({
-  status, tone = 'neutral',
-}: {
-  status: string;
-  tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'info';
-}) {
-  const map: Record<string, string> = {
-    neutral: 'bg-g100 text-g600',
-    good:    'bg-sW/10 text-sW',
-    warn:    'bg-sP/10 text-sP',
-    bad:     'bg-red-mrt/10 text-red-mrt',
-    info:    'bg-sN/10 text-sN',
+// ── Status pill ────────────────────────────────────────────────
+
+type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info';
+
+export function StatusPill({ status, tone = 'neutral' }: { status: string; tone?: Tone }) {
+  const cls: Record<Tone, string> = {
+    neutral: 'bg-[#F5F6F7] text-[#6A6D70] border border-[#E4E5E6]',
+    good:    'bg-[#E8F5E9] text-[#107E3E]',
+    warn:    'bg-[#FFF3E0] text-[#E9730C]',
+    bad:     'bg-[#FFEBEE] text-[#BB0000]',
+    info:    'bg-[#E8F0FD] text-[#0A6ED1]',
   };
   return (
     <span className={cn(
-      'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] text-[10.5px] font-semibold whitespace-nowrap',
-      map[tone]
+      'inline-block text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] leading-[1.5] whitespace-nowrap',
+      cls[tone]
     )}>
-      <span className={cn('w-[5px] h-[5px] rounded-full shrink-0', {
-        'bg-g500': tone === 'neutral',
-        'bg-sW':   tone === 'good',
-        'bg-sP':   tone === 'warn',
-        'bg-red-mrt': tone === 'bad',
-        'bg-sN':   tone === 'info',
-      })} />
       {status}
     </span>
   );
 }
 
-export function toneForStage(stage: string): 'neutral' | 'good' | 'warn' | 'bad' | 'info' {
+export function toneForStage(stage: string): Tone {
   switch (stage) {
     case 'queued':     return 'neutral';
     case 'moulding':   return 'warn';
@@ -159,7 +152,8 @@ export function toneForStage(stage: string): 'neutral' | 'good' | 'warn' | 'bad'
     default:           return 'neutral';
   }
 }
-export function toneForStatus(status: string): 'neutral' | 'good' | 'warn' | 'bad' | 'info' {
+
+export function toneForStatus(status: string): Tone {
   switch (status) {
     case 'queued':       return 'neutral';
     case 'setup':        return 'warn';

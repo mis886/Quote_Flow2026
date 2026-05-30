@@ -44,17 +44,17 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
   }, [jobs, plannedF, plannedI]);
 
   return (
-    <div className="bg-white border border-g200 rounded-[3px]">
-      <div className="px-3 py-2 border-b border-g200 flex items-center gap-2">
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 flex-1">
+    <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+      <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] flex-1">
           Stage Milestone Tracker
-          <span className="ml-2 text-g600 font-normal tracking-normal normal-case">
+          <span className="ml-2 text-[#666] font-normal tracking-normal normal-case">
             {rows.length} active · sorted by urgency · 3-day dispatch buffer
           </span>
         </div>
         <Link
           to="/production/sequencer/mould"
-          className="text-[11px] text-red-mrt hover:underline flex items-center gap-1"
+          className="text-[11px] text-[#0A6ED1] hover:underline flex items-center gap-1"
         >
           <Workflow size={11} /> Sequencer →
         </Link>
@@ -90,16 +90,16 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
                 <TD>
                   <div className="flex items-center gap-1.5">
                     <Dot dot={cur.dot} />
-                    <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                    <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                       {job.priority === 'emergency' && <span className="mr-1">🔴</span>}{job.id}
                     </span>
                   </div>
                 </TD>
                 <TD>
-                  <div className="font-semibold text-blk text-[12.5px] truncate max-w-[180px]">
+                  <div className="font-semibold text-[#32363A] text-[12.5px] truncate max-w-[180px]">
                     {job.product_desc}
                   </div>
-                  <div className="text-[10.5px] text-g500 truncate max-w-[180px]">
+                  <div className="text-[10.5px] text-[#6A6D70] truncate max-w-[180px]">
                     {job.customer_name || '—'}
                   </div>
                 </TD>
@@ -112,15 +112,15 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
                     className={idx === curIdx ? 'bg-red-mrt/5' : ''}
                   >
                     {idx < curIdx ? (
-                      <Check size={13} className="text-sW" />
+                      <Check size={13} className="text-[#107E3E]" />
                     ) : plan ? (
                       <RAGCell plan={plan} />
                     ) : (
-                      <span className="text-g400 text-[10.5px]">No plan</span>
+                      <span className="text-[#9E9E9E] text-[10.5px]">No plan</span>
                     )}
                   </TD>
                 ))}
-                <TD className="font-mono text-[11px] text-g600">
+                <TD className="font-mono text-[11px] text-[#666]">
                   {job.promised_date || '—'}
                 </TD>
               </TR>
@@ -130,11 +130,11 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
       </Table>
 
       {/* Legend */}
-      <div className="px-3 py-2 border-t border-g200 flex items-center gap-4 flex-wrap text-[10.5px] text-g500">
+      <div className="px-3 py-2 border-t border-[#E4E5E6] flex items-center gap-4 flex-wrap text-[10.5px] text-[#6A6D70]">
         <span className="flex items-center gap-1.5"><Dot dot="green" /> On track</span>
         <span className="flex items-center gap-1.5"><Dot dot="amber" /> Due today / tomorrow</span>
         <span className="flex items-center gap-1.5"><Dot dot="red" /> Milestone missed</span>
-        <span className="ml-auto italic text-g500">
+        <span className="ml-auto italic text-[#6A6D70]">
           Highlighted = current stage · ✓ = stage complete
         </span>
       </div>
@@ -159,17 +159,17 @@ function Dot({ dot }: { dot: StageRAGDot }) {
 function RAGCell({ plan }: { plan: string }) {
   const r = stageRAG(plan);
   const cls =
-    r.dot === 'green' ? 'text-sW' :
-    r.dot === 'amber' ? 'text-sP' :
-    r.dot === 'red'   ? 'text-red-mrt font-semibold' :
-                        'text-g500';
+    r.dot === 'green' ? 'text-[#107E3E]' :
+    r.dot === 'amber' ? 'text-[#E9730C]' :
+    r.dot === 'red'   ? 'text-[#0A6ED1] font-semibold' :
+                        'text-[#6A6D70]';
   return (
     <div className="inline-flex items-center gap-1.5">
       <Dot dot={r.dot} />
       <span className={`font-mono text-[11px] ${cls}`}>
         {fmtIST(new Date(plan), 'dd MMM')}
       </span>
-      <span className="text-[9.5px] text-g400">{r.label}</span>
+      <span className="text-[9.5px] text-[#9E9E9E]">{r.label}</span>
     </div>
   );
 }

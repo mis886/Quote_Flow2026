@@ -17,19 +17,19 @@ export function ProductionLayout() {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-cream">
         <div className="max-w-[440px] text-center px-6">
-          <div className="w-14 h-14 mx-auto rounded-full bg-red-lt flex items-center justify-center mb-4">
-            <Lock size={22} className="text-red-mrt" />
+          <div className="w-14 h-14 mx-auto rounded-full bg-[#E8F0FD] flex items-center justify-center mb-4">
+            <Lock size={22} className="text-[#0A6ED1]" />
           </div>
-          <div className="font-mono text-[10px] font-bold tracking-[3px] uppercase text-blk opacity-60 mb-2">
+          <div className="font-mono text-[10px] font-bold tracking-[3px] uppercase text-[#32363A] opacity-60 mb-2">
             Production
           </div>
-          <h1 className="text-[18px] font-semibold text-blk mb-2">
+          <h1 className="text-[18px] font-semibold text-[#32363A] mb-2">
             Production workspace disabled
           </h1>
-          <p className="text-[13px] text-g600 mb-5 leading-relaxed">
+          <p className="text-[13px] text-[#666] mb-5 leading-relaxed">
             An administrator has turned the Production workspace off for
             this environment. Set
-            <code className="mx-1 px-1.5 py-0.5 rounded bg-g100 text-[11px] font-mono">
+            <code className="mx-1 px-1.5 py-0.5 rounded bg-[#FAFAFA] text-[11px] font-mono">
               app_settings.production_beta_enabled = true
             </code>
             in Supabase to re-enable.
@@ -46,9 +46,9 @@ export function ProductionLayout() {
   }
 
   return (
-    <div className="flex w-full h-screen overflow-hidden relative">
+    <div className="flex w-full h-screen overflow-hidden">
       <ProductionSidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-cream relative">
+      <div className="prod-main-bg flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-y-auto">
           <Outlet />

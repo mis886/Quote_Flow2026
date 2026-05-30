@@ -69,7 +69,7 @@ export function ShopFloorSettingsPage() {
           {!draft ? (
             <Loading />
           ) : (
-            <div className="bg-white border border-g200 rounded-[3px] p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
               <Field label="Shift Started">
                 <select
                   className={inp}
@@ -133,27 +133,27 @@ export function ShopFloorSettingsPage() {
             extra={
               <>
                 Present today —
-                <strong className="text-blk ml-1">
+                <strong className="text-[#32363A] ml-1">
                   {workers.filter(w => w.department === 'finishing' && w.present).length}
                 </strong> finishers ·
-                <strong className="text-blk ml-1">
+                <strong className="text-[#32363A] ml-1">
                   {workers.filter(w => w.department === 'inspection' && w.present).length}
                 </strong> inspectors
               </>
             }
           />
-          <div className="bg-white border border-g200 rounded-[3px] grid grid-cols-1 md:grid-cols-2 divide-x divide-g100">
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] grid grid-cols-1 md:grid-cols-2 divide-x divide-[#F3F3F3]">
             {(['finishing', 'inspection'] as const).map(dept => (
               <div key={dept} className="p-3">
-                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 mb-2">
+                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2">
                   {dept === 'finishing' ? 'Finishing Team' : 'Inspection Team'}
                 </div>
-                <ul className="divide-y divide-g100">
+                <ul className="divide-y divide-[#F3F3F3]">
                   {workers.filter(w => w.department === dept).map(w => (
                     <li key={w.id} className="flex items-center gap-3 py-2">
                       <div className="flex-1">
-                        <div className="text-[12.5px] font-semibold text-blk">{w.name}</div>
-                        <div className="text-[10.5px] font-mono text-g500">{w.id} · {w.role}</div>
+                        <div className="text-[12.5px] font-semibold text-[#32363A]">{w.name}</div>
+                        <div className="text-[10.5px] font-mono text-[#6A6D70]">{w.id} · {w.role}</div>
                       </div>
                       <button
                         type="button"
@@ -161,8 +161,8 @@ export function ShopFloorSettingsPage() {
                         onClick={() => togglePresent(w.id, !w.present)}
                         className={`px-2.5 py-1 text-[11px] rounded-[3px] border transition-colors disabled:opacity-50 ${
                           w.present
-                            ? 'bg-sW/10 border-sW/20 text-sW hover:bg-sW/20'
-                            : 'bg-g100 border-g200 text-g500 hover:bg-g200'
+                            ? 'bg-sW/10 border-sW/20 text-[#107E3E] hover:bg-sW/20'
+                            : 'bg-[#FAFAFA] border-[#E4E5E6] text-[#6A6D70] hover:bg-[#EBEBEB]'
                         }`}
                       >
                         {w.present ? 'Present ✓' : 'Absent'}
@@ -178,12 +178,12 @@ export function ShopFloorSettingsPage() {
         {/* Press master */}
         <section>
           <SectionTitle icon={<Factory size={11} />} title="Press master" />
-          <div className="bg-white border border-g200 rounded-[3px] divide-y divide-g100">
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] divide-y divide-[#F3F3F3]">
             {presses.map(p => (
               <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="flex-1">
-                  <div className="text-[13px] font-semibold text-blk">{p.name} · {p.tonnage}</div>
-                  <div className="text-[10.5px] font-mono text-g500">
+                  <div className="text-[13px] font-semibold text-[#32363A]">{p.name} · {p.tonnage}</div>
+                  <div className="text-[10.5px] font-mono text-[#6A6D70]">
                     {p.status === 'idle'
                       ? 'Idle — available'
                       : p.status === 'maintenance'
@@ -197,8 +197,8 @@ export function ShopFloorSettingsPage() {
                   onClick={() => togglePressMaintenance(p.id, p.status !== 'maintenance')}
                   className={`px-2.5 py-1 text-[11px] rounded-[3px] border transition-colors disabled:opacity-30 ${
                     p.status === 'maintenance'
-                      ? 'bg-sP/10 border-sP/30 text-sP hover:bg-sP/20'
-                      : 'bg-white border-g300 text-g600 hover:bg-g100'
+                      ? 'bg-sP/10 border-sP/30 text-[#E9730C] hover:bg-sP/20'
+                      : 'bg-white border-[#CCC] text-[#666] hover:bg-[#FAFAFA]'
                   }`}
                   title={p.status === 'running' || p.status === 'setup' ? 'Press is busy — finish first' : ''}
                 >
@@ -213,14 +213,14 @@ export function ShopFloorSettingsPage() {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 
 function SectionTitle({ icon, title, extra }: { icon: React.ReactNode; title: string; extra?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="text-g500">{icon}</span>
-      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500">{title}</div>
-      {extra && <div className="ml-auto text-[11px] text-g500">{extra}</div>}
+      <span className="text-[#6A6D70]">{icon}</span>
+      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70]">{title}</div>
+      {extra && <div className="ml-auto text-[11px] text-[#6A6D70]">{extra}</div>}
     </div>
   );
 }
@@ -228,7 +228,7 @@ function SectionTitle({ icon, title, extra }: { icon: React.ReactNode; title: st
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
         {label}
       </label>
       {children}
@@ -237,5 +237,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Loading() {
-  return <div className="bg-white border border-g200 rounded-[3px] p-8 text-center text-[12px] text-g400">Loading…</div>;
+  return <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#9E9E9E]">Loading…</div>;
 }

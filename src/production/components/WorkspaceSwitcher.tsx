@@ -16,8 +16,8 @@ export function WorkspaceSwitcher() {
       title={inProduction ? 'Switch to CRM workspace' : 'Switch to Production workspace'}
       className={`h-[30px] flex items-center gap-1.5 px-2.5 rounded-[5px] border text-[11px] font-medium transition-colors ${
         inProduction
-          ? 'bg-g100 border-g200 text-g600 hover:bg-g200'
-          : 'bg-red-lt border-red-mrt/30 text-red-mrt hover:bg-red-mrt/15'
+          ? 'bg-[#FAFAFA] border-[#E4E5E6] text-[#666] hover:bg-[#EBEBEB]'
+          : 'bg-[#E8F0FD] border-[#0A6ED1]/30 text-[#0A6ED1] hover:bg-red-mrt/15'
       }`}
     >
       {inProduction ? <ArrowLeftRight size={11} /> : <Factory size={11} />}

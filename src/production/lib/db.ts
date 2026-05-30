@@ -6,7 +6,7 @@
 import { supabase } from '../../lib/supabase';
 import type {
   Press, ProductionJob, Worker, NCR, ShopFloorSettings,
-  JobStage,
+  JobStage, Compound, Product, BOMRow,
 } from './types';
 
 // ── Presses ────────────────────────────────────────────────────────
@@ -119,6 +119,97 @@ export async function updateShopFloorSettings(patch: Partial<ShopFloorSettings>)
     .from('prod_shop_floor_settings')
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', 'config');
+  if (error) throw error;
+}
+
+// ── Compounds ──────────────────────────────────────────────────────
+export async function listCompounds(): Promise<Compound[]> {
+  const { data, error } = await supabase
+    .from('prod_compounds')
+    .select('*')
+    .order('code');
+  if (error) { console.error('listCompounds', error); return []; }
+  return data || [];
+}
+
+export async function upsertCompound(c: Partial<Compound> & { id: string }): Promise<Compound> {
+  const { data, error } = await supabase
+    .from('prod_compounds')
+    .upsert({ ...c, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Compound;
+}
+
+export async function deleteCompound(id: string) {
+  const { error } = await supabase.from('prod_compounds').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Products ───────────────────────────────────────────────────────
+export async function listProducts(): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('prod_products')
+    .select('*')
+    .order('code');
+  if (error) { console.error('listProducts', error); return []; }
+  return data || [];
+}
+
+export async function getProduct(id: string): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('prod_products')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) { console.error('getProduct', error); return null; }
+  return data as Product;
+}
+
+export async function upsertProduct(p: Partial<Product> & { id: string; code: string; name: string }): Promise<Product> {
+  const { data, error } = await supabase
+    .from('prod_products')
+    .upsert({ ...p, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Product;
+}
+
+export async function deleteProduct(id: string) {
+  const { error } = await supabase.from('prod_products').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── BOM ────────────────────────────────────────────────────────────
+export async function listBOMForProduct(productId: string): Promise<BOMRow[]> {
+  const { data, error } = await supabase
+    .from('prod_boms')
+    .select('*')
+    .eq('product_id', productId)
+    .order('sort_order');
+  if (error) { console.error('listBOM', error); return []; }
+  return data || [];
+}
+
+export async function addBOMRow(row: Omit<BOMRow, 'id' | 'created_at'>): Promise<BOMRow> {
+  const { data, error } = await supabase
+    .from('prod_boms')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as BOMRow;
+}
+
+export async function updateBOMRow(id: number, patch: Partial<BOMRow>) {
+  const { error } = await supabase.from('prod_boms').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteBOMRow(id: number) {
+  const { error } = await supabase.from('prod_boms').delete().eq('id', id);
   if (error) throw error;
 }
 

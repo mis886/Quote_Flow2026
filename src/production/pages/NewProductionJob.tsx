@@ -152,23 +152,23 @@ export function NewProductionJob() {
   };
 
   if (loading) {
-    return <div className="p-6 text-[12px] text-g500">Loading…</div>;
+    return <div className="p-6 text-[12px] text-[#6A6D70]">Loading…</div>;
   }
 
-  const input = 'w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-2 outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt';
-  const lbl   = 'block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1';
+  const input = 'w-full font-sans text-[13px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-2 outline-none focus:border-[#0A6ED1] focus:ring-[3px] focus:ring-red-lt';
+  const lbl   = 'block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1';
 
   return (
     <div className="p-4 lg:p-6 max-w-[1100px]">
       <button
         onClick={() => navigate('/production')}
-        className="flex items-center gap-1 text-[12px] text-red-mrt hover:underline mb-3"
+        className="flex items-center gap-1 text-[12px] text-[#0A6ED1] hover:underline mb-3"
       >
         <ArrowLeft size={13} /> Back to Production
       </button>
 
-      <h1 className="text-[18px] font-semibold text-blk mb-1">New Production Job</h1>
-      <p className="text-[12px] text-g500 mb-4">
+      <h1 className="text-[18px] font-semibold text-[#32363A] mb-1">New Production Job</h1>
+      <p className="text-[12px] text-[#6A6D70] mb-4">
         One row per line item. Each line becomes a separate Job Card and enters the Moulding queue.
       </p>
 
@@ -180,7 +180,7 @@ export function NewProductionJob() {
         </span>
         <select
           title="Pick an open CRM order to autofill customer + lines"
-          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-blk bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-[#32363A] bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
           value={importedOrderId || ''}
           onChange={e => importFromOrder(e.target.value)}
           disabled={loadingOrders}
@@ -214,16 +214,16 @@ export function NewProductionJob() {
         )}
       </div>
       {importedOrderId && (
-        <div className="text-[11px] text-g600 mb-3 -mt-1.5">
-          Imported from CRM Order <code className="bg-g100 px-1 rounded">{orderRef}</code>.
+        <div className="text-[11px] text-[#666] mb-3 -mt-1.5">
+          Imported from CRM Order <code className="bg-[#FAFAFA] px-1 rounded">{orderRef}</code>.
           Fill in Mould / Cavities / Cure per line below — these aren't on the CRM order.
         </div>
       )}
 
       {/* Header */}
-      <div className="bg-white border border-g200 rounded-[3px] p-4 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-4 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className={lbl}>Customer / Party <span className="text-red-mrt">*</span></label>
+          <label className={lbl}>Customer / Party <span className="text-[#0A6ED1]">*</span></label>
           <input
             className={input}
             value={customerName}
@@ -241,7 +241,7 @@ export function NewProductionJob() {
           />
         </div>
         <div>
-          <label className={lbl}>Promised Date <span className="text-red-mrt">*</span></label>
+          <label className={lbl}>Promised Date <span className="text-[#0A6ED1]">*</span></label>
           <input type="date" className={input} value={promised} onChange={e => setPromised(e.target.value)} />
         </div>
         <div>
@@ -257,7 +257,7 @@ export function NewProductionJob() {
         </div>
         {priority === 'emergency' && (
           <div className="md:col-span-2">
-            <label className={lbl}>Emergency Reason <span className="text-red-mrt">*</span></label>
+            <label className={lbl}>Emergency Reason <span className="text-[#0A6ED1]">*</span></label>
             <input
               className={input}
               value={emergencyReason}
@@ -273,27 +273,27 @@ export function NewProductionJob() {
       </div>
 
       {/* Lines */}
-      <div className="bg-white border border-g200 rounded-[3px]">
-        <div className="px-3 py-2 border-b border-g200 flex items-center justify-between">
-          <div className="text-[11px] font-mono font-bold tracking-wider uppercase text-g500">
+      <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+        <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center justify-between">
+          <div className="text-[11px] font-mono font-bold tracking-wider uppercase text-[#6A6D70]">
             Line Items
-            <span className="ml-2 font-normal text-g400 normal-case tracking-normal">
+            <span className="ml-2 font-normal text-[#9E9E9E] normal-case tracking-normal">
               one production job per line
             </span>
           </div>
           <button
             onClick={addLine}
-            className="text-[11px] text-red-mrt border border-red-mrt/30 rounded px-2 py-1 hover:bg-red-lt flex items-center gap-1"
+            className="text-[11px] text-[#0A6ED1] border border-[#0A6ED1]/30 rounded px-2 py-1 hover:bg-[#E8F0FD] flex items-center gap-1"
           >
             <Plus size={12} /> Add Line
           </button>
         </div>
 
-        <div className="divide-y divide-g100">
+        <div className="divide-y divide-[#F3F3F3]">
           {lines.map((l, i) => (
             <div key={i} className="p-3 grid grid-cols-12 gap-2 items-start">
               <div className="col-span-12 md:col-span-4">
-                <label className={lbl}>Product Description <span className="text-red-mrt">*</span></label>
+                <label className={lbl}>Product Description <span className="text-[#0A6ED1]">*</span></label>
                 <input
                   className={input}
                   value={l.product_desc}
@@ -302,7 +302,7 @@ export function NewProductionJob() {
                 />
               </div>
               <div className="col-span-6 md:col-span-1">
-                <label className={lbl}>Qty <span className="text-red-mrt">*</span></label>
+                <label className={lbl}>Qty <span className="text-[#0A6ED1]">*</span></label>
                 <input
                   type="number"
                   className={input}
@@ -359,7 +359,7 @@ export function NewProductionJob() {
                 {lines.length > 1 && (
                   <button
                     onClick={() => removeLine(i)}
-                    className="text-[11px] text-red-mrt hover:underline flex items-center gap-1"
+                    className="text-[11px] text-[#0A6ED1] hover:underline flex items-center gap-1"
                   >
                     <Trash2 size={11} /> Remove line
                   </button>
@@ -371,7 +371,7 @@ export function NewProductionJob() {
       </div>
 
       {err && (
-        <div className="mt-3 text-[12px] text-red-mrt bg-red-lt border border-red-mrt/30 rounded px-3 py-2">
+        <div className="mt-3 text-[12px] text-[#0A6ED1] bg-[#E8F0FD] border border-[#0A6ED1]/30 rounded px-3 py-2">
           {err}
         </div>
       )}
@@ -379,7 +379,7 @@ export function NewProductionJob() {
       <div className="mt-4 flex items-center justify-end gap-2">
         <button
           onClick={() => navigate('/production')}
-          className="px-3 py-2 text-[12px] border border-g300 rounded-[3px] hover:bg-g100"
+          className="px-3 py-2 text-[12px] border border-[#CCC] rounded-[3px] hover:bg-[#FAFAFA]"
         >
           Cancel
         </button>

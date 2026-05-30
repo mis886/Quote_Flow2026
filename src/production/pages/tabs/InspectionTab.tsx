@@ -1,7 +1,7 @@
 // Inspection tab — Pass / Fail-NCR / Rework.
+// Styled to match MRT ERP v2 design system.
 
 import { Check, X, RotateCcw } from 'lucide-react';
-import { Button } from '../../../components/ui';
 import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
@@ -17,19 +17,18 @@ interface Props {
 
 export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props) {
   const inspectors = workers.filter(w => w.department === 'inspection' && w.present).length;
-  const pending = jobs.filter(j =>
+  const pending    = jobs.filter(j =>
     j.inspection_result === 'pending' || j.status === 'pending' || j.status === 'in-progress'
   );
 
   return (
     <div className="space-y-3">
-      <div className="bg-white border border-g200 rounded-[3px] px-3 py-2.5 flex flex-wrap items-center gap-3 text-[12px]">
-        <span><strong className="text-blk">{inspectors}</strong> <span className="text-g500">active inspectors</span></span>
-        <span className="text-g300">·</span>
-        <span className="text-g500">{pending.length} lot{pending.length === 1 ? '' : 's'} awaiting</span>
-        <span className="ml-auto font-mono text-[10px] text-g500">
-          ~{inspectors * 2} lots/shift capacity
-        </span>
+      {/* Capacity row */}
+      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex flex-wrap items-center gap-3 text-[12px] text-[#32363A]">
+        <span><strong>{inspectors}</strong> <span className="text-[#6A6D70]">active inspectors</span></span>
+        <span className="text-[#C0C0C0]">·</span>
+        <span className="text-[#6A6D70]">{pending.length} lot{pending.length === 1 ? '' : 's'} awaiting</span>
+        <span className="ml-auto text-[10px] text-[#6A6D70]">~{inspectors * 2} lots/shift capacity</span>
       </div>
 
       <Table>
@@ -52,32 +51,44 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
           ) : jobs.map(j => (
             <TR key={j.id}>
               <TD>
-                <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-blk text-[12.5px]">{j.product_desc}</TD>
-              <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
-              <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-g600">{j.lsd || '—'}</TD>
-              <TD className="font-mono text-[11px] text-g600">{j.promised_date || '—'}</TD>
+              <TD className="font-semibold text-[#32363A]">{j.product_desc}</TD>
+              <TD className="text-[12px]">{j.customer_name || '—'}</TD>
+              <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
+              <TD className="font-mono text-[11px] text-[#6A6D70]">{j.lsd || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#6A6D70]">{j.promised_date || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.batch_code || '—'}</TD>
               <TD><ResultPill result={j.inspection_result} status={j.status} /></TD>
               <TD>
                 {j.inspection_result === 'ncr' || j.status === 'ncr' ? (
-                  <Button variant="ghost" size="sm" onClick={() => onRework(j.id)} className="gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onRework(j.id)}
+                    className="inline-flex items-center gap-1 bg-white text-[#E9730C] border border-[#E9730C] text-[10.5px] font-medium px-[8px] py-[3px] rounded-[3px] hover:bg-[#FFF3E0] transition-colors"
+                  >
                     <RotateCcw size={11} /> Rework
-                  </Button>
+                  </button>
                 ) : j.inspection_result === 'passed' || j.status === 'passed' ? (
-                  <span className="text-[11px] text-sW">✓ Passed — advancing</span>
+                  <span className="text-[11px] text-[#107E3E]">✓ Passed — advancing</span>
                 ) : (
                   <div className="inline-flex gap-1">
-                    <Button variant="success" size="sm" onClick={() => onPass(j.id)} className="gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onPass(j.id)}
+                      className="inline-flex items-center gap-1 bg-[#107E3E] text-white text-[10.5px] font-medium px-[8px] py-[3px] rounded-[3px] hover:bg-[#0B5C2A] transition-colors"
+                    >
                       <Check size={11} /> Pass
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => onFail(j)} className="gap-1">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onFail(j)}
+                      className="inline-flex items-center gap-1 bg-[#BB0000] text-white text-[10.5px] font-medium px-[8px] py-[3px] rounded-[3px] hover:bg-[#8E0000] transition-colors"
+                    >
                       <X size={11} /> Fail / NCR
-                    </Button>
+                    </button>
                   </div>
                 )}
               </TD>
@@ -91,8 +102,8 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
 
 function ResultPill({ result, status }: { result?: string | null; status: string }) {
   const v = result || status;
-  if (v === 'passed') return <StatusPill status="Passed" tone="good" />;
-  if (v === 'ncr')    return <StatusPill status="NCR"     tone="bad" />;
+  if (v === 'passed')      return <StatusPill status="Passed"      tone="good" />;
+  if (v === 'ncr')         return <StatusPill status="NCR"         tone="bad" />;
   if (v === 'in-progress') return <StatusPill status="In Progress" tone="info" />;
-  return <StatusPill status="Pending" tone="neutral" />;
+  return                          <StatusPill status="Pending"     tone="neutral" />;
 }

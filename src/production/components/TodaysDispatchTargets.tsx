@@ -25,18 +25,18 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
   }, [jobs, today]);
 
   return (
-    <div className="bg-white border border-g200 rounded-[3px]">
-      <div className="px-3 py-2 border-b border-g200 flex items-center gap-2">
-        <Truck size={13} className="text-g500" />
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 flex-1">
+    <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+      <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+        <Truck size={13} className="text-[#6A6D70]" />
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] flex-1">
           Today's Dispatch Targets
-          <span className="ml-2 text-g600 font-normal tracking-normal normal-case">
+          <span className="ml-2 text-[#666] font-normal tracking-normal normal-case">
             {rows.length} job{rows.length === 1 ? '' : 's'} due today
           </span>
         </div>
         <Link
           to="/production/sequencer/dispatch"
-          className="text-[11px] text-red-mrt hover:underline"
+          className="text-[11px] text-[#0A6ED1] hover:underline"
         >
           Dispatch Screen →
         </Link>
@@ -61,17 +61,17 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
           ) : rows.map(j => (
             <TR key={j.id} onClick={() => navigate(`/production/jobs/${j.id}`)}>
               <TD>
-                <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-blk text-[12.5px]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#32363A] text-[12.5px]">{j.product_desc}</TD>
               <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-g600">{j.promised_date || '—'}</TD>
-              <TD className="text-[12px]">{j.courier || <span className="text-g400">—</span>}</TD>
-              <TD className="font-mono text-[11px] text-g600">
-                {j.consignment_no || <span className="text-g400">—</span>}
+              <TD className="font-mono text-[11px] text-[#666]">{j.promised_date || '—'}</TD>
+              <TD className="text-[12px]">{j.courier || <span className="text-[#9E9E9E]">—</span>}</TD>
+              <TD className="font-mono text-[11px] text-[#666]">
+                {j.consignment_no || <span className="text-[#9E9E9E]">—</span>}
               </TD>
               <TD>
                 {j.stage === 'dispatched' ? (

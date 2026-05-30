@@ -104,9 +104,9 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="px-6 pt-2 bg-white border-b border-g200 overflow-x-auto">
-        <div className="flex items-center gap-0">
+      {/* Tab bar — v2 style: blue active underline */}
+      <div className="bg-white border-b border-[#E4E5E6] overflow-x-auto flex-shrink-0">
+        <div className="flex items-center">
           {SEQUENCER_TABS.map(t => {
             const isActive = activeTab === t.k;
             const count = t.stage ? jobs.filter(j => j.stage === t.stage).length : null;
@@ -116,19 +116,21 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                 key={t.k}
                 type="button"
                 onClick={() => onTabChange(t.k)}
-                className={`px-3 py-2 text-[11.5px] whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                className={[
+                  'px-[13px] py-[9px] text-[11.5px] whitespace-nowrap border-b-2 flex items-center gap-[5px] flex-shrink-0 transition-colors',
                   isActive
-                    ? 'border-red-mrt text-red-mrt font-semibold'
-                    : 'border-transparent text-g500 hover:text-blk'
-                }`}
+                    ? 'border-[#0A6ED1] text-[#0A6ED1] font-medium'
+                    : 'border-transparent text-[#6A6D70] hover:text-[#32363A] hover:bg-[#F7F7F7]',
+                ].join(' ')}
               >
-                {hasEm && <span className="mr-1">🔴</span>}
-                {t.emoji && <span className="mr-1">{t.emoji}</span>}
+                {hasEm && <span>🔴</span>}
+                {t.emoji && <span>{t.emoji}</span>}
                 {t.label}
                 {count !== null && (
-                  <span className={`ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[9px] ${
-                    isActive ? 'bg-red-mrt text-white' : 'bg-g200 text-g600'
-                  }`}>
+                  <span className={[
+                    'inline-block px-[5px] py-[1px] rounded-full text-[9px] leading-[1.5]',
+                    isActive ? 'bg-[#E8F0FD] text-[#0A6ED1]' : 'bg-[#EDEDEE] text-[#6A6D70]',
+                  ].join(' ')}>
                     {count}
                   </span>
                 )}
@@ -152,9 +154,9 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 flex-1">
-                  Moulding Queue —
-                  <span className="ml-1 text-g600 font-normal tracking-normal normal-case">
+                <div className="text-[12px] font-semibold text-[#32363A] flex-1">
+                  Moulding Queue
+                  <span className="ml-2 text-[11px] text-[#6A6D70] font-normal">
                     {stageJobs.length} jobs · sorted by LSD
                   </span>
                 </div>
@@ -192,21 +194,21 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                   ) : stageJobs.map(j => (
                     <TR key={j.id} onClick={() => navigate(`/production/jobs/${j.id}`)}>
                       <TD>
-                        <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                        <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                           {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                         </span>
                       </TD>
-                      <TD className="font-semibold text-blk text-[12.5px]">{j.product_desc}</TD>
-                      <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
-                      <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
-                      <TD className="font-mono text-[11px] text-g600">{j.lsd || '—'}</TD>
-                      <TD className="font-mono text-[11px] text-g600">{j.promised_date || '—'}</TD>
+                      <TD className="font-semibold text-[#32363A]">{j.product_desc}</TD>
+                      <TD className="text-[12px] text-[#32363A]">{j.customer_name || '—'}</TD>
+                      <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
+                      <TD className="font-mono text-[11px] text-[#6A6D70]">{j.lsd || '—'}</TD>
+                      <TD className="font-mono text-[11px] text-[#6A6D70]">{j.promised_date || '—'}</TD>
                       <TD className="font-mono text-[11px]">
                         {j.mould_code || '—'}
-                        {j.cavities ? <span className="text-g500 text-[10px]"> ({j.cavities})</span> : null}
+                        {j.cavities ? <span className="text-[#6A6D70] text-[10px]"> ({j.cavities})</span> : null}
                       </TD>
-                      <TD className="font-mono text-[11px] text-g600">
-                        {j.press_id ? <span className="bg-g100 px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span> : <span className="text-g400">—</span>}
+                      <TD className="font-mono text-[11px] text-[#6A6D70]">
+                        {j.press_id ? <span className="bg-[#F5F6F7] border border-[#E4E5E6] px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span> : <span className="text-[#9E9E9E]">—</span>}
                       </TD>
                       <TD><StatusPill status={j.status} tone={toneForStatus(j.status)} /></TD>
                       {showActions && (

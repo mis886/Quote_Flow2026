@@ -112,6 +112,62 @@ export interface JobStageEvent {
   notes?: string | null;
 }
 
+// ── Phase 2: Product Master, Compounds, BOM ──────────────────────
+
+export interface Compound {
+  id: string;
+  code: string;
+  name: string;
+  grade: string;
+  shore_a?: number | null;
+  shelf_days?: number | null;
+  colour?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Product {
+  id: string;
+  code: string;
+  name: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  compound_id?: string | null;
+  mould_code?: string | null;
+  cavities?: number | null;
+  tonnage?: number | null;
+  cure_temp_c?: number | null;
+  cure_time_min?: number | null;
+  shot_weight_g?: number | null;
+  setup_time_hrs?: number | null;
+  finish_rate?: number | null;
+  insp_rate?: number | null;
+  pdi_time_hrs?: number | null;
+  draw_ref?: string | null;
+  revision?: string | null;
+  unit_cost?: number | null;
+  is_active?: boolean;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BOMRow {
+  id?: number;
+  product_id: string;
+  is_compound: boolean;
+  raw_code: string;
+  raw_name: string;
+  qty_per_batch?: number | null;
+  unit?: string | null;
+  supplier?: string | null;
+  kg_per_batch?: number | null;
+  batches_per_run?: number | null;
+  sort_order?: number;
+  created_at?: string;
+}
+
 export interface ShopFloorSettings {
   id: 'config';
   shift_started: boolean;

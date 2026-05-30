@@ -64,14 +64,14 @@ export function PressBoardPage() {
 
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto space-y-4">
         {settings && (
-          <div className="bg-white border border-g200 rounded-[3px] px-3 py-2 text-[11.5px] text-g600 flex items-center gap-3">
-            <span>Shift: <strong className="text-blk">{settings.shift_hours_left}h left</strong> of {settings.shift_hours}h</span>
-            <span className="text-g400">·</span>
-            <span>OT budget: <strong className="text-blk">{settings.overtime_max}h</strong></span>
-            <span className="text-g400">·</span>
-            <span>Planned: <strong className="text-blk">{settings.planned_finishers}F / {settings.planned_inspectors}I</strong></span>
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[11.5px] text-[#666] flex items-center gap-3">
+            <span>Shift: <strong className="text-[#32363A]">{settings.shift_hours_left}h left</strong> of {settings.shift_hours}h</span>
+            <span className="text-[#9E9E9E]">·</span>
+            <span>OT budget: <strong className="text-[#32363A]">{settings.overtime_max}h</strong></span>
+            <span className="text-[#9E9E9E]">·</span>
+            <span>Planned: <strong className="text-[#32363A]">{settings.planned_finishers}F / {settings.planned_inspectors}I</strong></span>
             {queuedNoPress.length > 0 && (
-              <span className="ml-auto text-red-mrt font-semibold">
+              <span className="ml-auto text-[#0A6ED1] font-semibold">
                 {queuedNoPress.length} job{queuedNoPress.length === 1 ? '' : 's'} unassigned
               </span>
             )}
@@ -79,7 +79,7 @@ export function PressBoardPage() {
         )}
 
         {loading ? (
-          <div className="bg-white border border-g200 rounded-[3px] p-8 text-center text-[12px] text-g400">
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#9E9E9E]">
             Loading press status…
           </div>
         ) : (
@@ -97,21 +97,21 @@ export function PressBoardPage() {
             const queue = queuedByPress[p.id] || [];
             if (queue.length === 0) return null;
             return (
-              <div key={p.id} className="bg-white border border-g200 rounded-[3px]">
-                <div className="px-3 py-2 border-b border-g200 flex items-center gap-2">
-                  <div className="text-[12px] font-semibold text-blk flex-1">
+              <div key={p.id} className="bg-white border border-[#E4E5E6] rounded-[3px]">
+                <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+                  <div className="text-[12px] font-semibold text-[#32363A] flex-1">
                     {p.name} — Queue
                   </div>
-                  <span className="font-mono text-[10px] text-g500">{queue.length} waiting</span>
+                  <span className="font-mono text-[10px] text-[#6A6D70]">{queue.length} waiting</span>
                 </div>
-                <ul className="divide-y divide-g100">
+                <ul className="divide-y divide-[#F3F3F3]">
                   {queue.map(j => (
                     <li key={j.id} className="px-3 py-2 text-[12px] flex items-center gap-2">
-                      <span className="font-mono text-[10.5px] font-bold text-red-mrt">
+                      <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                         {j.priority === 'emergency' && '🔴 '}{j.id}
                       </span>
-                      <span className="text-g700 truncate flex-1">{j.product_desc}</span>
-                      <span className="text-g500 font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
+                      <span className="text-[#444] truncate flex-1">{j.product_desc}</span>
+                      <span className="text-[#6A6D70] font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
                     </li>
                   ))}
                 </ul>

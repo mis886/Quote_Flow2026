@@ -191,31 +191,31 @@ export function ImportFromOrdersModal({ open, onClose, onImported, existingJobId
         className="bg-white rounded-[4px] w-full max-w-[820px] max-h-[85vh] flex flex-col shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-4 py-3 border-b border-g200 flex items-center justify-between shrink-0">
-          <div className="text-[13px] font-semibold text-blk flex items-center gap-1.5">
-            <Download size={14} className="text-blk" /> Import from open CRM Orders
-            <span className="ml-2 font-normal text-g500 text-[11px]">
+        <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between shrink-0">
+          <div className="text-[13px] font-semibold text-[#32363A] flex items-center gap-1.5">
+            <Download size={14} className="text-[#32363A]" /> Import from open CRM Orders
+            <span className="ml-2 font-normal text-[#6A6D70] text-[11px]">
               One job per order line · read-only on CRM orders
             </span>
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-g500 hover:text-blk">
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]">
             <X size={16} />
           </button>
         </div>
 
-        <div className="px-4 py-2 border-b border-g200 flex items-center gap-2 shrink-0">
+        <div className="px-4 py-2 border-b border-[#E4E5E6] flex items-center gap-2 shrink-0">
           <input
             type="text"
             placeholder="Filter by PO, customer, product…"
             value={filter}
             onChange={e => setFilter(e.target.value)}
-            className="flex-1 font-sans text-[12px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt"
+            className="flex-1 font-sans text-[12px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
           />
           <button
             type="button"
             onClick={toggleAllVisible}
             disabled={visibleCount === 0}
-            className="text-[11px] text-blk border border-g300 rounded-[3px] px-2.5 py-1 hover:bg-g100 disabled:opacity-50"
+            className="text-[11px] text-[#32363A] border border-[#CCC] rounded-[3px] px-2.5 py-1 hover:bg-[#FAFAFA] disabled:opacity-50"
           >
             {allChecked ? 'Deselect all visible' : 'Select all visible'}
           </button>
@@ -223,15 +223,15 @@ export function ImportFromOrdersModal({ open, onClose, onImported, existingJobId
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-8 text-center text-[12px] text-g400">
+            <div className="p-8 text-center text-[12px] text-[#9E9E9E]">
               <Loader2 size={14} className="inline animate-spin mr-1" /> Loading open orders…
             </div>
           ) : lines.length === 0 ? (
-            <div className="p-8 text-center text-[12px] text-g400">
+            <div className="p-8 text-center text-[12px] text-[#9E9E9E]">
               No open orders without production jobs.
             </div>
           ) : (
-            <div className="divide-y divide-g100">
+            <div className="divide-y divide-[#F3F3F3]">
               {lines.map(l => {
                 const k = keyFor(l);
                 const checked = picked.has(k);
@@ -243,27 +243,27 @@ export function ImportFromOrdersModal({ open, onClose, onImported, existingJobId
                     disabled={disabled}
                     onClick={() => toggle(k)}
                     className={`w-full text-left px-4 py-2 flex items-start gap-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      checked ? 'bg-red-mrt/5' : 'hover:bg-g50'
+                      checked ? 'bg-red-mrt/5' : 'hover:bg-[#FAFAFA]'
                     }`}
                   >
                     <span
                       className={`shrink-0 mt-0.5 w-[14px] h-[14px] rounded-[2px] border flex items-center justify-center ${
-                        checked ? 'bg-red-mrt border-red-mrt' : 'border-g300 bg-white'
+                        checked ? 'bg-red-mrt border-[#0A6ED1]' : 'border-[#CCC] bg-white'
                       }`}
                     >
                       {checked && <Check size={10} className="text-white" />}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-[11px] font-bold text-red-mrt">
+                        <span className="font-mono text-[11px] font-bold text-[#0A6ED1]">
                           {l.poNo || l.orderId}
-                          {l.seq ? <span className="text-g500 font-normal"> · L{l.seq}</span> : null}
+                          {l.seq ? <span className="text-[#6A6D70] font-normal"> · L{l.seq}</span> : null}
                         </span>
-                        <span className="text-[12.5px] font-semibold text-blk truncate max-w-[420px]">
+                        <span className="text-[12.5px] font-semibold text-[#32363A] truncate max-w-[420px]">
                           {l.productDesc}
                         </span>
                       </div>
-                      <div className="text-[10.5px] text-g500 mt-0.5">
+                      <div className="text-[10.5px] text-[#6A6D70] mt-0.5">
                         {l.customer} · {l.qty ? `${l.qty.toLocaleString()} pcs` : 'no qty'}
                         {l.promised ? ` · due ${l.promised}` : ''}
                       </div>
@@ -275,8 +275,8 @@ export function ImportFromOrdersModal({ open, onClose, onImported, existingJobId
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-g200 flex items-center gap-2 shrink-0">
-          <div className="text-[11px] text-g500 flex-1">
+        <div className="px-4 py-3 border-t border-[#E4E5E6] flex items-center gap-2 shrink-0">
+          <div className="text-[11px] text-[#6A6D70] flex-1">
             {picked.size > 0
               ? <><strong>{picked.size}</strong> line{picked.size === 1 ? '' : 's'} selected · {selectedQty.toLocaleString()} pcs total</>
               : 'No lines selected'}

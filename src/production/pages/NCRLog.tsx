@@ -48,20 +48,20 @@ export function NCRLog() {
       />
 
       <FilterBar>
-        <div className="flex items-center gap-1.5 bg-white border border-g200 rounded px-2 h-7 min-w-[220px] focus-within:border-red-mrt focus-within:ring-2 focus-within:ring-red-lt">
-          <Search size={11} className="text-g400 shrink-0" />
+        <div className="flex items-center gap-1.5 bg-white border border-[#E4E5E6] rounded px-2 h-7 min-w-[220px] focus-within:border-[#0A6ED1] focus-within:ring-2 focus-within:ring-red-lt">
+          <Search size={11} className="text-[#9E9E9E] shrink-0" />
           <input
             type="text"
             placeholder="Job, defect code, customer…"
             value={q}
             onChange={e => setQ(e.target.value)}
-            className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"
+            className="bg-transparent border-none outline-none font-sans text-xs text-[#32363A] w-full placeholder:text-[#9E9E9E]"
           />
         </div>
 
         <select
           title="Filter by action"
-          className="font-sans text-xs text-blk bg-white border border-g200 rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
+          className="font-sans text-xs text-[#32363A] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
           value={actionFilter}
           onChange={e => setActionFilter(e.target.value)}
         >
@@ -70,10 +70,10 @@ export function NCRLog() {
           <option value="reject">Reject</option>
         </select>
 
-        <div className="ml-auto flex gap-3 font-mono text-[10px] text-g500">
+        <div className="ml-auto flex gap-3 font-mono text-[10px] text-[#6A6D70]">
           <span>{filtered.length} NCRs</span>
-          <span className="text-red-mrt">{openCount} open</span>
-          <span className="text-sW">{resolvedCount} resolved</span>
+          <span className="text-[#0A6ED1]">{openCount} open</span>
+          <span className="text-[#107E3E]">{resolvedCount} resolved</span>
         </div>
       </FilterBar>
 
@@ -101,18 +101,18 @@ export function NCRLog() {
             ) : filtered.map(n => (
               <TR key={n.id} onClick={() => n.job && navigate(`/production/jobs/${n.job_id}`)}>
                 <TD>
-                  <span className="font-mono text-[10.5px] font-bold text-red-mrt flex items-center gap-1">
+                  <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1] flex items-center gap-1">
                     <AlertTriangle size={10} className="shrink-0" />{n.id}
                   </span>
                 </TD>
-                <TD className="font-mono text-[11px] text-g600">
+                <TD className="font-mono text-[11px] text-[#666]">
                   {n.raised_at ? fmtIST(new Date(n.raised_at), 'dd MMM HH:mm') : '—'}
                 </TD>
-                <TD className="font-mono text-[10.5px] font-bold text-red-mrt">{n.job_id}</TD>
+                <TD className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{n.job_id}</TD>
                 <TD className="text-[12.5px]">{n.job?.product_desc || '—'}</TD>
                 <TD className="text-[12.5px]">{n.job?.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11px]">{n.defect_code || '—'}</TD>
-                <TD className="text-[12px] text-g700 max-w-[260px] truncate" title={n.defect_desc || ''}>
+                <TD className="text-[12px] text-[#444] max-w-[260px] truncate" title={n.defect_desc || ''}>
                   {n.defect_desc || '—'}
                 </TD>
                 <TD className="text-[12px]">{n.responsible_stage || '—'}</TD>
@@ -121,7 +121,7 @@ export function NCRLog() {
                     ? <StatusPill status="Reject" tone="bad" />
                     : n.action === 'rework'
                     ? <StatusPill status="Rework" tone="warn" />
-                    : <span className="text-g400">—</span>}
+                    : <span className="text-[#9E9E9E]">—</span>}
                 </TD>
                 <TD>
                   {n.resolved_at

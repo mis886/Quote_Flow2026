@@ -58,7 +58,7 @@ export function JobDetail() {
   }, [id]);
 
   if (loading) {
-    return <div className="p-8 text-[13px] text-g500">Loading job…</div>;
+    return <div className="p-8 text-[13px] text-[#6A6D70]">Loading job…</div>;
   }
   if (!job) {
     return (
@@ -66,7 +66,7 @@ export function JobDetail() {
         <Button variant="secondary" onClick={() => navigate('/production/jobs')} className="gap-1">
           <ArrowLeft size={12} /> Back
         </Button>
-        <div className="mt-4 text-[13px] text-g500">Job not found.</div>
+        <div className="mt-4 text-[13px] text-[#6A6D70]">Job not found.</div>
       </div>
     );
   }
@@ -95,9 +95,9 @@ export function JobDetail() {
 
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto space-y-4">
         {job.priority === 'emergency' && (
-          <div className="bg-red-lt border border-red-mrt/30 rounded-[3px] px-3 py-2.5 flex items-center gap-2">
-            <AlertTriangle size={14} className="text-red-mrt shrink-0" />
-            <div className="text-[12px] text-red-mrt flex-1">
+          <div className="bg-[#E8F0FD] border border-[#0A6ED1]/30 rounded-[3px] px-3 py-2.5 flex items-center gap-2">
+            <AlertTriangle size={14} className="text-[#0A6ED1] shrink-0" />
+            <div className="text-[12px] text-[#0A6ED1] flex-1">
               <strong>🔴 EMERGENCY PO</strong>
               {job.emergency_reason && <> — {job.emergency_reason}</>}
             </div>
@@ -105,15 +105,15 @@ export function JobDetail() {
         )}
 
         {/* Header status row */}
-        <div className="bg-white border border-g200 rounded-[3px] px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="bg-white border border-[#E4E5E6] rounded-[3px] px-4 py-3 flex items-center gap-3 flex-wrap">
           <StatusPill status={`Stage: ${STAGE_LABEL[job.stage]}`} tone={toneForStage(job.stage)} />
           <StatusPill status={`Status: ${job.status}`} tone={toneForStatus(job.status)} />
-          {job.otd_result === 'on-time' && <span className="text-[11px] text-sW font-semibold">✓ OTD: On Time</span>}
-          {job.otd_result === 'late'    && <span className="text-[11px] text-red-mrt font-semibold">✗ OTD: Late</span>}
+          {job.otd_result === 'on-time' && <span className="text-[11px] text-[#107E3E] font-semibold">✓ OTD: On Time</span>}
+          {job.otd_result === 'late'    && <span className="text-[11px] text-[#0A6ED1] font-semibold">✗ OTD: Late</span>}
           {job.order_id && (
             <Link
               to={`/orders`}
-              className="ml-auto text-[11px] text-red-mrt hover:underline font-mono"
+              className="ml-auto text-[11px] text-[#0A6ED1] hover:underline font-mono"
             >
               Linked CRM Order: {job.order_id}
             </Link>
@@ -190,20 +190,20 @@ export function JobDetail() {
                   : '—';
                 return (
                   <TR key={s}>
-                    <TD className="font-mono text-[10.5px] font-bold text-g600">Section-{String(i + 1).padStart(2, '0')}</TD>
+                    <TD className="font-mono text-[10.5px] font-bold text-[#666]">Section-{String(i + 1).padStart(2, '0')}</TD>
                     <TD className="font-semibold">{STAGE_LABEL[s]}</TD>
                     <TD className="font-mono text-[11.5px]">{job.qty.toLocaleString()}</TD>
-                    <TD className="text-g500">—</TD>
-                    <TD className="text-[11px] text-g600">{enter ? new Date(enter.ts).toLocaleString() : '—'}</TD>
-                    <TD className="text-g500">—</TD>
-                    <TD className="text-[11px] text-g600">{exit ? new Date(exit.ts).toLocaleString() : '—'}</TD>
+                    <TD className="text-[#6A6D70]">—</TD>
+                    <TD className="text-[11px] text-[#666]">{enter ? new Date(enter.ts).toLocaleString() : '—'}</TD>
+                    <TD className="text-[#6A6D70]">—</TD>
+                    <TD className="text-[11px] text-[#666]">{exit ? new Date(exit.ts).toLocaleString() : '—'}</TD>
                     <TD className="font-mono text-[11px]">{dur}</TD>
                     <TD>
                       {done    && <StatusPill status="Done"    tone="good" />}
                       {active  && <StatusPill status="Active"  tone="info" />}
                       {!done && !active && <StatusPill status="Pending" tone="neutral" />}
                     </TD>
-                    <TD className="text-[11px] text-g600">{enter?.notes || exit?.notes || '—'}</TD>
+                    <TD className="text-[11px] text-[#666]">{enter?.notes || exit?.notes || '—'}</TD>
                   </TR>
                 );
               })}
@@ -243,7 +243,7 @@ export function JobDetail() {
 
         {job.notes && (
           <Section title="Notes">
-            <div className="text-[12.5px] text-g700 whitespace-pre-wrap">{job.notes}</div>
+            <div className="text-[12.5px] text-[#444] whitespace-pre-wrap">{job.notes}</div>
           </Section>
         )}
       </div>
@@ -254,7 +254,7 @@ export function JobDetail() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 mb-1.5">
+      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-1.5">
         {title}
       </div>
       {children}
@@ -264,7 +264,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Grid4({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-g200 rounded-[3px] grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-g100">
+    <div className="bg-white border border-[#E4E5E6] rounded-[3px] grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-[#F3F3F3]">
       {children}
     </div>
   );
@@ -273,10 +273,10 @@ function Grid4({ children }: { children: React.ReactNode }) {
 function Field({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
   return (
     <div className="px-3 py-2">
-      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">
+      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-[#6A6D70] mb-0.5">
         {label}
       </div>
-      <div className={`text-[12.5px] ${mono ? 'font-mono' : ''} ${accent ? 'text-red-mrt font-semibold' : 'text-blk font-medium'}`}>
+      <div className={`text-[12.5px] ${mono ? 'font-mono' : ''} ${accent ? 'text-[#0A6ED1] font-semibold' : 'text-[#32363A] font-medium'}`}>
         {value}
       </div>
     </div>

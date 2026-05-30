@@ -43,24 +43,24 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 border-b border-g200 flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-blk flex items-center gap-1.5">
+        <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
+          <div className="text-[13px] font-semibold text-[#32363A] flex items-center gap-1.5">
             <Truck size={14} /> Confirm Dispatch — {job.id}
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-g500 hover:text-blk"><X size={16} /></button>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="text-[12.5px] text-blk">
+          <div className="text-[12.5px] text-[#32363A]">
             {job.product_desc} · {job.qty.toLocaleString()} pcs · {job.customer_name || '—'}
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
-              Courier <span className="text-red-mrt">*</span>
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+              Courier <span className="text-[#0A6ED1]">*</span>
             </label>
             <select
-              className="w-full font-sans text-[12.5px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={courier}
               onChange={e => setCourier(e.target.value)}
               title="Courier"
@@ -71,11 +71,11 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
               Consignment Number
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={consignment}
               onChange={e => setConsignment(e.target.value)}
               placeholder="AWB / tracking ID"
@@ -84,20 +84,20 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-[12px]">
-            <div className="bg-g50 border border-g200 rounded-[3px] px-2.5 py-1.5">
-              <div className="text-[10px] text-g500">Promised Date</div>
-              <div className="text-blk font-medium">{job.promised_date || '—'}</div>
+            <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5">
+              <div className="text-[10px] text-[#6A6D70]">Promised Date</div>
+              <div className="text-[#32363A] font-medium">{job.promised_date || '—'}</div>
             </div>
-            <div className={`border rounded-[3px] px-2.5 py-1.5 ${onTime ? 'bg-green-50 border-green-200' : 'bg-red-lt border-red-mrt/30'}`}>
-              <div className={`text-[10px] ${onTime ? 'text-green-700' : 'text-red-mrt'}`}>OTD Verdict</div>
-              <div className={`font-semibold ${onTime ? 'text-green-700' : 'text-red-mrt'}`}>
+            <div className={`border rounded-[3px] px-2.5 py-1.5 ${onTime ? 'bg-green-50 border-green-200' : 'bg-[#E8F0FD] border-[#0A6ED1]/30'}`}>
+              <div className={`text-[10px] ${onTime ? 'text-green-700' : 'text-[#0A6ED1]'}`}>OTD Verdict</div>
+              <div className={`font-semibold ${onTime ? 'text-green-700' : 'text-[#0A6ED1]'}`}>
                 {onTime ? '✓ On Time' : '✗ Late'}
               </div>
             </div>
           </div>
 
           <div className={`text-[11.5px] flex items-start gap-2 px-3 py-2 border rounded-[3px] ${
-            onTime ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-lt border-red-mrt/30 text-red-mrt'
+            onTime ? 'bg-green-50 border-green-200 text-green-800' : 'bg-[#E8F0FD] border-[#0A6ED1]/30 text-[#0A6ED1]'
           }`}>
             {onTime ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" /> : <AlertTriangle size={13} className="shrink-0 mt-0.5" />}
             <span>
@@ -107,8 +107,8 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-g200 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-g300 rounded-[3px] hover:bg-g100">Cancel</button>
+        <div className="px-4 py-3 border-t border-[#E4E5E6] flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-[#CCC] rounded-[3px] hover:bg-[#FAFAFA]">Cancel</button>
           <button
             type="button"
             onClick={submit}

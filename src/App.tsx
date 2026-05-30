@@ -29,6 +29,10 @@ import { JobDetail } from './production/pages/JobDetail';
 import { NCRLog } from './production/pages/NCRLog';
 import { ShopFloorSettingsPage } from './production/pages/ShopFloorSettings';
 import { PressBoardPage } from './production/pages/PressBoardPage';
+import { ProductsList } from './production/pages/ProductsList';
+import { ProductDetail } from './production/pages/ProductDetail';
+import { NewProduct } from './production/pages/NewProduct';
+import { CompoundsList } from './production/pages/CompoundsList';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAppStore();
@@ -91,6 +95,11 @@ export default function App() {
                   <Route path="jobs/:id" element={<JobDetail />} />
                   <Route path="ncr" element={<NCRLog />} />
                   <Route path="settings" element={<ShopFloorSettingsPage />} />
+                  <Route path="products" element={<ProductsList />} />
+                  <Route path="products/new" element={<NewProduct />} />
+                  <Route path="products/:id" element={<ProductDetail />} />
+                  <Route path="products/:id/edit" element={<NewProduct />} />
+                  <Route path="compounds" element={<CompoundsList />} />
                   <Route path="*" element={<div className="p-8 text-[13px] font-mono">Production module not found...</div>} />
                 </Route>
               </Routes>

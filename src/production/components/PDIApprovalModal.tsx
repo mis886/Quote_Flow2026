@@ -31,21 +31,21 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 border-b border-g200 flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-blk">Approve PDI — {job.id}</div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-g500 hover:text-blk"><X size={16} /></button>
+        <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
+          <div className="text-[13px] font-semibold text-[#32363A]">Approve PDI — {job.id}</div>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="text-[12.5px] text-blk">
+          <div className="text-[12.5px] text-[#32363A]">
             Approving PDI will move <strong>{job.id}</strong> ({job.product_desc}) to <strong>Ready to Dispatch</strong>.
           </div>
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
-              PDI Officer Name <span className="text-red-mrt">*</span>
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+              PDI Officer Name <span className="text-[#0A6ED1]">*</span>
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-blk bg-white border border-g300 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-red-mrt focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={officer}
               onChange={e => setOfficer(e.target.value)}
               placeholder="Enter your name"
@@ -54,11 +54,11 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
             />
           </div>
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-g500 mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
               PDI Timestamp
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-g500 bg-g50 border border-g200 rounded-[3px] px-2.5 py-1.5"
+              className="w-full font-sans text-[12.5px] text-[#6A6D70] bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5"
               value={ts}
               readOnly
               title="PDI timestamp"
@@ -70,8 +70,8 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-g200 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-g300 rounded-[3px] hover:bg-g100">Cancel</button>
+        <div className="px-4 py-3 border-t border-[#E4E5E6] flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-[12px] border border-[#CCC] rounded-[3px] hover:bg-[#FAFAFA]">Cancel</button>
           <button
             type="button"
             onClick={submit}
