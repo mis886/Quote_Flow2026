@@ -9,7 +9,7 @@ import { cn } from '../../lib/utils';
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn('bg-white border border-[#E4E5E6] rounded-[3px] overflow-x-auto', className)}>
-      <table className="w-full border-collapse text-[12px] text-[#32363A]">
+      <table className="w-full border-collapse text-[12px] text-[#111]">
         {children}
       </table>
     </div>
@@ -23,7 +23,7 @@ export function THead({ children }: { children: React.ReactNode }) {
 export function TH({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <th className={cn(
-      'text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px]',
+      'text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px]',
       'px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]',
       className
     )}>
@@ -71,7 +71,7 @@ export function TD({
 export function EmptyRow({ colSpan, text }: { colSpan: number; text?: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="text-center py-5 px-3 text-[#6A6D70] text-[12px] italic">
+      <td colSpan={colSpan} className="text-center py-5 px-3 text-[#333] text-[12px] italic">
         {text ?? 'No records.'}
       </td>
     </tr>
@@ -93,11 +93,11 @@ export function PageHeader({
     <div className="h-12 bg-white border-b border-[#E4E5E6] px-4 flex items-center gap-3 flex-shrink-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className="text-[11px] text-[#6A6D70] font-medium hidden sm:inline">{module} ·</span>
-          <span className="text-[14px] font-semibold text-[#32363A] truncate">{title}</span>
-          {accent && <span className="text-[12px] text-[#6A6D70]">{accent}</span>}
+          <span className="text-[11px] text-[#333] font-medium hidden sm:inline">{module} ·</span>
+          <span className="text-[14px] font-semibold text-[#111] truncate">{title}</span>
+          {accent && <span className="text-[12px] text-[#333]">{accent}</span>}
         </div>
-        {subtitle && <div className="text-[10px] text-[#6A6D70] leading-none mt-0.5 truncate">{subtitle}</div>}
+        {subtitle && <div className="text-[10px] text-[#333] leading-none mt-0.5 truncate">{subtitle}</div>}
       </div>
       {actions && (
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -124,7 +124,7 @@ type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info';
 
 export function StatusPill({ status, tone = 'neutral' }: { status: string; tone?: Tone }) {
   const cls: Record<Tone, string> = {
-    neutral: 'bg-[#F5F6F7] text-[#6A6D70] border border-[#E4E5E6]',
+    neutral: 'bg-[#F5F6F7] text-[#333] border border-[#E4E5E6]',
     good:    'bg-[#E8F5E9] text-[#107E3E]',
     warn:    'bg-[#FFF3E0] text-[#E9730C]',
     bad:     'bg-[#FFEBEE] text-[#BB0000]',

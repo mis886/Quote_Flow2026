@@ -77,10 +77,10 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
       <div className="bg-[#FFF8EC] border border-[#FFE0B2] rounded-[3px] p-3 flex items-center gap-3">
         <Sunrise size={18} className="text-[#E9730C] flex-shrink-0" />
         <div className="flex-1">
-          <div className="text-[13px] font-semibold text-[#32363A]">Shift Briefing — start of day</div>
-          <div className="text-[11px] text-[#6A6D70]">Toggle worker attendance. OTD projections update instantly.</div>
+          <div className="text-[13px] font-semibold text-[#111]">Shift Briefing — start of day</div>
+          <div className="text-[11px] text-[#333]">Toggle worker attendance. OTD projections update instantly.</div>
         </div>
-        <div className="text-[11px] text-[#32363A] font-mono text-right">
+        <div className="text-[11px] text-[#111] font-mono text-right">
           {today} · Day Shift
         </div>
       </div>
@@ -125,62 +125,62 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
       </div>
 
       {/* Shift config row */}
-      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2.5 flex flex-wrap items-center gap-4 text-[12px] text-[#32363A]">
-        <span className="text-[#6A6D70]"><strong className="text-[#32363A]">{present.finishing}</strong> finishers on floor</span>
-        <span className="text-[#6A6D70]"><strong className="text-[#32363A]">{present.inspection}</strong> inspectors on floor</span>
-        <span className="flex items-center gap-1.5 text-[#6A6D70]">
+      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2.5 flex flex-wrap items-center gap-4 text-[12px] text-[#111]">
+        <span className="text-[#333]"><strong className="text-[#111]">{present.finishing}</strong> finishers on floor</span>
+        <span className="text-[#333]"><strong className="text-[#111]">{present.inspection}</strong> inspectors on floor</span>
+        <span className="flex items-center gap-1.5 text-[#333]">
           Shift hrs left:
           <input
             type="number" step="0.5" min="0" max="12"
             value={shiftLeft}
             onChange={e => setShiftLeft(e.target.value)}
             onBlur={saveSettings}
-            className="w-[52px] font-mono text-[11px] text-[#32363A] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
+            className="w-[52px] font-mono text-[11px] text-[#111] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
             title="Shift hours left"
           />
           <span>hrs</span>
         </span>
-        <span className="flex items-center gap-1.5 text-[#6A6D70]">
+        <span className="flex items-center gap-1.5 text-[#333]">
           OT authorised:
           <input
             type="number" step="0.5" min="0" max="4"
             value={otBudget}
             onChange={e => setOtBudget(e.target.value)}
             onBlur={saveSettings}
-            className="w-[52px] font-mono text-[11px] text-[#32363A] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
+            className="w-[52px] font-mono text-[11px] text-[#111] border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1] text-center"
             title="OT authorised (hours)"
           />
           <span>hrs</span>
         </span>
-        {savingHrs && <span className="text-[10px] text-[#6A6D70]">Saving…</span>}
+        {savingHrs && <span className="text-[10px] text-[#333]">Saving…</span>}
       </div>
 
       {/* OTD Impact table */}
       <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
         <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-          <div className="text-[12px] font-semibold text-[#32363A] flex-1">OTD Impact — Today's WIP</div>
-          <div className="text-[10px] text-[#6A6D70]">Recalculates when attendance or hours change · click row to jump to that stage</div>
+          <div className="text-[12px] font-semibold text-[#111] flex-1">OTD Impact — Today's WIP</div>
+          <div className="text-[10px] text-[#333]">Recalculates when attendance or hours change · click row to jump to that stage</div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[12px] text-[#32363A]">
+          <table className="w-full border-collapse text-[12px] text-[#111]">
             <thead className="bg-[#FAFAFA]">
               <tr>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Job</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Product</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Customer</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Stage</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Qty</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Rem. TAT</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Proj. End</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Promised</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Buffer</th>
-                <th className="text-[10px] font-semibold text-[#6A6D70] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Risk &amp; Action</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Job</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Product</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Customer</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Stage</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Qty</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Rem. TAT</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Proj. End</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Promised</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Buffer</th>
+                <th className="text-[10px] font-semibold text-[#333] uppercase tracking-[0.2px] px-[10px] py-[7px] text-left whitespace-nowrap border-b border-[#E4E5E6]">Risk &amp; Action</th>
               </tr>
             </thead>
             <tbody>
               {impactRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-5 text-[#6A6D70] italic">No active jobs.</td>
+                  <td colSpan={10} className="text-center py-5 text-[#333] italic">No active jobs.</td>
                 </tr>
               ) : impactRows.map(({ job, impact }) => {
                 const stageTab = job.stage === 'moulding' ? 'mould' : job.stage === 'finishing' ? 'finish' : job.stage === 'inspection' ? 'insp' : job.stage === 'pdi' ? 'pdi' : 'mould';
@@ -209,8 +209,8 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                         {job.id}
                       </span>
                     </td>
-                    <td className="px-[10px] py-[7px] font-semibold text-[#32363A] whitespace-nowrap">{job.product_desc}</td>
-                    <td className="px-[10px] py-[7px] text-[#6A6D70] whitespace-nowrap">{job.customer_name || '—'}</td>
+                    <td className="px-[10px] py-[7px] font-semibold text-[#111] whitespace-nowrap">{job.product_desc}</td>
+                    <td className="px-[10px] py-[7px] text-[#333] whitespace-nowrap">{job.customer_name || '—'}</td>
                     <td className="px-[10px] py-[7px] whitespace-nowrap">
                       <span className={[
                         'inline-block text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] capitalize',
@@ -218,7 +218,7 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                         job.stage === 'finishing'  ? 'bg-[#E8F0FD] text-[#0A6ED1]' :
                         job.stage === 'inspection' ? 'bg-[#FFF3E0] text-[#E9730C]' :
                         job.stage === 'pdi'        ? 'bg-[#E8F0FD] text-[#0A6ED1]' :
-                        'bg-[#F5F6F7] text-[#6A6D70]'
+                        'bg-[#F5F6F7] text-[#333]'
                       ].join(' ')}>
                         {job.stage}
                       </span>
@@ -227,10 +227,10 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                       {job.qty.toLocaleString()} pcs · {(job.qty_done || 0)} done
                     </td>
                     <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap">{fmtHrs(impact.remHrs)}</td>
-                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#6A6D70]">
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#333]">
                       {fmtIST(impact.projEnd, 'hh:mm aa, dd MMM')}
                     </td>
-                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#6A6D70]">
+                    <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#333]">
                       {job.promised_date || '—'}
                     </td>
                     <td className={[
@@ -248,7 +248,7 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                         {riskLabel}
                       </div>
                       {actionNote && (
-                        <div className="text-[10px] text-[#6A6D70] mt-0.5">{actionNote}</div>
+                        <div className="text-[10px] text-[#333] mt-0.5">{actionNote}</div>
                       )}
                     </td>
                   </tr>
@@ -270,10 +270,10 @@ function SummaryCard({ value, label, sub, accentClass, subClass, icon }: {
 }) {
   return (
     <div className={`bg-white border border-[#E4E5E6] border-t-[3px] rounded-[3px] px-[14px] py-3 ${accentClass}`}>
-      <div className="text-[26px] font-light leading-none text-[#32363A] flex items-center gap-1.5">
+      <div className="text-[26px] font-light leading-none text-[#111] flex items-center gap-1.5">
         {icon}{value}
       </div>
-      <div className="text-[10px] text-[#6A6D70] mt-[3px]">{label}</div>
+      <div className="text-[10px] text-[#333] mt-[3px]">{label}</div>
       <div className={`text-[10px] mt-[5px] ${subClass}`}>{sub}</div>
     </div>
   );
@@ -295,10 +295,10 @@ function Roster({
   return (
     <div className={`bg-white border border-[#E4E5E6] border-t-[3px] rounded-[3px] ${accentColor}`}>
       <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-        <Users size={13} className="text-[#6A6D70]" />
-        <div className="text-[12px] font-semibold text-[#32363A] flex-1">
+        <Users size={13} className="text-[#333]" />
+        <div className="text-[12px] font-semibold text-[#111] flex-1">
           {label}
-          <span className="ml-2 text-[10px] font-normal text-[#6A6D70]">
+          <span className="ml-2 text-[10px] font-normal text-[#333]">
             {here} present · {out} absent of {list.length}
           </span>
         </div>
@@ -313,8 +313,8 @@ function Roster({
         {list.map(w => (
           <div key={w.id} className={`px-3 py-2 flex items-center gap-3 ${!w.present ? 'bg-[#FFF1F0]' : ''}`}>
             <div className="flex-1">
-              <div className="text-[12px] font-medium text-[#32363A]">{w.name}</div>
-              <div className="text-[10px] text-[#6A6D70]">{w.role}</div>
+              <div className="text-[12px] font-medium text-[#111]">{w.name}</div>
+              <div className="text-[10px] text-[#333]">{w.role}</div>
             </div>
             <button
               type="button"
@@ -324,7 +324,7 @@ function Roster({
                 'px-[9px] py-[3px] text-[11px] rounded-[3px] border transition-colors disabled:opacity-50',
                 w.present
                   ? 'bg-[#E8F5E9] border-[#107E3E]/40 text-[#107E3E] hover:bg-[#C5E1A5]/40'
-                  : 'bg-[#F5F6F7] border-[#E4E5E6] text-[#6A6D70] hover:bg-[#EBEBEB]',
+                  : 'bg-[#F5F6F7] border-[#E4E5E6] text-[#333] hover:bg-[#EBEBEB]',
               ].join(' ')}
             >
               {w.present ? 'Present ✓' : 'Absent'}

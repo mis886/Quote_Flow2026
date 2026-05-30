@@ -56,19 +56,19 @@ export function ProductsList() {
 
       <FilterBar>
         <div className="flex items-center gap-1.5 bg-white border border-[#E4E5E6] rounded px-2 h-7 min-w-[220px] focus-within:border-[#0A6ED1] focus-within:ring-2 focus-within:ring-red-lt">
-          <Search size={11} className="text-[#9E9E9E] shrink-0" />
+          <Search size={11} className="text-[#555] shrink-0" />
           <input
             type="text"
             placeholder="Code, name, mould, customer…"
             value={q}
             onChange={e => setQ(e.target.value)}
-            className="bg-transparent border-none outline-none font-sans text-xs text-[#32363A] w-full placeholder:text-[#9E9E9E]"
+            className="bg-transparent border-none outline-none font-sans text-xs text-[#111] w-full placeholder:text-[#555]"
           />
         </div>
 
         <select
           title="Filter by compound grade"
-          className="font-sans text-xs text-[#32363A] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
+          className="font-sans text-xs text-[#111] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
           value={gradeFilter}
           onChange={e => setGradeFilter(e.target.value)}
         >
@@ -76,7 +76,7 @@ export function ProductsList() {
           {grades.map(g => <option key={g} value={g}>{g}</option>)}
         </select>
 
-        <div className="ml-auto font-mono text-[10px] text-[#6A6D70]">
+        <div className="ml-auto font-mono text-[10px] text-[#333]">
           {filtered.length} products
         </div>
       </FilterBar>
@@ -113,21 +113,21 @@ export function ProductsList() {
                     <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{p.code}</span>
                   </TD>
                   <TD>
-                    <div className="font-semibold text-[#32363A] text-[12.5px]">{p.name}</div>
-                    {p.draw_ref && <div className="text-[10.5px] text-[#6A6D70] font-mono">{p.draw_ref}</div>}
+                    <div className="font-semibold text-[#111] text-[12.5px]">{p.name}</div>
+                    {p.draw_ref && <div className="text-[10.5px] text-[#333] font-mono">{p.draw_ref}</div>}
                   </TD>
                   <TD className="text-[12.5px]">{p.customer_name || '—'}</TD>
                   <TD>
                     {comp ? (
                       <div>
-                        <span className="font-mono text-[11px] font-semibold text-[#32363A]">{comp.code}</span>
-                        <span className="ml-1.5 text-[10px] text-[#6A6D70]">{comp.grade}</span>
+                        <span className="font-mono text-[11px] font-semibold text-[#111]">{comp.code}</span>
+                        <span className="ml-1.5 text-[10px] text-[#333]">{comp.grade}</span>
                       </div>
-                    ) : <span className="text-[#9E9E9E]">—</span>}
+                    ) : <span className="text-[#555]">—</span>}
                   </TD>
                   <TD className="font-mono text-[11px]">
                     {p.mould_code || '—'}
-                    {p.cavities && <span className="text-[#6A6D70] text-[10px]"> ({p.cavities} cav)</span>}
+                    {p.cavities && <span className="text-[#333] text-[10px]"> ({p.cavities} cav)</span>}
                   </TD>
                   <TD className="font-mono text-[11px] text-[#666]">
                     {p.tonnage ? `${p.tonnage}T` : '—'}
@@ -138,7 +138,7 @@ export function ProductsList() {
                   </TD>
                   <TD className="font-mono text-[11px]">
                     {mouldRate !== '—' ? `${mouldRate} pcs/hr` : '—'}
-                    {p.finish_rate && <span className="text-[#6A6D70]"> · {p.finish_rate} fin</span>}
+                    {p.finish_rate && <span className="text-[#333]"> · {p.finish_rate} fin</span>}
                   </TD>
                   <TD>
                     <StatusPill
@@ -146,7 +146,7 @@ export function ProductsList() {
                       tone="good"
                     />
                   </TD>
-                  <TD className="font-mono text-[10.5px] text-[#6A6D70]">
+                  <TD className="font-mono text-[10.5px] text-[#333]">
                     {p.revision || '—'}
                   </TD>
                 </TR>

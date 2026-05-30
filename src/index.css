@@ -44,8 +44,8 @@
   --color-p-orange-h:#BF5D08;
   --color-p-orange-lt:#FFF3E0;
   --color-p-sidebar:#354A5E;   /* sidebar background */
-  --color-p-text:   #32363A;   /* primary text */
-  --color-p-sub:    #6A6D70;   /* secondary text / labels */
+  --color-p-text:   #111111;   /* primary text */
+  --color-p-sub:    #333333;   /* secondary text / labels */
   --color-p-border: #E4E5E6;   /* dividers / card borders */
   --color-p-bg:     #F7F7F7;   /* content area background */
   --color-p-card:   #FAFAFA;   /* table header / subtle bg */

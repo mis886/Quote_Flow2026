@@ -18,7 +18,7 @@ export function PDITab({ jobs, onApprove }: Props) {
     <div className="space-y-3">
       {/* Info row */}
       <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex items-center gap-3 text-[12px]">
-        <span className="text-[#6A6D70]">{jobs.length} job{jobs.length === 1 ? '' : 's'} awaiting Pre-Despatch Inspection</span>
+        <span className="text-[#333]">{jobs.length} job{jobs.length === 1 ? '' : 's'} awaiting Pre-Despatch Inspection</span>
         <span className="ml-auto text-[11px] text-[#E9730C]">⚠ Approving moves directly to Ready to Dispatch</span>
       </div>
 
@@ -45,14 +45,14 @@ export function PDITab({ jobs, onApprove }: Props) {
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-[#32363A]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
               <TD className="text-[12px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-[#6A6D70]">{j.promised_date || '—'}</TD>
-              <TD className="font-mono text-[11px] text-[#6A6D70]">
+              <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#333]">
                 {j.inspection_passed_at ? fmtIST(new Date(j.inspection_passed_at), 'dd MMM HH:mm') : '—'}
               </TD>
-              <TD className="text-[12px] text-[#32363A]">{j.pdi_officer || <span className="text-[#9E9E9E]">—</span>}</TD>
+              <TD className="text-[12px] text-[#111]">{j.pdi_officer || <span className="text-[#555]">—</span>}</TD>
               <TD>
                 <button
                   type="button"

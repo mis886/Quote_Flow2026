@@ -62,8 +62,8 @@ export function AddBOMRowModal({ open, productId, onClose, onSaved }: Props) {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#32363A]">Add BOM Component</div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]">
+          <div className="text-[13px] font-semibold text-[#111]">Add BOM Component</div>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]">
             <X size={16} />
           </button>
         </div>
@@ -141,11 +141,11 @@ export function AddBOMRowModal({ open, productId, onClose, onSaved }: Props) {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">{label}</label>
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">{label}</label>
       {children}
     </div>
   );

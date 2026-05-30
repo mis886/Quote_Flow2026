@@ -75,19 +75,19 @@ export function AssignPressModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between shrink-0">
-          <div className="text-[13px] font-semibold text-[#32363A]">
+          <div className="text-[13px] font-semibold text-[#111]">
             Assign Jobs to Press
-            <span className="ml-2 text-[11px] font-normal text-[#6A6D70]">
+            <span className="ml-2 text-[11px] font-normal text-[#333]">
               Select one or more queued jobs and a press
             </span>
           </div>
-          <button onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]" type="button"><X size={16} /></button>
+          <button onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]" type="button"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto">
           {/* Press picker */}
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1.5">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1.5">
               Select Press <span className="text-[#0A6ED1]">*</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -106,7 +106,7 @@ export function AssignPressModal({
                         : 'border-[#CCC] hover:border-[#0A6ED1]/50'
                     } ${busyPress ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
-                    <div className="text-[12px] font-semibold text-[#32363A]">{p.name} · {p.tonnage}</div>
+                    <div className="text-[12px] font-semibold text-[#111]">{p.name} · {p.tonnage}</div>
                     <div className={`text-[10px] ${busyPress ? 'text-[#0A6ED1]' : 'text-green-700'}`}>
                       {busyPress ? `✗ ${p.status}` : '✓ Available'}
                     </div>
@@ -118,15 +118,15 @@ export function AssignPressModal({
 
           {/* Job multi-picker */}
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1.5">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1.5">
               Select Jobs <span className="text-[#0A6ED1]">*</span>
-              <span className="ml-2 font-normal text-[#9E9E9E] normal-case tracking-normal">
+              <span className="ml-2 font-normal text-[#555] normal-case tracking-normal">
                 sorted by LSD · emergency first
               </span>
             </label>
             <div className="border border-[#E4E5E6] rounded-[3px] max-h-[260px] overflow-y-auto divide-y divide-[#F3F3F3]">
               {sortedJobs.length === 0 ? (
-                <div className="p-4 text-center text-[12px] text-[#9E9E9E]">
+                <div className="p-4 text-center text-[12px] text-[#555]">
                   No queued jobs to assign.
                 </div>
               ) : sortedJobs.map(j => {
@@ -148,12 +148,12 @@ export function AssignPressModal({
                       {checked && <Check size={10} className="text-white" />}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-semibold text-[#32363A] truncate">
+                      <div className="text-[12px] font-semibold text-[#111] truncate">
                         {j.priority === 'emergency' && <span className="text-[#0A6ED1]">🔴 </span>}
                         {j.id}
-                        <span className="ml-1.5 font-normal text-[#6A6D70]">— {j.product_desc}</span>
+                        <span className="ml-1.5 font-normal text-[#333]">— {j.product_desc}</span>
                       </div>
-                      <div className="text-[10.5px] text-[#6A6D70] mt-0.5">
+                      <div className="text-[10.5px] text-[#333] mt-0.5">
                         {j.customer_name || '—'} · {j.qty.toLocaleString()} pcs ·
                         {' '}LSD {j.lsd || '—'} · Promised {j.promised_date || '—'}
                         {j.mould_code && <> · Mould {j.mould_code}</>}
@@ -167,7 +167,7 @@ export function AssignPressModal({
         </div>
 
         <div className="px-4 py-3 border-t border-[#E4E5E6] flex items-center gap-2 shrink-0">
-          <div className="text-[11px] text-[#6A6D70] flex-1">
+          <div className="text-[11px] text-[#333] flex-1">
             {selectedCount > 0
               ? <><strong>{selectedCount}</strong> job{selectedCount === 1 ? '' : 's'} selected · {selectedQty.toLocaleString()} pcs total</>
               : 'No jobs selected'}

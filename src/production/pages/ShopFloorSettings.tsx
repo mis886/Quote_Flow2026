@@ -133,10 +133,10 @@ export function ShopFloorSettingsPage() {
             extra={
               <>
                 Present today —
-                <strong className="text-[#32363A] ml-1">
+                <strong className="text-[#111] ml-1">
                   {workers.filter(w => w.department === 'finishing' && w.present).length}
                 </strong> finishers ·
-                <strong className="text-[#32363A] ml-1">
+                <strong className="text-[#111] ml-1">
                   {workers.filter(w => w.department === 'inspection' && w.present).length}
                 </strong> inspectors
               </>
@@ -145,15 +145,15 @@ export function ShopFloorSettingsPage() {
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] grid grid-cols-1 md:grid-cols-2 divide-x divide-[#F3F3F3]">
             {(['finishing', 'inspection'] as const).map(dept => (
               <div key={dept} className="p-3">
-                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2">
+                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2">
                   {dept === 'finishing' ? 'Finishing Team' : 'Inspection Team'}
                 </div>
                 <ul className="divide-y divide-[#F3F3F3]">
                   {workers.filter(w => w.department === dept).map(w => (
                     <li key={w.id} className="flex items-center gap-3 py-2">
                       <div className="flex-1">
-                        <div className="text-[12.5px] font-semibold text-[#32363A]">{w.name}</div>
-                        <div className="text-[10.5px] font-mono text-[#6A6D70]">{w.id} · {w.role}</div>
+                        <div className="text-[12.5px] font-semibold text-[#111]">{w.name}</div>
+                        <div className="text-[10.5px] font-mono text-[#333]">{w.id} · {w.role}</div>
                       </div>
                       <button
                         type="button"
@@ -162,7 +162,7 @@ export function ShopFloorSettingsPage() {
                         className={`px-2.5 py-1 text-[11px] rounded-[3px] border transition-colors disabled:opacity-50 ${
                           w.present
                             ? 'bg-sW/10 border-sW/20 text-[#107E3E] hover:bg-sW/20'
-                            : 'bg-[#FAFAFA] border-[#E4E5E6] text-[#6A6D70] hover:bg-[#EBEBEB]'
+                            : 'bg-[#FAFAFA] border-[#E4E5E6] text-[#333] hover:bg-[#EBEBEB]'
                         }`}
                       >
                         {w.present ? 'Present ✓' : 'Absent'}
@@ -182,8 +182,8 @@ export function ShopFloorSettingsPage() {
             {presses.map(p => (
               <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="flex-1">
-                  <div className="text-[13px] font-semibold text-[#32363A]">{p.name} · {p.tonnage}</div>
-                  <div className="text-[10.5px] font-mono text-[#6A6D70]">
+                  <div className="text-[13px] font-semibold text-[#111]">{p.name} · {p.tonnage}</div>
+                  <div className="text-[10.5px] font-mono text-[#333]">
                     {p.status === 'idle'
                       ? 'Idle — available'
                       : p.status === 'maintenance'
@@ -213,14 +213,14 @@ export function ShopFloorSettingsPage() {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 
 function SectionTitle({ icon, title, extra }: { icon: React.ReactNode; title: string; extra?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="text-[#6A6D70]">{icon}</span>
-      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70]">{title}</div>
-      {extra && <div className="ml-auto text-[11px] text-[#6A6D70]">{extra}</div>}
+      <span className="text-[#333]">{icon}</span>
+      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333]">{title}</div>
+      {extra && <div className="ml-auto text-[11px] text-[#333]">{extra}</div>}
     </div>
   );
 }
@@ -228,7 +228,7 @@ function SectionTitle({ icon, title, extra }: { icon: React.ReactNode; title: st
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
         {label}
       </label>
       {children}
@@ -237,5 +237,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Loading() {
-  return <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#9E9E9E]">Loading…</div>;
+  return <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#555]">Loading…</div>;
 }

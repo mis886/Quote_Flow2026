@@ -58,7 +58,7 @@ export function JobDetail() {
   }, [id]);
 
   if (loading) {
-    return <div className="p-8 text-[13px] text-[#6A6D70]">Loading job…</div>;
+    return <div className="p-8 text-[13px] text-[#333]">Loading job…</div>;
   }
   if (!job) {
     return (
@@ -66,7 +66,7 @@ export function JobDetail() {
         <Button variant="secondary" onClick={() => navigate('/production/jobs')} className="gap-1">
           <ArrowLeft size={12} /> Back
         </Button>
-        <div className="mt-4 text-[13px] text-[#6A6D70]">Job not found.</div>
+        <div className="mt-4 text-[13px] text-[#333]">Job not found.</div>
       </div>
     );
   }
@@ -193,9 +193,9 @@ export function JobDetail() {
                     <TD className="font-mono text-[10.5px] font-bold text-[#666]">Section-{String(i + 1).padStart(2, '0')}</TD>
                     <TD className="font-semibold">{STAGE_LABEL[s]}</TD>
                     <TD className="font-mono text-[11.5px]">{job.qty.toLocaleString()}</TD>
-                    <TD className="text-[#6A6D70]">—</TD>
+                    <TD className="text-[#333]">—</TD>
                     <TD className="text-[11px] text-[#666]">{enter ? new Date(enter.ts).toLocaleString() : '—'}</TD>
-                    <TD className="text-[#6A6D70]">—</TD>
+                    <TD className="text-[#333]">—</TD>
                     <TD className="text-[11px] text-[#666]">{exit ? new Date(exit.ts).toLocaleString() : '—'}</TD>
                     <TD className="font-mono text-[11px]">{dur}</TD>
                     <TD>
@@ -254,7 +254,7 @@ export function JobDetail() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-1.5">
+      <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-1.5">
         {title}
       </div>
       {children}
@@ -273,10 +273,10 @@ function Grid4({ children }: { children: React.ReactNode }) {
 function Field({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
   return (
     <div className="px-3 py-2">
-      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-[#6A6D70] mb-0.5">
+      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-[#333] mb-0.5">
         {label}
       </div>
-      <div className={`text-[12.5px] ${mono ? 'font-mono' : ''} ${accent ? 'text-[#0A6ED1] font-semibold' : 'text-[#32363A] font-medium'}`}>
+      <div className={`text-[12.5px] ${mono ? 'font-mono' : ''} ${accent ? 'text-[#0A6ED1] font-semibold' : 'text-[#111] font-medium'}`}>
         {value}
       </div>
     </div>

@@ -49,19 +49,19 @@ export function NCRLog() {
 
       <FilterBar>
         <div className="flex items-center gap-1.5 bg-white border border-[#E4E5E6] rounded px-2 h-7 min-w-[220px] focus-within:border-[#0A6ED1] focus-within:ring-2 focus-within:ring-red-lt">
-          <Search size={11} className="text-[#9E9E9E] shrink-0" />
+          <Search size={11} className="text-[#555] shrink-0" />
           <input
             type="text"
             placeholder="Job, defect code, customer…"
             value={q}
             onChange={e => setQ(e.target.value)}
-            className="bg-transparent border-none outline-none font-sans text-xs text-[#32363A] w-full placeholder:text-[#9E9E9E]"
+            className="bg-transparent border-none outline-none font-sans text-xs text-[#111] w-full placeholder:text-[#555]"
           />
         </div>
 
         <select
           title="Filter by action"
-          className="font-sans text-xs text-[#32363A] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
+          className="font-sans text-xs text-[#111] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
           value={actionFilter}
           onChange={e => setActionFilter(e.target.value)}
         >
@@ -70,7 +70,7 @@ export function NCRLog() {
           <option value="reject">Reject</option>
         </select>
 
-        <div className="ml-auto flex gap-3 font-mono text-[10px] text-[#6A6D70]">
+        <div className="ml-auto flex gap-3 font-mono text-[10px] text-[#333]">
           <span>{filtered.length} NCRs</span>
           <span className="text-[#0A6ED1]">{openCount} open</span>
           <span className="text-[#107E3E]">{resolvedCount} resolved</span>
@@ -121,7 +121,7 @@ export function NCRLog() {
                     ? <StatusPill status="Reject" tone="bad" />
                     : n.action === 'rework'
                     ? <StatusPill status="Rework" tone="warn" />
-                    : <span className="text-[#9E9E9E]">—</span>}
+                    : <span className="text-[#555]">—</span>}
                 </TD>
                 <TD>
                   {n.resolved_at

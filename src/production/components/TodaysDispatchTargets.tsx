@@ -27,8 +27,8 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
   return (
     <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
       <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-        <Truck size={13} className="text-[#6A6D70]" />
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] flex-1">
+        <Truck size={13} className="text-[#333]" />
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] flex-1">
           Today's Dispatch Targets
           <span className="ml-2 text-[#666] font-normal tracking-normal normal-case">
             {rows.length} job{rows.length === 1 ? '' : 's'} due today
@@ -65,13 +65,13 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-[#32363A] text-[12.5px]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#111] text-[12.5px]">{j.product_desc}</TD>
               <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
               <TD className="font-mono text-[11px] text-[#666]">{j.promised_date || '—'}</TD>
-              <TD className="text-[12px]">{j.courier || <span className="text-[#9E9E9E]">—</span>}</TD>
+              <TD className="text-[12px]">{j.courier || <span className="text-[#555]">—</span>}</TD>
               <TD className="font-mono text-[11px] text-[#666]">
-                {j.consignment_no || <span className="text-[#9E9E9E]">—</span>}
+                {j.consignment_no || <span className="text-[#555]">—</span>}
               </TD>
               <TD>
                 {j.stage === 'dispatched' ? (

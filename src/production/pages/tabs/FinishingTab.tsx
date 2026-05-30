@@ -37,19 +37,19 @@ export function FinishingTab({ jobs, workers, settings, onQtyDoneChange, onAdvan
   return (
     <div className="space-y-3">
       {/* Capacity row */}
-      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex flex-wrap items-center gap-3 text-[12px] text-[#32363A]">
-        <span><strong>{finishers}</strong> <span className="text-[#6A6D70]">finishers present</span></span>
+      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex flex-wrap items-center gap-3 text-[12px] text-[#111]">
+        <span><strong>{finishers}</strong> <span className="text-[#333]">finishers present</span></span>
         <span className="text-[#C0C0C0]">·</span>
-        <span><strong>{inspectors}</strong> <span className="text-[#6A6D70]">inspectors present</span></span>
+        <span><strong>{inspectors}</strong> <span className="text-[#333]">inspectors present</span></span>
         {settings && (
           <>
             <span className="text-[#C0C0C0]">·</span>
-            <span className="text-[#6A6D70]">Shift left: <strong className="text-[#32363A]">{settings.shift_hours_left}h</strong></span>
+            <span className="text-[#333]">Shift left: <strong className="text-[#111]">{settings.shift_hours_left}h</strong></span>
             <span className="text-[#C0C0C0]">·</span>
-            <span className="text-[#6A6D70]">OT: <strong className="text-[#32363A]">{settings.overtime_max}h</strong></span>
+            <span className="text-[#333]">OT: <strong className="text-[#111]">{settings.overtime_max}h</strong></span>
           </>
         )}
-        <span className="ml-auto text-[10px] text-[#6A6D70]">
+        <span className="ml-auto text-[10px] text-[#333]">
           {jobs.length} job{jobs.length === 1 ? '' : 's'} in queue
         </span>
       </div>
@@ -125,7 +125,7 @@ function FinishingRow({
           {job.priority === 'emergency' && <span className="mr-1">🔴</span>}{job.id}
         </span>
       </TD>
-      <TD className="font-semibold text-[#32363A]">{job.product_desc}</TD>
+      <TD className="font-semibold text-[#111]">{job.product_desc}</TD>
       <TD className="text-[12px]">{job.customer_name || '—'}</TD>
       <TD className="font-mono text-[11px]">{job.qty.toLocaleString()}</TD>
       <TD>
@@ -143,16 +143,16 @@ function FinishingRow({
               className="w-[80px] font-mono text-[11px] border border-[#E4E5E6] rounded-[3px] px-2 py-0.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-[#0A6ED1]/10"
               title="Pieces done"
             />
-            {saving && <span className="text-[10px] text-[#6A6D70]">…</span>}
+            {saving && <span className="text-[10px] text-[#333]">…</span>}
           </span>
         ) : (
           <button
             type="button"
             onClick={() => { setDraft(String(job.qty_done || 0)); setEditing(true); }}
-            className="font-mono text-[11px] text-[#32363A] hover:bg-[#F5F6F7] border border-dashed border-[#E4E5E6] rounded-[3px] px-2 py-0.5"
+            className="font-mono text-[11px] text-[#111] hover:bg-[#F5F6F7] border border-dashed border-[#E4E5E6] rounded-[3px] px-2 py-0.5"
             title="Click to edit"
           >
-            {(job.qty_done || 0).toLocaleString()} <span className="text-[#6A6D70]">✎</span>
+            {(job.qty_done || 0).toLocaleString()} <span className="text-[#333]">✎</span>
           </button>
         )}
       </TD>
@@ -166,8 +166,8 @@ function FinishingRow({
           tone={risk === 'breach' ? 'bad' : risk === 'atrisk' ? 'warn' : 'good'}
         />
       </TD>
-      <TD className="font-mono text-[11px] text-[#6A6D70]">{job.lsd || '—'}</TD>
-      <TD className="font-mono text-[11px] text-[#6A6D70]">{job.promised_date || '—'}</TD>
+      <TD className="font-mono text-[11px] text-[#333]">{job.lsd || '—'}</TD>
+      <TD className="font-mono text-[11px] text-[#333]">{job.promised_date || '—'}</TD>
       <TD>
         <button
           type="button"

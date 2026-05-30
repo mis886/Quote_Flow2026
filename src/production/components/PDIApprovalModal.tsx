@@ -32,20 +32,20 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#32363A]">Approve PDI — {job.id}</div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
+          <div className="text-[13px] font-semibold text-[#111]">Approve PDI — {job.id}</div>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="text-[12.5px] text-[#32363A]">
+          <div className="text-[12.5px] text-[#111]">
             Approving PDI will move <strong>{job.id}</strong> ({job.product_desc}) to <strong>Ready to Dispatch</strong>.
           </div>
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
               PDI Officer Name <span className="text-[#0A6ED1]">*</span>
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={officer}
               onChange={e => setOfficer(e.target.value)}
               placeholder="Enter your name"
@@ -54,11 +54,11 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
             />
           </div>
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
               PDI Timestamp
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-[#6A6D70] bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5"
+              className="w-full font-sans text-[12.5px] text-[#333] bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5"
               value={ts}
               readOnly
               title="PDI timestamp"

@@ -17,7 +17,7 @@ export function OTDTrend({ jobs }: { jobs: ProductionJob[] }) {
   return (
     <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
       <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] flex-1">
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] flex-1">
           30-Week OTD Trend
           <span className="ml-2 text-[#666] font-normal tracking-normal normal-case">
             Target ≥ 90%
@@ -55,7 +55,7 @@ export function OTDTrend({ jobs }: { jobs: ProductionJob[] }) {
         </div>
 
         {/* Labels */}
-        <div className="flex gap-[2px] pt-1 text-[9px] text-[#6A6D70]">
+        <div className="flex gap-[2px] pt-1 text-[9px] text-[#333]">
           {trend.map((w, i) => (
             <span key={i} className="flex-1 text-center truncate">
               {i % 5 === 0 ? w.label : ''}
@@ -64,7 +64,7 @@ export function OTDTrend({ jobs }: { jobs: ProductionJob[] }) {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[#F3F3F3] text-[10.5px] text-[#6A6D70] flex-wrap">
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[#F3F3F3] text-[10.5px] text-[#333] flex-wrap">
           <span className="flex items-center gap-1.5">
             <span className="w-[10px] h-[10px] rounded-[1px] bg-sW shrink-0" /> ≥ 90% (On Target)
           </span>
@@ -75,7 +75,7 @@ export function OTDTrend({ jobs }: { jobs: ProductionJob[] }) {
             <span className="w-[10px] h-[10px] rounded-[1px] bg-red-mrt shrink-0" /> &lt; 80% (Action)
           </span>
           {mtd != null && (
-            <span className="ml-auto font-semibold text-[#32363A]">
+            <span className="ml-auto font-semibold text-[#111]">
               Current MTD: {mtd}%
             </span>
           )}

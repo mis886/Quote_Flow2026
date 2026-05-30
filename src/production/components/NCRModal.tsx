@@ -51,11 +51,11 @@ export function NCRModal({ open, job, onClose, onSubmit }: Props) {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#32363A] flex items-center gap-1.5">
+          <div className="text-[13px] font-semibold text-[#111] flex items-center gap-1.5">
             <AlertTriangle size={14} className="text-[#0A6ED1]" />
             Raise NCR — {job.id}
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
@@ -97,12 +97,12 @@ export function NCRModal({ open, job, onClose, onSubmit }: Props) {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
         {label} {required && <span className="text-[#0A6ED1]">*</span>}
       </label>
       {children}

@@ -20,10 +20,10 @@ export function ProductionLayout() {
           <div className="w-14 h-14 mx-auto rounded-full bg-[#E8F0FD] flex items-center justify-center mb-4">
             <Lock size={22} className="text-[#0A6ED1]" />
           </div>
-          <div className="font-mono text-[10px] font-bold tracking-[3px] uppercase text-[#32363A] opacity-60 mb-2">
+          <div className="font-mono text-[10px] font-bold tracking-[3px] uppercase text-[#111] opacity-60 mb-2">
             Production
           </div>
-          <h1 className="text-[18px] font-semibold text-[#32363A] mb-2">
+          <h1 className="text-[18px] font-semibold text-[#111] mb-2">
             Production workspace disabled
           </h1>
           <p className="text-[13px] text-[#666] mb-5 leading-relaxed">

@@ -165,7 +165,7 @@ export function NewProduct() {
             {mouldRate && (
               <div className="mt-2 bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[12px] text-[#666]">
                 Moulding rate (auto): <strong className="text-[#0A6ED1]">{mouldRate} pcs/hr</strong>
-                <span className="text-[#9E9E9E] ml-1">(60 ÷ {cureTimeMin}) × {cavities} cav</span>
+                <span className="text-[#555] ml-1">(60 ÷ {cureTimeMin}) × {cavities} cav</span>
               </div>
             )}
           </Card>
@@ -201,12 +201,12 @@ export function NewProduct() {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
       <div className="px-4 py-2.5 border-b border-[#E4E5E6]">
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70]">{title}</div>
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333]">{title}</div>
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -218,11 +218,11 @@ function Grid2({ children }: { children: React.ReactNode }) {
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">{label}</label>
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">{label}</label>
       {children}
     </div>
   );
 }
 function Hint({ children }: { children: React.ReactNode }) {
-  return <div className="text-[10px] text-[#6A6D70] mt-1">{children}</div>;
+  return <div className="text-[10px] text-[#333] mt-1">{children}</div>;
 }

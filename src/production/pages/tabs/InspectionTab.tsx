@@ -24,11 +24,11 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
   return (
     <div className="space-y-3">
       {/* Capacity row */}
-      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex flex-wrap items-center gap-3 text-[12px] text-[#32363A]">
-        <span><strong>{inspectors}</strong> <span className="text-[#6A6D70]">active inspectors</span></span>
+      <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 flex flex-wrap items-center gap-3 text-[12px] text-[#111]">
+        <span><strong>{inspectors}</strong> <span className="text-[#333]">active inspectors</span></span>
         <span className="text-[#C0C0C0]">·</span>
-        <span className="text-[#6A6D70]">{pending.length} lot{pending.length === 1 ? '' : 's'} awaiting</span>
-        <span className="ml-auto text-[10px] text-[#6A6D70]">~{inspectors * 2} lots/shift capacity</span>
+        <span className="text-[#333]">{pending.length} lot{pending.length === 1 ? '' : 's'} awaiting</span>
+        <span className="ml-auto text-[10px] text-[#333]">~{inspectors * 2} lots/shift capacity</span>
       </div>
 
       <Table>
@@ -55,11 +55,11 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-[#32363A]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
               <TD className="text-[12px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-[#6A6D70]">{j.lsd || '—'}</TD>
-              <TD className="font-mono text-[11px] text-[#6A6D70]">{j.promised_date || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.batch_code || '—'}</TD>
               <TD><ResultPill result={j.inspection_result} status={j.status} /></TD>
               <TD>

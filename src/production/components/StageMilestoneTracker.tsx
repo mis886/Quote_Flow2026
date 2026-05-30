@@ -46,7 +46,7 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
   return (
     <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
       <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] flex-1">
+        <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] flex-1">
           Stage Milestone Tracker
           <span className="ml-2 text-[#666] font-normal tracking-normal normal-case">
             {rows.length} active · sorted by urgency · 3-day dispatch buffer
@@ -96,10 +96,10 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
                   </div>
                 </TD>
                 <TD>
-                  <div className="font-semibold text-[#32363A] text-[12.5px] truncate max-w-[180px]">
+                  <div className="font-semibold text-[#111] text-[12.5px] truncate max-w-[180px]">
                     {job.product_desc}
                   </div>
-                  <div className="text-[10.5px] text-[#6A6D70] truncate max-w-[180px]">
+                  <div className="text-[10.5px] text-[#333] truncate max-w-[180px]">
                     {job.customer_name || '—'}
                   </div>
                 </TD>
@@ -116,7 +116,7 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
                     ) : plan ? (
                       <RAGCell plan={plan} />
                     ) : (
-                      <span className="text-[#9E9E9E] text-[10.5px]">No plan</span>
+                      <span className="text-[#555] text-[10.5px]">No plan</span>
                     )}
                   </TD>
                 ))}
@@ -130,11 +130,11 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
       </Table>
 
       {/* Legend */}
-      <div className="px-3 py-2 border-t border-[#E4E5E6] flex items-center gap-4 flex-wrap text-[10.5px] text-[#6A6D70]">
+      <div className="px-3 py-2 border-t border-[#E4E5E6] flex items-center gap-4 flex-wrap text-[10.5px] text-[#333]">
         <span className="flex items-center gap-1.5"><Dot dot="green" /> On track</span>
         <span className="flex items-center gap-1.5"><Dot dot="amber" /> Due today / tomorrow</span>
         <span className="flex items-center gap-1.5"><Dot dot="red" /> Milestone missed</span>
-        <span className="ml-auto italic text-[#6A6D70]">
+        <span className="ml-auto italic text-[#333]">
           Highlighted = current stage · ✓ = stage complete
         </span>
       </div>
@@ -162,14 +162,14 @@ function RAGCell({ plan }: { plan: string }) {
     r.dot === 'green' ? 'text-[#107E3E]' :
     r.dot === 'amber' ? 'text-[#E9730C]' :
     r.dot === 'red'   ? 'text-[#0A6ED1] font-semibold' :
-                        'text-[#6A6D70]';
+                        'text-[#333]';
   return (
     <div className="inline-flex items-center gap-1.5">
       <Dot dot={r.dot} />
       <span className={`font-mono text-[11px] ${cls}`}>
         {fmtIST(new Date(plan), 'dd MMM')}
       </span>
-      <span className="text-[9.5px] text-[#9E9E9E]">{r.label}</span>
+      <span className="text-[9.5px] text-[#555]">{r.label}</span>
     </div>
   );
 }

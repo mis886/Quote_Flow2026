@@ -44,23 +44,23 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[480px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#32363A] flex items-center gap-1.5">
+          <div className="text-[13px] font-semibold text-[#111] flex items-center gap-1.5">
             <Truck size={14} /> Confirm Dispatch — {job.id}
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]"><X size={16} /></button>
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]"><X size={16} /></button>
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="text-[12.5px] text-[#32363A]">
+          <div className="text-[12.5px] text-[#111]">
             {job.product_desc} · {job.qty.toLocaleString()} pcs · {job.customer_name || '—'}
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
               Courier <span className="text-[#0A6ED1]">*</span>
             </label>
             <select
-              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={courier}
               onChange={e => setCourier(e.target.value)}
               title="Courier"
@@ -71,11 +71,11 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+            <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
               Consignment Number
             </label>
             <input
-              className="w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
+              className="w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt"
               value={consignment}
               onChange={e => setConsignment(e.target.value)}
               placeholder="AWB / tracking ID"
@@ -85,8 +85,8 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
 
           <div className="grid grid-cols-2 gap-2 text-[12px]">
             <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5">
-              <div className="text-[10px] text-[#6A6D70]">Promised Date</div>
-              <div className="text-[#32363A] font-medium">{job.promised_date || '—'}</div>
+              <div className="text-[10px] text-[#333]">Promised Date</div>
+              <div className="text-[#111] font-medium">{job.promised_date || '—'}</div>
             </div>
             <div className={`border rounded-[3px] px-2.5 py-1.5 ${onTime ? 'bg-green-50 border-green-200' : 'bg-[#E8F0FD] border-[#0A6ED1]/30'}`}>
               <div className={`text-[10px] ${onTime ? 'text-green-700' : 'text-[#0A6ED1]'}`}>OTD Verdict</div>

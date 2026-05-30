@@ -152,11 +152,11 @@ export function NewProductionJob() {
   };
 
   if (loading) {
-    return <div className="p-6 text-[12px] text-[#6A6D70]">Loading…</div>;
+    return <div className="p-6 text-[12px] text-[#333]">Loading…</div>;
   }
 
-  const input = 'w-full font-sans text-[13px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-2 outline-none focus:border-[#0A6ED1] focus:ring-[3px] focus:ring-red-lt';
-  const lbl   = 'block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1';
+  const input = 'w-full font-sans text-[13px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-2 outline-none focus:border-[#0A6ED1] focus:ring-[3px] focus:ring-red-lt';
+  const lbl   = 'block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1';
 
   return (
     <div className="p-4 lg:p-6 max-w-[1100px]">
@@ -167,8 +167,8 @@ export function NewProductionJob() {
         <ArrowLeft size={13} /> Back to Production
       </button>
 
-      <h1 className="text-[18px] font-semibold text-[#32363A] mb-1">New Production Job</h1>
-      <p className="text-[12px] text-[#6A6D70] mb-4">
+      <h1 className="text-[18px] font-semibold text-[#111] mb-1">New Production Job</h1>
+      <p className="text-[12px] text-[#333] mb-4">
         One row per line item. Each line becomes a separate Job Card and enters the Moulding queue.
       </p>
 
@@ -180,7 +180,7 @@ export function NewProductionJob() {
         </span>
         <select
           title="Pick an open CRM order to autofill customer + lines"
-          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-[#32363A] bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-[#111] bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
           value={importedOrderId || ''}
           onChange={e => importFromOrder(e.target.value)}
           disabled={loadingOrders}
@@ -275,9 +275,9 @@ export function NewProductionJob() {
       {/* Lines */}
       <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
         <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[11px] font-mono font-bold tracking-wider uppercase text-[#6A6D70]">
+          <div className="text-[11px] font-mono font-bold tracking-wider uppercase text-[#333]">
             Line Items
-            <span className="ml-2 font-normal text-[#9E9E9E] normal-case tracking-normal">
+            <span className="ml-2 font-normal text-[#555] normal-case tracking-normal">
               one production job per line
             </span>
           </div>

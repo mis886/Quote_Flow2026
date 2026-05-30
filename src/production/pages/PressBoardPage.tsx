@@ -65,11 +65,11 @@ export function PressBoardPage() {
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto space-y-4">
         {settings && (
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[11.5px] text-[#666] flex items-center gap-3">
-            <span>Shift: <strong className="text-[#32363A]">{settings.shift_hours_left}h left</strong> of {settings.shift_hours}h</span>
-            <span className="text-[#9E9E9E]">·</span>
-            <span>OT budget: <strong className="text-[#32363A]">{settings.overtime_max}h</strong></span>
-            <span className="text-[#9E9E9E]">·</span>
-            <span>Planned: <strong className="text-[#32363A]">{settings.planned_finishers}F / {settings.planned_inspectors}I</strong></span>
+            <span>Shift: <strong className="text-[#111]">{settings.shift_hours_left}h left</strong> of {settings.shift_hours}h</span>
+            <span className="text-[#555]">·</span>
+            <span>OT budget: <strong className="text-[#111]">{settings.overtime_max}h</strong></span>
+            <span className="text-[#555]">·</span>
+            <span>Planned: <strong className="text-[#111]">{settings.planned_finishers}F / {settings.planned_inspectors}I</strong></span>
             {queuedNoPress.length > 0 && (
               <span className="ml-auto text-[#0A6ED1] font-semibold">
                 {queuedNoPress.length} job{queuedNoPress.length === 1 ? '' : 's'} unassigned
@@ -79,7 +79,7 @@ export function PressBoardPage() {
         )}
 
         {loading ? (
-          <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#9E9E9E]">
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center text-[12px] text-[#555]">
             Loading press status…
           </div>
         ) : (
@@ -99,10 +99,10 @@ export function PressBoardPage() {
             return (
               <div key={p.id} className="bg-white border border-[#E4E5E6] rounded-[3px]">
                 <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-                  <div className="text-[12px] font-semibold text-[#32363A] flex-1">
+                  <div className="text-[12px] font-semibold text-[#111] flex-1">
                     {p.name} — Queue
                   </div>
-                  <span className="font-mono text-[10px] text-[#6A6D70]">{queue.length} waiting</span>
+                  <span className="font-mono text-[10px] text-[#333]">{queue.length} waiting</span>
                 </div>
                 <ul className="divide-y divide-[#F3F3F3]">
                   {queue.map(j => (
@@ -111,7 +111,7 @@ export function PressBoardPage() {
                         {j.priority === 'emergency' && '🔴 '}{j.id}
                       </span>
                       <span className="text-[#444] truncate flex-1">{j.product_desc}</span>
-                      <span className="text-[#6A6D70] font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
+                      <span className="text-[#333] font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
                     </li>
                   ))}
                 </ul>

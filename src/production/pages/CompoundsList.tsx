@@ -70,7 +70,7 @@ export function CompoundsList() {
       />
 
       <FilterBar>
-        <div className="ml-auto font-mono text-[10px] text-[#6A6D70]">{compounds.length} compounds</div>
+        <div className="ml-auto font-mono text-[10px] text-[#333]">{compounds.length} compounds</div>
       </FilterBar>
 
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
@@ -94,7 +94,7 @@ export function CompoundsList() {
             ) : compounds.map(c => (
               <TR key={c.id}>
                 <TD><span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{c.code}</span></TD>
-                <TD className="font-semibold text-[#32363A] text-[12.5px]">{c.name}</TD>
+                <TD className="font-semibold text-[#111] text-[12.5px]">{c.name}</TD>
                 <TD>
                   <span className="bg-[#FAFAFA] px-2 py-0.5 rounded-[3px] font-mono text-[10.5px] font-bold text-[#444]">
                     {c.grade}
@@ -130,10 +130,10 @@ export function CompoundsList() {
         <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={closeForm}>
           <div className="bg-white rounded-[4px] w-full max-w-[460px] shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-              <div className="text-[13px] font-semibold text-[#32363A]">
+              <div className="text-[13px] font-semibold text-[#111]">
                 {editId ? 'Edit Compound' : 'New Compound'}
               </div>
-              <button type="button" onClick={closeForm} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]">
+              <button type="button" onClick={closeForm} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]">
                 <X size={16} />
               </button>
             </div>
@@ -168,11 +168,11 @@ export function CompoundsList() {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 function F({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">{label}</label>
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">{label}</label>
       {children}
     </div>
   );

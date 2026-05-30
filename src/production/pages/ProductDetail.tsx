@@ -42,13 +42,13 @@ export function ProductDetail() {
 
   useEffect(() => { load(); }, [id]);
 
-  if (loading) return <div className="p-8 text-[13px] text-[#6A6D70]">Loading product…</div>;
+  if (loading) return <div className="p-8 text-[13px] text-[#333]">Loading product…</div>;
   if (!product) return (
     <div className="p-8">
       <Button variant="secondary" onClick={() => navigate('/production/products')} className="gap-1">
         <ArrowLeft size={12} /> Back
       </Button>
-      <div className="mt-4 text-[13px] text-[#6A6D70]">Product not found.</div>
+      <div className="mt-4 text-[13px] text-[#333]">Product not found.</div>
     </div>
   );
 
@@ -112,15 +112,15 @@ export function ProductDetail() {
 
         {/* Params grid — matches v2 .pp-grid / .pp-card */}
         <section>
-          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2">
+          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2">
             Product Parameters
           </div>
           <div className="grid grid-cols-3 gap-2">
             {PARAMS.map((x, i) => (
               <div key={i} className="bg-white border border-[#E4E5E6] rounded-[3px] px-3 py-2.5">
                 <div className="text-[18px] leading-none mb-1">{x.emoji}</div>
-                <div className="text-[16px] font-semibold text-[#32363A] leading-none">{x.v}</div>
-                <div className="text-[10px] text-[#6A6D70] mt-1">{x.l}</div>
+                <div className="text-[16px] font-semibold text-[#111] leading-none">{x.v}</div>
+                <div className="text-[10px] text-[#333] mt-1">{x.l}</div>
               </div>
             ))}
           </div>
@@ -129,7 +129,7 @@ export function ProductDetail() {
         {/* Compound info */}
         {compound && (
           <section>
-            <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2">
+            <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2">
               Compound
             </div>
             <div className="bg-white border border-[#E4E5E6] rounded-[3px] grid grid-cols-4 divide-x divide-[#F3F3F3]">
@@ -143,7 +143,7 @@ export function ProductDetail() {
 
         {/* Production rates table — matches v2 TAT section */}
         <section>
-          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2 flex items-center gap-2">
+          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2 flex items-center gap-2">
             Production Rates — LSD Calculation Basis
             <Button variant="ghost" size="sm" onClick={() => setShowRatesModal(true)} className="gap-1 ml-auto">
               <Edit2 size={11} /> Edit Rates
@@ -182,12 +182,12 @@ export function ProductDetail() {
                 />
                 {totalH != null && (
                   <tr className="bg-[#FAFAFA] border-t border-[#E4E5E6]">
-                    <td className="px-[13px] py-[10px] font-bold text-[#32363A]">Total @ {refQty} pcs</td>
+                    <td className="px-[13px] py-[10px] font-bold text-[#111]">Total @ {refQty} pcs</td>
                     <td />
-                    <td className="px-[13px] py-[10px] font-bold text-[#32363A]">
+                    <td className="px-[13px] py-[10px] font-bold text-[#111]">
                       {totalH.toFixed(1)} hrs (~{Math.ceil(totalH / 8)} working days)
                     </td>
-                    <td className="px-[13px] py-[10px] text-[11px] text-[#6A6D70]">Scales with actual qty</td>
+                    <td className="px-[13px] py-[10px] text-[11px] text-[#333]">Scales with actual qty</td>
                   </tr>
                 )}
               </tbody>
@@ -197,7 +197,7 @@ export function ProductDetail() {
 
         {/* BOM tree — matches v2 .bom-tree / .bom-root / .bom-cmp */}
         <section>
-          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2 flex items-center gap-2">
+          <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2 flex items-center gap-2">
             Bill of Materials — {product.code}
             <Button variant="ghost" size="sm" onClick={() => setShowBOMModal(true)} className="gap-1 ml-auto">
               <Plus size={11} /> Add Component
@@ -206,26 +206,26 @@ export function ProductDetail() {
           {hasBOM ? (
             <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden text-[12px]">
               {/* Root row */}
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FAFAFA] border-b border-[#E4E5E6] font-semibold text-[#32363A]">
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FAFAFA] border-b border-[#E4E5E6] font-semibold text-[#111]">
                 <Package size={14} className="text-[#0A6ED1] shrink-0" />
                 <span className="font-mono text-[11px] font-bold text-[#0A6ED1]">{product.code}</span>
                 <span>— {product.name}</span>
-                <span className="ml-1 text-[10px] text-[#6A6D70] font-normal">Finished Product</span>
+                <span className="ml-1 text-[10px] text-[#333] font-normal">Finished Product</span>
               </div>
 
               {/* Compound row */}
               {compoundRow && (
                 <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-[#F3F3F3]">
                   <span className="text-[11px] text-[#0A6ED1] shrink-0">→</span>
-                  <span className="font-mono text-[11px] font-bold text-[#32363A]">{compoundRow.raw_code}</span>
+                  <span className="font-mono text-[11px] font-bold text-[#111]">{compoundRow.raw_code}</span>
                   <span className="flex-1 text-[#444]">{compoundRow.raw_name}</span>
                   {compoundRow.kg_per_batch && (
-                    <span className="font-mono text-[11px] text-[#6A6D70]">
+                    <span className="font-mono text-[11px] text-[#333]">
                       {compoundRow.kg_per_batch} kg/batch
                     </span>
                   )}
                   {compoundRow.batches_per_run && (
-                    <span className="text-[11px] text-[#6A6D70]">{compoundRow.batches_per_run} batches/run</span>
+                    <span className="text-[11px] text-[#333]">{compoundRow.batches_per_run} batches/run</span>
                   )}
                 </div>
               )}
@@ -233,17 +233,17 @@ export function ProductDetail() {
               {/* Raw material rows */}
               {raws.map(r => (
                 <div key={r.id} className="flex items-center gap-2 px-6 py-2 border-b border-[#F3F3F3] last:border-b-0 group">
-                  <span className="text-[11px] text-[#9E9E9E] shrink-0">↳</span>
+                  <span className="text-[11px] text-[#555] shrink-0">↳</span>
                   <span className="font-mono text-[10.5px] text-[#666] shrink-0">{r.raw_code}</span>
                   <span className="flex-1 text-[#444]">— {r.raw_name}</span>
-                  <span className="font-mono text-[11px] text-[#6A6D70] min-w-[80px] text-right">
+                  <span className="font-mono text-[11px] text-[#333] min-w-[80px] text-right">
                     {r.qty_per_batch} {r.unit}
                   </span>
-                  <span className="text-[10.5px] text-[#6A6D70] min-w-[140px] text-right">{r.supplier || '—'}</span>
+                  <span className="text-[10.5px] text-[#333] min-w-[140px] text-right">{r.supplier || '—'}</span>
                   <button
                     type="button"
                     onClick={() => r.id && deleteBOMRow(r.id).then(load)}
-                    className="ml-2 opacity-0 group-hover:opacity-100 text-[#9E9E9E] hover:text-[#0A6ED1] transition-opacity"
+                    className="ml-2 opacity-0 group-hover:opacity-100 text-[#555] hover:text-[#0A6ED1] transition-opacity"
                     title="Remove component"
                   >
                     <Trash2 size={12} />
@@ -254,7 +254,7 @@ export function ProductDetail() {
           ) : (
             <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-8 text-center">
               <Package size={24} className="mx-auto text-[#CCC] mb-3" />
-              <div className="text-[12px] text-[#6A6D70] mb-3">BOM not yet configured for this product.</div>
+              <div className="text-[12px] text-[#333] mb-3">BOM not yet configured for this product.</div>
               <Button variant="ghost" onClick={() => setShowBOMModal(true)} className="gap-1">
                 <Plus size={12} /> Create BOM
               </Button>
@@ -264,7 +264,7 @@ export function ProductDetail() {
 
         {product.notes && (
           <section>
-            <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#6A6D70] mb-2">Notes</div>
+            <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2">Notes</div>
             <div className="bg-white border border-[#E4E5E6] rounded-[3px] px-4 py-3 text-[12.5px] text-[#444] whitespace-pre-wrap">
               {product.notes}
             </div>
@@ -292,23 +292,23 @@ export function ProductDetail() {
 }
 
 function TH2({ children }: { children: React.ReactNode }) {
-  return <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-[#6A6D70] px-[13px] py-[9px] text-left whitespace-nowrap border-b border-[#E4E5E6]">{children}</th>;
+  return <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-[#333] px-[13px] py-[9px] text-left whitespace-nowrap border-b border-[#E4E5E6]">{children}</th>;
 }
 function Row({ label, rate, tat, note }: { label: string; rate: string; tat: string; note: string }) {
   return (
     <tr className="border-b border-[#F3F3F3]">
-      <td className="px-[13px] py-[9px] font-semibold text-[#32363A]">{label}</td>
-      <td className="px-[13px] py-[9px] font-mono text-[11.5px] font-bold text-[#32363A]">{rate}</td>
+      <td className="px-[13px] py-[9px] font-semibold text-[#111]">{label}</td>
+      <td className="px-[13px] py-[9px] font-mono text-[11.5px] font-bold text-[#111]">{rate}</td>
       <td className="px-[13px] py-[9px] text-[12px]">{tat}</td>
-      <td className="px-[13px] py-[9px] text-[11px] text-[#6A6D70]">{note}</td>
+      <td className="px-[13px] py-[9px] text-[11px] text-[#333]">{note}</td>
     </tr>
   );
 }
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="px-3 py-2.5">
-      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-[#6A6D70] mb-0.5">{label}</div>
-      <div className={`text-[12.5px] font-medium text-[#32363A] ${mono ? 'font-mono' : ''}`}>{value}</div>
+      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-[#333] mb-0.5">{label}</div>
+      <div className={`text-[12.5px] font-medium text-[#111] ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   );
 }

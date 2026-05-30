@@ -70,10 +70,10 @@ export function EditRatesModal({ open, product, onClose, onSaved }: Props) {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[520px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#32363A]">
+          <div className="text-[13px] font-semibold text-[#111]">
             Edit Production Rates — <span className="font-mono text-[#0A6ED1]">{product.code}</span>
           </div>
-          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#6A6D70] hover:text-[#32363A]">
+          <button type="button" onClick={onClose} title="Close" aria-label="Close" className="text-[#333] hover:text-[#111]">
             <X size={16} />
           </button>
         </div>
@@ -95,7 +95,7 @@ export function EditRatesModal({ open, product, onClose, onSaved }: Props) {
               value={setupTime}
               onChange={e => setSetupTime(e.target.value)}
               title="Setup time in hours"
-              className="ml-1.5 w-[60px] font-sans text-[11.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1]"
+              className="ml-1.5 w-[60px] font-sans text-[11.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#0A6ED1]"
             />
             <span className="ml-1">hrs/job</span>
           </div>
@@ -122,7 +122,7 @@ export function EditRatesModal({ open, product, onClose, onSaved }: Props) {
           {/* Live TAT preview */}
           {totalH != null && (
             <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2.5 text-[12px]">
-              <div className="font-semibold text-[#32363A] mb-1.5">
+              <div className="font-semibold text-[#111] mb-1.5">
                 TAT preview @ {refQty} pcs with planned headcount ({PLANNED_F}F / {PLANNED_I}I):
               </div>
               <div className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export function EditRatesModal({ open, product, onClose, onSaved }: Props) {
                   { l: 'Days',    v: Math.ceil(totalH / 8) + 'd' },
                 ].map(x => (
                   <span key={x.l} className="bg-white border border-[#E4E5E6] rounded-[3px] px-2 py-1 text-[11.5px]">
-                    <span className="text-[#6A6D70]">{x.l}:</span> <strong>{x.v}</strong>
+                    <span className="text-[#333]">{x.l}:</span> <strong>{x.v}</strong>
                   </span>
                 ))}
               </div>
@@ -154,16 +154,16 @@ export function EditRatesModal({ open, product, onClose, onSaved }: Props) {
   );
 }
 
-const inp = 'w-full font-sans text-[12.5px] text-[#32363A] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
+const inp = 'w-full font-sans text-[12.5px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1] focus:ring-2 focus:ring-red-lt';
 
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#6A6D70] mb-1">
+      <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">
         {label}
       </label>
       {children}
-      {hint && <div className="text-[10px] text-[#6A6D70] mt-1">{hint}</div>}
+      {hint && <div className="text-[10px] text-[#333] mt-1">{hint}</div>}
     </div>
   );
 }

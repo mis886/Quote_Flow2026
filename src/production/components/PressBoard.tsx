@@ -58,7 +58,7 @@ export function PressBoard({ presses, jobs, onAssign, onMarkDone }: Props) {
           >
             {/* Header: press name + status dot */}
             <div className="flex items-center justify-between mb-[5px]">
-              <span className="text-[9px] font-bold text-[#6A6D70] uppercase tracking-[0.5px]">
+              <span className="text-[9px] font-bold text-[#333] uppercase tracking-[0.5px]">
                 {p.name} · {p.tonnage}T
               </span>
               <span className={cn('w-2 h-2 rounded-full flex-shrink-0', DOT[p.status])} />
@@ -67,20 +67,20 @@ export function PressBoard({ presses, jobs, onAssign, onMarkDone }: Props) {
             {/* Job info */}
             {job ? (
               <>
-                <div className="text-[12px] font-semibold text-[#32363A] mb-[2px]">
+                <div className="text-[12px] font-semibold text-[#111] mb-[2px]">
                   {emergency && <span className="text-[#BB0000] mr-0.5">🔴</span>}
                   {job.id}
                 </div>
-                <div className="text-[10px] text-[#6A6D70] leading-snug mb-[6px]">
+                <div className="text-[10px] text-[#333] leading-snug mb-[6px]">
                   {job.product_desc}<br />{job.customer_name}
                 </div>
               </>
             ) : (
               <>
-                <div className="text-[12px] font-semibold text-[#6A6D70] mb-[2px]">
+                <div className="text-[12px] font-semibold text-[#333] mb-[2px]">
                   {STATUS_LABEL[p.status]}
                 </div>
-                <div className="text-[10px] text-[#9E9E9E] mb-[6px]">
+                <div className="text-[10px] text-[#555] mb-[6px]">
                   {p.eta_text || 'Awaiting job'}
                 </div>
               </>
@@ -90,7 +90,7 @@ export function PressBoard({ presses, jobs, onAssign, onMarkDone }: Props) {
             <div className="h-1 bg-[#EBEBEB] rounded-[2px] overflow-hidden">
               <ProgressFill pct={p.pct_done || 0} status={p.status} />
             </div>
-            <div className="text-[9px] text-[#6A6D70] mt-1">
+            <div className="text-[9px] text-[#333] mt-1">
               {p.pct_done ? `${p.pct_done}% · ${p.eta_text || ''}` : p.eta_text || '—'}
             </div>
 

@@ -40,10 +40,10 @@ export function ProductionDashboard() {
     <div className="flex flex-col h-full">
       {/* Page header */}
       <div className="h-12 bg-white border-b border-[#E4E5E6] px-4 flex items-center gap-3 flex-shrink-0">
-        <Factory size={15} className="text-[#6A6D70]" />
+        <Factory size={15} className="text-[#333]" />
         <div className="flex-1">
-          <span className="text-[14px] font-semibold text-[#32363A]">Production Dashboard</span>
-          <span className="ml-2 text-[11px] text-[#6A6D70] hidden sm:inline">Shop-floor at a glance</span>
+          <span className="text-[14px] font-semibold text-[#111]">Production Dashboard</span>
+          <span className="ml-2 text-[11px] text-[#333] hidden sm:inline">Shop-floor at a glance</span>
         </div>
         <Link
           to="/production/jobs/new"
@@ -72,9 +72,9 @@ export function ProductionDashboard() {
                 </span>
               ))}
               {emergencyJobs.length > 2 && (
-                <span className="text-[#6A6D70]">+{emergencyJobs.length - 2} more</span>
+                <span className="text-[#333]">+{emergencyJobs.length - 2} more</span>
               )}
-              <span className="text-[#6A6D70] ml-1">· Ambulance corridor active</span>
+              <span className="text-[#333] ml-1">· Ambulance corridor active</span>
             </div>
             <Link
               to="/production/sequencer/mould"
@@ -99,14 +99,14 @@ export function ProductionDashboard() {
             label="WIP Jobs in Pipeline"
             accentClass="border-t-[#E9730C]"
             sub={emergencyJobs.length ? `${emergencyJobs.length} emergency` : 'All normal'}
-            subClass={emergencyJobs.length ? 'text-[#BB0000]' : 'text-[#6A6D70]'}
+            subClass={emergencyJobs.length ? 'text-[#BB0000]' : 'text-[#333]'}
           />
           <KPI
             value={overdue.length}
             label="Overdue / At Risk"
             accentClass="border-t-[#BB0000]"
             sub="Needs action"
-            subClass={overdue.length ? 'text-[#BB0000]' : 'text-[#6A6D70]'}
+            subClass={overdue.length ? 'text-[#BB0000]' : 'text-[#333]'}
           />
           <KPI
             value={`${pressUtil}%`}
@@ -120,9 +120,9 @@ export function ProductionDashboard() {
         {/* Live press board */}
         <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
           <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-            <span className="text-[12px] font-semibold text-[#32363A] flex-1">Live Press Board</span>
+            <span className="text-[12px] font-semibold text-[#111] flex-1">Live Press Board</span>
             {settings && (
-              <span className="text-[10px] text-[#6A6D70]">
+              <span className="text-[10px] text-[#333]">
                 Shift: {settings.shift_hours_left}h left · OT {settings.overtime_max}h
               </span>
             )}
@@ -132,7 +132,7 @@ export function ProductionDashboard() {
           </div>
           <div className="p-2.5">
             {loading
-              ? <div className="text-center py-6 text-[12px] text-[#6A6D70]">Loading…</div>
+              ? <div className="text-center py-6 text-[12px] text-[#333]">Loading…</div>
               : <PressBoard presses={presses} jobs={jobs} onAssign={pid => setAssigning({ pressId: pid })} onMarkDone={handleMarkDone} />
             }
           </div>
@@ -164,10 +164,10 @@ export function ProductionDashboard() {
         {/* Embedded Sequencer */}
         <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
           <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-            <Workflow size={13} className="text-[#6A6D70]" />
-            <span className="text-[12px] font-semibold text-[#32363A] flex-1">
+            <Workflow size={13} className="text-[#333]" />
+            <span className="text-[12px] font-semibold text-[#111] flex-1">
               Sequencer
-              <span className="ml-2 text-[11px] text-[#6A6D70] font-normal">In-line view</span>
+              <span className="ml-2 text-[11px] text-[#333] font-normal">In-line view</span>
             </span>
             <Link to={`/production/sequencer/${seqTab}`} className="text-[11px] text-[#0A6ED1] hover:underline">
               Open Full →
@@ -200,9 +200,9 @@ function KPI({
 }) {
   return (
     <div className={`bg-white border border-[#E4E5E6] border-t-[3px] rounded-[3px] px-[14px] py-3 ${accentClass}`}>
-      <div className="text-[26px] font-light leading-none text-[#32363A]">{value}</div>
-      <div className="text-[10px] text-[#6A6D70] mt-[3px]">{label}</div>
-      {sub && <div className={`text-[10px] mt-[5px] ${subClass ?? 'text-[#6A6D70]'}`}>{sub}</div>}
+      <div className="text-[26px] font-light leading-none text-[#111]">{value}</div>
+      <div className="text-[10px] text-[#333] mt-[3px]">{label}</div>
+      {sub && <div className={`text-[10px] mt-[5px] ${subClass ?? 'text-[#333]'}`}>{sub}</div>}
     </div>
   );
 }
