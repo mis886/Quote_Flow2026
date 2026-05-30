@@ -48,7 +48,7 @@ export function ProductionDashboard() {
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       <PageHeader
-        module="Production · Beta"
+        module="Production"
         title="Production"
         accent="Dashboard"
         subtitle="Shop-floor at a glance — capacity, milestones, dispatch, OTD."

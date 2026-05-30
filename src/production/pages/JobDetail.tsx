@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Printer, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Printer, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
+import { generateJobCardPDF } from '../lib/jobCardPdf';
 import {
   PageHeader, Table, THead, TH, TR, TD, EmptyRow, StatusPill,
   toneForStage, toneForStatus,
@@ -24,6 +25,20 @@ export function JobDetail() {
   const [job, setJob] = useState<ProductionJob | null>(null);
   const [events, setEvents] = useState<JobStageEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    if (!job) return;
+    setPrinting(true);
+    try {
+      await generateJobCardPDF(job);
+    } catch (e) {
+      console.error('Job Card PDF failed', e);
+      alert('Could not generate Job Card. See console for details.');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -70,8 +85,9 @@ export function JobDetail() {
             <Button variant="secondary" onClick={() => navigate('/production/jobs')} className="gap-1">
               <ArrowLeft size={12} /> Back
             </Button>
-            <Button variant="dark" onClick={() => window.print()} className="gap-1">
-              <Printer size={12} /> Print Job Card
+            <Button variant="dark" onClick={handlePrint} disabled={printing} className="gap-1">
+              {printing ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
+              {printing ? 'Generating…' : 'Print Job Card'}
             </Button>
           </>
         }

@@ -2,7 +2,7 @@
 // by stage, search, and the canonical CRM table styling.
 
 import { useState, useMemo } from 'react';
-import { Search, Plus, FileText } from 'lucide-react';
+import { Search, Plus, FileText, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProductionData } from '../lib/useProductionData';
 import { Button } from '../../components/ui';
@@ -10,6 +10,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, PageHeader, FilterBar,
   StatusPill, toneForStage, toneForStatus,
 } from '../components/table';
+import { ImportFromOrdersModal } from '../components/ImportFromOrdersModal';
 
 type StageTab = 'All' | 'Queued' | 'Moulding' | 'Finishing' | 'Inspection' | 'PDI' | 'Dispatch' | 'Dispatched';
 
@@ -26,10 +27,11 @@ const STAGE_MAP: Record<StageTab, string | null> = {
 
 export function JobsList() {
   const navigate = useNavigate();
-  const { jobs, loading } = useProductionData();
+  const { jobs, loading, refresh } = useProductionData();
   const [tab, setTab] = useState<StageTab>('All');
   const [q, setQ] = useState('');
   const [pri, setPri] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const filtered = useMemo(() => {
     const stage = STAGE_MAP[tab];
@@ -89,9 +91,14 @@ export function JobsList() {
         accent="Register"
         subtitle="Every production job, across every stage."
         actions={
-          <Button onClick={() => navigate('/production/jobs/new')} variant="primary" className="gap-2">
-            <Plus size={14} className="stroke-2" /> New Job
-          </Button>
+          <>
+            <Button onClick={() => setImporting(true)} variant="secondary" className="gap-2">
+              <Download size={13} className="stroke-2" /> Import from Orders
+            </Button>
+            <Button onClick={() => navigate('/production/jobs/new')} variant="primary" className="gap-2">
+              <Plus size={14} className="stroke-2" /> New Job
+            </Button>
+          </>
         }
       />
 
@@ -194,6 +201,13 @@ export function JobsList() {
           <span>Click any row to open the job card detail.</span>
         </div>
       </div>
+
+      <ImportFromOrdersModal
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={refresh}
+        existingJobIds={jobs.map(j => j.id)}
+      />
     </div>
   );
 }

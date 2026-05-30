@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   listPresses, listJobs, listWorkers, listNCRs, getShopFloorSettings,
 } from './db';
+import { useRealtimeTables } from './useRealtimeTable';
 import type {
   Press, ProductionJob, Worker, NCR, ShopFloorSettings,
 } from './types';
@@ -39,6 +40,19 @@ export function useProductionData(): ProductionData {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Live-update when any other doer touches the shop floor.
+  useRealtimeTables(
+    [
+      'prod_jobs',
+      'prod_presses',
+      'prod_workers',
+      'prod_ncrs',
+      'prod_shop_floor_settings',
+      'prod_job_stage_events',
+    ],
+    refresh,
+  );
 
   return { presses, jobs, workers, ncrs, settings, loading, refresh };
 }

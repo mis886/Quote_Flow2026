@@ -34,7 +34,7 @@ export function ProductionSidebar() {
         <div className="w-px h-7 bg-g200" />
         <div className="font-mono text-[8px] font-bold tracking-[2.5px] uppercase text-g500 leading-tight">
           Production<br />
-          <span className="text-red-mrt">Beta</span>
+          <span className="text-red-mrt">Workspace</span>
         </div>
       </div>
 
