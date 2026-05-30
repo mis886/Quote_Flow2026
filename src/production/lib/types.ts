@@ -178,3 +178,144 @@ export interface ShopFloorSettings {
   planned_inspectors: number;
   emergency_active: boolean;
 }
+
+// ── Beta: Append-only production records ─────────────────────────
+
+export interface MoldingSession {
+  id: string;                     // MLD-YYYY-NNNNN
+  job_card_id: string;
+  molding_date: string;           // ISO date
+  shift?: string | null;          // A | B | C
+  operation_type?: string | null; // Production | Trial | Rework
+  press_no: string;
+  die_no?: string | null;
+  tikli_size?: string | null;
+  cure_time_min?: number | null;
+  cure_temp_c?: number | null;
+  scorch_time_min?: number | null;
+  die_change_min?: number | null;
+  dori_khatam_min?: number | null;
+  spray?: string | null;
+  weight_before_g?: number | null;
+  weight_after_g?: number | null;
+  qty_molded: number;
+  planned_qty?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  working_time_min?: number | null;
+  operator_name: string;
+  remarks?: string | null;
+  entered_by?: string | null;
+  order_id?: string | null;
+  item_code?: string | null;
+  our_desc?: string | null;
+  type_item_moc?: string | null;
+  created_at?: string;
+}
+
+export interface FinishingSession {
+  id: string;                     // FIN-YYYY-NNNNN
+  job_card_id: string;
+  finishing_date: string;
+  actual_qty: number;
+  planned_qty?: number | null;
+  working_hours?: number | null;
+  finisher_name: string;
+  is_rework?: boolean;
+  remarks?: string | null;
+  entered_by?: string | null;
+  order_id?: string | null;
+  die_no?: string | null;
+  type_item_moc?: string | null;
+  created_at?: string;
+}
+
+export interface InspectionSession {
+  id: string;                     // INS-YYYY-NNNNN
+  job_card_id: string;
+  inspection_date: string;
+  qty_to_inspect: number;
+  qty_inspected: number;          // = qty_to_inspect
+  passed: number;
+  rejected: number;
+  rework: number;
+  scrapped: number;
+  inspector_name: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  working_hours?: number | null;
+  rejection_reasons?: string | null;
+  remarks?: string | null;
+  entered_by?: string | null;
+  order_id?: string | null;
+  die_no?: string | null;
+  type_item_moc?: string | null;
+  created_at?: string;
+}
+
+export type DispatchStatus = 'Dispatched' | 'In Transit' | 'Delivered' | 'Returned';
+
+export interface Dispatch {
+  id: string;                     // DSP-YYYY-NNNNN
+  invoice_no: string;
+  dispatch_date: string;
+  customer_name: string;
+  po_no?: string | null;
+  po_date?: string | null;
+  total_qty_dispatched?: number;
+  mode?: string | null;           // Road|Courier|Rail|Air|Hand Delivery
+  courier_name?: string | null;
+  tracking_number?: string | null;
+  bilty_no?: string | null;
+  bilty_date?: string | null;
+  no_of_cartons?: number | null;
+  invoice_value?: number | null;
+  status: DispatchStatus;
+  remarks?: string | null;
+  entered_by?: string | null;
+  received_by_crm?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DispatchItem {
+  id: string;                     // DI-{epoch}-{seq}
+  dispatch_id: string;
+  job_card_id: string;
+  qty_dispatched: number;
+  unit?: string;
+  ordered_qty?: number | null;
+  remaining_qty?: number | null;
+  order_id?: string | null;
+  po_no?: string | null;
+  ordered_item?: string | null;
+  die_no?: string | null;
+  moc?: string | null;
+  dispatch_date?: string | null;
+  invoice_no?: string | null;
+  entered_by?: string | null;
+  created_at?: string;
+}
+
+// ── Derived JC status (never stored) ─────────────────────────────
+
+export type JCDerivedStatus =
+  | 'Pending Molding'
+  | 'Molding'
+  | 'Finishing'
+  | 'Inspection'
+  | 'Ready to Dispatch'
+  | 'Partially Dispatched'
+  | 'Dispatched';
+
+export interface JCStats {
+  molded: number;
+  finished: number;
+  passed: number;
+  rejected: number;
+  rework: number;
+  scrapped: number;
+  dispatched: number;
+  yieldRate: number;   // round(passed/molded*100)
+  readyQty: number;    // passed - dispatched
+}

@@ -33,6 +33,12 @@ import { ProductsList } from './production/pages/ProductsList';
 import { ProductDetail } from './production/pages/ProductDetail';
 import { NewProduct } from './production/pages/NewProduct';
 import { CompoundsList } from './production/pages/CompoundsList';
+import { JobCardBoard } from './production/pages/JobCardBoard';
+import { LogMolding } from './production/pages/LogMolding';
+import { LogFinishing } from './production/pages/LogFinishing';
+import { LogInspection } from './production/pages/LogInspection';
+import { DispatchBoard } from './production/pages/DispatchBoard';
+import { CreateDispatch } from './production/pages/CreateDispatch';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAppStore();
@@ -100,6 +106,13 @@ export default function App() {
                   <Route path="products/:id" element={<ProductDetail />} />
                   <Route path="products/:id/edit" element={<NewProduct />} />
                   <Route path="compounds" element={<CompoundsList />} />
+                  {/* Beta modules */}
+                  <Route path="board" element={<JobCardBoard />} />
+                  <Route path="log-molding" element={<LogMolding />} />
+                  <Route path="log-finishing" element={<LogFinishing />} />
+                  <Route path="log-inspection" element={<LogInspection />} />
+                  <Route path="dispatch" element={<DispatchBoard />} />
+                  <Route path="dispatch/new" element={<CreateDispatch />} />
                   <Route path="*" element={<div className="p-8 text-[13px] font-mono">Production module not found...</div>} />
                 </Route>
               </Routes>

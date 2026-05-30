@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Workflow, Factory, FileText, AlertTriangle,
   Settings as Cog, ArrowLeftRight, Package, FlaskConical,
+  LayoutGrid, Hammer, Scissors, Microscope, Truck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -17,6 +18,14 @@ const SHOP_ITEMS = [
 const MASTER_ITEMS = [
   { to: '/production/products',   icon: Package,         label: 'Products & BOM' },
   { to: '/production/compounds',  icon: FlaskConical,    label: 'Compounds' },
+];
+
+const LOG_ITEMS = [
+  { to: '/production/board',          icon: LayoutGrid,   label: 'Job Card Board' },
+  { to: '/production/log-molding',    icon: Hammer,       label: 'Log Molding' },
+  { to: '/production/log-finishing',  icon: Scissors,     label: 'Log Finishing' },
+  { to: '/production/log-inspection', icon: Microscope,   label: 'Log Inspection' },
+  { to: '/production/dispatch',       icon: Truck,        label: 'Dispatch' },
 ];
 
 export function ProductionSidebar() {
@@ -42,6 +51,11 @@ export function ProductionSidebar() {
         <SectionLabel label="Shop Floor" />
         {SHOP_ITEMS.map(item => (
           <NavItem key={item.to} {...item} active={isActive(item.to, item.exact)} />
+        ))}
+        <div className="prod-sidebar-spacer" />
+        <SectionLabel label="Production Log" />
+        {LOG_ITEMS.map(item => (
+          <NavItem key={item.to} {...item} active={isActive(item.to)} />
         ))}
         <div className="prod-sidebar-spacer" />
         <SectionLabel label="Master Data" />

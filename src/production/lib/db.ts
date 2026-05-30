@@ -7,6 +7,8 @@ import { supabase } from '../../lib/supabase';
 import type {
   Press, ProductionJob, Worker, NCR, ShopFloorSettings,
   JobStage, Compound, Product, BOMRow,
+  MoldingSession, FinishingSession, InspectionSession,
+  Dispatch, DispatchItem,
 } from './types';
 
 // ── Presses ────────────────────────────────────────────────────────
@@ -248,4 +250,93 @@ export function nextJobId(existingIds: string[]): string {
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `MRT-${yr}-${String(max + 1).padStart(3, '0')}`;
+}
+
+// ── Molding sessions ────────────────────────────────────────────────
+export async function listMoldingSessions(jobCardId?: string): Promise<MoldingSession[]> {
+  let q = supabase.from('prod_molding').select('*').order('created_at', { ascending: false });
+  if (jobCardId) q = q.eq('job_card_id', jobCardId);
+  const { data, error } = await q;
+  if (error) { console.error('listMolding', error); return []; }
+  return data || [];
+}
+
+export async function insertMoldingSession(row: MoldingSession): Promise<MoldingSession> {
+  const { data, error } = await supabase.from('prod_molding').insert(row).select().single();
+  if (error) throw error;
+  return data as MoldingSession;
+}
+
+// ── Finishing sessions ──────────────────────────────────────────────
+export async function listFinishingSessions(jobCardId?: string): Promise<FinishingSession[]> {
+  let q = supabase.from('prod_finishing').select('*').order('created_at', { ascending: false });
+  if (jobCardId) q = q.eq('job_card_id', jobCardId);
+  const { data, error } = await q;
+  if (error) { console.error('listFinishing', error); return []; }
+  return data || [];
+}
+
+export async function insertFinishingSession(row: FinishingSession): Promise<FinishingSession> {
+  const { data, error } = await supabase.from('prod_finishing').insert(row).select().single();
+  if (error) throw error;
+  return data as FinishingSession;
+}
+
+// ── Inspection sessions ─────────────────────────────────────────────
+export async function listInspectionSessions(jobCardId?: string): Promise<InspectionSession[]> {
+  let q = supabase.from('prod_inspection').select('*').order('created_at', { ascending: false });
+  if (jobCardId) q = q.eq('job_card_id', jobCardId);
+  const { data, error } = await q;
+  if (error) { console.error('listInspection', error); return []; }
+  return data || [];
+}
+
+export async function insertInspectionSession(row: InspectionSession): Promise<InspectionSession> {
+  const { data, error } = await supabase.from('prod_inspection').insert(row).select().single();
+  if (error) throw error;
+  return data as InspectionSession;
+}
+
+// ── Dispatches ──────────────────────────────────────────────────────
+export async function listDispatches(): Promise<Dispatch[]> {
+  const { data, error } = await supabase
+    .from('prod_dispatches').select('*').order('dispatch_date', { ascending: false });
+  if (error) { console.error('listDispatches', error); return []; }
+  return data || [];
+}
+
+export async function insertDispatch(row: Dispatch): Promise<Dispatch> {
+  const { data, error } = await supabase.from('prod_dispatches').insert(row).select().single();
+  if (error) throw error;
+  return data as Dispatch;
+}
+
+export async function updateDispatchStatus(id: string, status: string) {
+  const { error } = await supabase
+    .from('prod_dispatches')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ── Dispatch items ──────────────────────────────────────────────────
+export async function listDispatchItems(dispatchId?: string): Promise<DispatchItem[]> {
+  let q = supabase.from('prod_dispatch_items').select('*').order('created_at');
+  if (dispatchId) q = q.eq('dispatch_id', dispatchId);
+  const { data, error } = await q;
+  if (error) { console.error('listDispatchItems', error); return []; }
+  return data || [];
+}
+
+export async function listDispatchItemsForJob(jobCardId: string): Promise<DispatchItem[]> {
+  const { data, error } = await supabase
+    .from('prod_dispatch_items').select('*').eq('job_card_id', jobCardId);
+  if (error) { console.error('listDispatchItemsForJob', error); return []; }
+  return data || [];
+}
+
+export async function insertDispatchItem(row: DispatchItem): Promise<DispatchItem> {
+  const { data, error } = await supabase.from('prod_dispatch_items').insert(row).select().single();
+  if (error) throw error;
+  return data as DispatchItem;
 }
