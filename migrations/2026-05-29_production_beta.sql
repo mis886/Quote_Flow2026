@@ -15,9 +15,13 @@
 
 -- ------------------------------------------------------------
 -- 0. Feature flag on the existing settings singleton
+-- Default TRUE: Production is on. Set FALSE explicitly to disable
+-- the /production workspace in environments where the shop floor
+-- isn't ready yet. Existing rows are NOT migrated — only new rows
+-- get the default.
 -- ------------------------------------------------------------
 ALTER TABLE public.app_settings
-  ADD COLUMN IF NOT EXISTS production_beta_enabled BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS production_beta_enabled BOOLEAN DEFAULT TRUE;
 
 -- ------------------------------------------------------------
 -- 1. Presses (machine master)
@@ -194,6 +198,34 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------
+-- 7b. Realtime — enrol prod_* tables in the supabase_realtime publication
+-- Without this, `useRealtimeTables` subscribes successfully but never
+-- receives change events. Idempotent: tries to add, swallows "already
+-- exists" so re-running the migration is safe.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOR t IN SELECT unnest(ARRAY[
+    'prod_presses', 'prod_workers', 'prod_jobs',
+    'prod_job_stage_events', 'prod_ncrs', 'prod_shop_floor_settings'
+  ]) LOOP
+    BEGIN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    EXCEPTION
+      WHEN duplicate_object THEN
+        -- already in publication, fine
+        NULL;
+      WHEN undefined_object THEN
+        -- publication doesn't exist (self-hosted without realtime extension); skip
+        RAISE NOTICE 'supabase_realtime publication not found — skipping realtime enrolment';
+        EXIT;
+    END;
+  END LOOP;
+END $$;
+
+-- ------------------------------------------------------------
 -- 8. Seed: presses + workers (from the MRT v2 mock)
 --    Idempotent: ON CONFLICT DO NOTHING.
 -- ------------------------------------------------------------
@@ -220,8 +252,11 @@ INSERT INTO public.prod_workers (id, name, role, department, present) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------
--- ROLLBACK (paste into SQL editor to undo, if Beta is abandoned)
+-- ROLLBACK (paste into SQL editor to undo, if Production is abandoned)
 -- ------------------------------------------------------------
+-- ALTER PUBLICATION supabase_realtime DROP TABLE
+--   public.prod_ncrs, public.prod_job_stage_events, public.prod_jobs,
+--   public.prod_workers, public.prod_presses, public.prod_shop_floor_settings;
 -- DROP TABLE IF EXISTS public.prod_ncrs CASCADE;
 -- DROP TABLE IF EXISTS public.prod_job_stage_events CASCADE;
 -- DROP TABLE IF EXISTS public.prod_jobs CASCADE;

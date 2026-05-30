@@ -270,6 +270,7 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
           <DispatchTab
             jobs={stageJobs}
             onConfirmDispatch={(j) => setDispJob(j)}
+            onChanged={refresh}
           />
         )}
       </div>

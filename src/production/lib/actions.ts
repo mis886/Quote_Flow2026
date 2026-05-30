@@ -218,6 +218,39 @@ export async function confirmDispatch(
     `Dispatched via ${payload.courier} · ${onTime ? 'On Time' : 'LATE'}`);
 }
 
+// Revert a fat-fingered dispatch back to Ready, but only within a short
+// undo window. After that the dispatch is considered final — the
+// courier has left, OTD has been counted, and tampering would be a
+// record-keeping hazard.
+export const UNDO_DISPATCH_WINDOW_MIN = 30;
+
+export function canUndoDispatch(job: { stage?: string; dispatched_at?: string | null }): boolean {
+  if (job.stage !== 'dispatched' || !job.dispatched_at) return false;
+  const age = Date.now() - new Date(job.dispatched_at).getTime();
+  return age <= UNDO_DISPATCH_WINDOW_MIN * 60_000;
+}
+
+export async function undoDispatch(jobId: string, reason: string) {
+  const jobs = await listJobs();
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) throw new Error('Job not found');
+  if (!canUndoDispatch(job)) {
+    throw new Error(
+      `Undo window (${UNDO_DISPATCH_WINDOW_MIN} min) has expired. Raise an NCR instead.`
+    );
+  }
+  await updateJob(jobId, {
+    stage: 'dispatch',
+    status: 'ready',
+    otd_result: null,
+    courier: null,
+    consignment_no: null,
+    dispatched_at: null,
+  });
+  await logStageEvent(jobId, 'dispatch', 'dispatched', null,
+    `Dispatch undone${reason ? ` — ${reason}` : ''}`);
+}
+
 // ── Shift Briefing ────────────────────────────────────────────────
 
 export async function toggleWorkerPresence(id: string, present: boolean) {
