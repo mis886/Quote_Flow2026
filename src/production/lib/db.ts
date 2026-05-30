@@ -85,6 +85,32 @@ export async function setWorkerPresent(id: string, present: boolean) {
   if (error) throw error;
 }
 
+export async function insertWorker(w: Worker): Promise<Worker> {
+  const { data, error } = await supabase
+    .from('prod_workers')
+    .insert(w)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Worker;
+}
+
+export async function updateWorker(id: string, patch: Partial<Worker>) {
+  const { error } = await supabase
+    .from('prod_workers')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteWorker(id: string) {
+  const { error } = await supabase
+    .from('prod_workers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ── NCRs ───────────────────────────────────────────────────────────
 export async function listNCRs(): Promise<NCR[]> {
   const { data, error } = await supabase
