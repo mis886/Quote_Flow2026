@@ -1,9 +1,8 @@
 // Module 07 — Log Finishing
 // Append-only. Multi-finisher rows per entry. Log panel on right.
 
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Save, AlertTriangle, ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Save, AlertTriangle, ArrowRight, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listFinishingSessions, insertFinishingSession,
@@ -32,7 +31,6 @@ const newRow = (): FinisherRow => ({
 });
 
 export function LogFinishing() {
-  const navigate  = useNavigate();
   const { jobs }  = useProductionData();
   const { user }  = useAppStore();
 
@@ -40,46 +38,38 @@ export function LogFinishing() {
   const [allIns,  setAllIns]  = useState<InspectionSession[]>([]);
   const [allMld,  setAllMld]  = useState<MoldingSession[]>([]);
   const [saving,  setSaving]  = useState(false);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Form state
   const [jcId,    setJcId]    = useState('');
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
-
-  // Multi-finisher rows
   const [finRows, setFinRows] = useState<FinisherRow[]>([newRow()]);
 
   useEffect(() => {
-    Promise.all([
-      listFinishingSessions(),
-      listInspectionSessions(),
-      listMoldingSessions(),
-    ]).then(([f, i, m]) => { setAllFin(f); setAllIns(i); setAllMld(m); });
+    Promise.all([listFinishingSessions(), listInspectionSessions(), listMoldingSessions()])
+      .then(([f, i, m]) => { setAllFin(f); setAllIns(i); setAllMld(m); });
   }, []);
+
+  useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
   const eligibleJobs = jobs.filter(j =>
     ['moulding', 'finishing', 'inspection', 'dispatch', 'dispatched'].includes(j.stage)
     || allMld.some(m => m.job_card_id === j.id)
   );
 
-  const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
-
+  const selectedJob  = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
   const prevFinished = useMemo(
     () => allFin.filter(f => f.job_card_id === jcId).reduce((a, f) => a + (f.actual_qty || 0), 0),
     [allFin, jcId]
   );
-
-  // Sessions for selected JC (log panel), newest first
-  const jcSessions = useMemo(
-    () => allFin.filter(f => f.job_card_id === jcId)
-           .sort((a, b) => (b.finishing_date || '').localeCompare(a.finishing_date || '') || (b.id || '').localeCompare(a.id || '')),
+  const jcSessions   = useMemo(
+    () => allFin
+      .filter(f => f.job_card_id === jcId)
+      .sort((a, b) => (b.finishing_date || '').localeCompare(a.finishing_date || '') || (b.id || '').localeCompare(a.id || '')),
     [allFin, jcId]
   );
-
-  const reworkQueue = useMemo(
-    () => getReworkQueue(allIns, allFin, jobs),
-    [allIns, allFin, jobs]
-  );
+  const reworkQueue  = useMemo(() => getReworkQueue(allIns, allFin, jobs), [allIns, allFin, jobs]);
 
   const fillRework = (task: ReturnType<typeof getReworkQueue>[0]) => {
     setJcId(task.jcId);
@@ -97,6 +87,12 @@ export function LogFinishing() {
   const newTotal       = prevFinished + totalThisEntry;
   const totalMet       = plannedQty > 0 && newTotal >= plannedQty;
 
+  const showBanner = (ids: string[]) => {
+    setSavedIds(ids);
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => setSavedIds([]), 6000);
+  };
+
   const save = async () => {
     if (!jcId) { alert('Select a Job Card.'); return; }
     const validRows = finRows.filter(r => r.finisherName.trim() && r.actualQty);
@@ -106,7 +102,10 @@ export function LogFinishing() {
     }
     setSaving(true);
     try {
-      const existingIds = allFin.map(f => f.id);
+      const latest = await listFinishingSessions();
+      const existingIds = latest.map(f => f.id);
+      const savedRowIds: string[] = [];
+
       for (const row of validRows) {
         const id = nextFinId(existingIds);
         existingIds.push(id);
@@ -124,8 +123,15 @@ export function LogFinishing() {
           order_id:       selectedJob?.order_id || null,
         };
         await insertFinishingSession(record);
+        savedRowIds.push(id);
       }
-      navigate('/production/log-finishing?saved=1');
+
+      const refreshed = await listFinishingSessions();
+      setAllFin(refreshed);
+
+      setFinRows([newRow()]);
+      setRemarks('');
+      showBanner(savedRowIds);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
     } finally {
@@ -147,13 +153,28 @@ export function LogFinishing() {
         }
       />
 
+      {/* Success banner */}
+      {savedIds.length > 0 && (
+        <div className="mx-4 mt-3 bg-[#E8F5E9] border border-[#C5E1A5] rounded-[3px] px-3 py-2.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+          <CheckCircle2 size={14} className="text-[#107E3E] shrink-0" />
+          <div className="flex-1 text-[11.5px] text-[#107E3E]">
+            <strong>{savedIds.length === 1 ? 'Entry saved' : `${savedIds.length} entries saved`}:</strong>{' '}
+            {savedIds.map((id, i) => (
+              <span key={id} className="font-mono font-bold">{id}{i < savedIds.length - 1 ? ', ' : ''}</span>
+            ))}
+            <span className="ml-2 text-[#107E3E]/70 text-[10.5px]">— visible in the log panel →</span>
+          </div>
+          <button type="button" onClick={() => setSavedIds([])}
+            className="text-[#107E3E]/60 hover:text-[#107E3E] text-[14px] leading-none px-1">×</button>
+        </div>
+      )}
+
       {/* Two-panel layout */}
       <div className="flex-1 overflow-hidden flex gap-3 p-4">
 
         {/* LEFT — form */}
         <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
 
-          {/* Rework queue banner */}
           {reworkQueue.length > 0 && (
             <div className="bg-[#FFF8EC] border border-[#FFE0B2] rounded-[3px] overflow-hidden">
               <div className="px-3 py-2 flex items-center gap-2 border-b border-[#FFE0B2]">
@@ -169,7 +190,7 @@ export function LogFinishing() {
                       <span className="text-[11.5px] font-semibold text-[#111]">{task.jcId}</span>
                       {task.productDesc && <span className="text-[11px] text-[#555] ml-1.5">· {task.productDesc}</span>}
                       <span className="text-[11px] text-[#E9730C] ml-1.5">
-                        · Rework from {task.inspId} · <strong>{task.qty} pcs</strong> need re-finishing
+                        · Rework from {task.inspId} · <strong>{task.qty} pcs</strong>
                       </span>
                     </div>
                     <button type="button" onClick={() => fillRework(task)}
@@ -182,7 +203,6 @@ export function LogFinishing() {
             </div>
           )}
 
-          {/* Job card selector */}
           <Card title="Finishing Entry">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Field label="Job Card *" className="md:col-span-2">
@@ -198,21 +218,20 @@ export function LogFinishing() {
                 <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1]">
                   <strong>{selectedJob.id}</strong> · {selectedJob.product_desc} · {selectedJob.customer_name}
                   · Ordered: <strong>{selectedJob.qty} pcs</strong>
-                  · Previously finished: <strong>{prevFinished} pcs</strong>
+                  · Finished so far: <strong>{prevFinished} pcs</strong>
                 </div>
               )}
 
-              <Field label="Finishing Date" className="md:col-span-1">
+              <Field label="Finishing Date">
                 <input type="date" className={inp} value={date} onChange={e => setDate(e.target.value)} title="Date" />
               </Field>
-              <Field label="Remarks" className="md:col-span-1">
+              <Field label="Shared Remarks">
                 <input className={inp} value={remarks} onChange={e => setRemarks(e.target.value)}
-                  placeholder="Shared remarks for all rows" title="Remarks" />
+                  placeholder="Remarks for all rows" title="Remarks" />
               </Field>
             </div>
           </Card>
 
-          {/* Multi-finisher rows */}
           <Card
             title="Finishers"
             action={
@@ -222,7 +241,6 @@ export function LogFinishing() {
               </button>
             }
           >
-            {/* Header */}
             <div className="grid grid-cols-[2fr_1fr_1fr_80px_32px] gap-2 mb-1.5 px-1">
               {['Finisher Name *', 'Qty Finished *', 'Working Hours', 'Rework?', ''].map((h, i) => (
                 <div key={i} className="text-[9.5px] font-semibold uppercase tracking-wider text-[#555]">{h}</div>
@@ -256,7 +274,6 @@ export function LogFinishing() {
               ))}
             </div>
 
-            {/* Running total */}
             {jcId && totalThisEntry > 0 && (
               <div className={`mt-4 border rounded-[3px] px-3 py-2.5 text-[12px] flex items-center gap-3 ${totalMet ? 'bg-[#E8F5E9] border-[#C5E1A5]' : 'bg-[#E8F0FD] border-[#C2D8F8]'}`}>
                 <span className="text-[#555]">Previously finished:</span>
@@ -276,8 +293,8 @@ export function LogFinishing() {
           </div>
         </div>
 
-        {/* RIGHT — finishing log for selected JC */}
-        <div className="w-[300px] flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
+        {/* RIGHT — finishing log */}
+        <div className="w-[300px] flex-shrink-0 flex flex-col overflow-y-auto">
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] flex-1 min-h-0 flex flex-col">
             <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
               Finishing Log
@@ -289,20 +306,23 @@ export function LogFinishing() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {!jcId ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
-                  Select a Job Card to see finishing history
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
+                  Select a Job Card<br />to see finishing history
                 </div>
               ) : jcSessions.length === 0 ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
                   No finishing entries yet
                 </div>
               ) : (
                 <div className="divide-y divide-[#F0F0F0]">
                   {jcSessions.map(s => (
-                    <div key={s.id} className="px-3 py-2.5 hover:bg-[#FAFAFA]">
+                    <div key={s.id}
+                      className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="font-mono text-[10px] text-[#0A6ED1] font-bold">{s.id}</span>
+                          <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
+                            {savedIds.includes(s.id) && '✓ '}{s.id}
+                          </span>
                           <span className="ml-2 text-[10px] text-[#555]">{s.finishing_date}</span>
                         </div>
                         <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">{s.actual_qty} pcs</span>

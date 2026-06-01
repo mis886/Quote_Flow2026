@@ -11,6 +11,7 @@ import {
   StatusPill, toneForStage, toneForStatus,
 } from '../components/table';
 import { ImportFromOrdersModal } from '../components/ImportFromOrdersModal';
+import { fmtDate } from '../../lib/utils';
 
 type StageTab = 'All' | 'Queued' | 'Moulding' | 'Finishing' | 'Inspection' | 'PDI' | 'Dispatch' | 'Dispatched';
 
@@ -181,7 +182,7 @@ export function JobsList() {
                 <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
                 <TD className="font-mono text-[11px] text-[#666]">{j.lsd || '—'}</TD>
-                <TD className="font-mono text-[11px] text-[#666]">{j.promised_date || '—'}</TD>
+                <TD className="font-mono text-[11px] text-[#666]">{fmtDate(j.promised_date)}</TD>
                 <TD><StatusPill status={j.stage} tone={toneForStage(j.stage)} /></TD>
                 <TD><StatusPill status={j.status} tone={toneForStatus(j.status)} /></TD>
                 <TD className="font-mono text-[11px] text-[#666]">

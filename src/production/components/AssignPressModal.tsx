@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import type { Press, ProductionJob } from '../lib/types';
+import { fmtDate } from '../../lib/utils';
 
 interface Props {
   open: boolean;
@@ -155,7 +156,7 @@ export function AssignPressModal({
                       </div>
                       <div className="text-[10.5px] text-[#333] mt-0.5">
                         {j.customer_name || '—'} · {j.qty.toLocaleString()} pcs ·
-                        {' '}LSD {j.lsd || '—'} · Promised {j.promised_date || '—'}
+                        {' '}LSD {j.lsd || '—'} · Promised {fmtDate(j.promised_date)}
                         {j.mould_code && <> · Mould {j.mould_code}</>}
                       </div>
                     </div>

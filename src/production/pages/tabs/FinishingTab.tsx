@@ -7,6 +7,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
 import type { ProductionJob, Worker, ShopFloorSettings } from '../../lib/types';
+import { fmtDate } from '../../../lib/utils';
 import { setJobQtyDone } from '../../lib/actions';
 import { getJobImpact } from '../../lib/otdImpact';
 
@@ -167,7 +168,7 @@ function FinishingRow({
         />
       </TD>
       <TD className="font-mono text-[11px] text-[#333]">{job.lsd || '—'}</TD>
-      <TD className="font-mono text-[11px] text-[#333]">{job.promised_date || '—'}</TD>
+      <TD className="font-mono text-[11px] text-[#333]">{fmtDate(job.promised_date)}</TD>
       <TD>
         <button
           type="button"

@@ -68,6 +68,16 @@ export function fmtIST(d: Date, pattern: string): string {
   return pattern.replace(/yyyy|yy|MMM|MM|dd|EEE|HH|hh|mm|aa|a|d/g, (m) => (t as any)[m] ?? m);
 }
 
+// Convert ISO date string (YYYY-MM-DD) to display format (dd-MMM-yyyy)
+// e.g. '2026-05-13' → '13-May-2026'
+export function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d).padStart(2, '0')}-${months[m - 1]}-${y}`;
+}
+
 export const calculateAgeHours = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();

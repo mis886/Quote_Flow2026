@@ -24,6 +24,7 @@ import {
 } from '../lib/actions';
 import type { ProductionData } from '../lib/useProductionData';
 import type { ProductionJob } from '../lib/types';
+import { fmtDate } from '../../lib/utils';
 
 export type SequencerTab = 'shift' | 'mould' | 'finish' | 'insp' | 'pdi' | 'dispatch';
 
@@ -202,7 +203,7 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                       <TD className="text-[12px] text-[#111]">{j.customer_name || '—'}</TD>
                       <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
                       <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>
-                      <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
+                      <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>
                       <TD className="font-mono text-[11px]">
                         {j.mould_code || '—'}
                         {j.cavities ? <span className="text-[#333] text-[10px]"> ({j.cavities})</span> : null}

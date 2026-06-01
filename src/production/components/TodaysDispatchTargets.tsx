@@ -10,6 +10,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from './table';
 import type { ProductionJob } from '../lib/types';
+import { fmtDate } from '../../lib/utils';
 
 export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
   const navigate = useNavigate();
@@ -68,7 +69,7 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
               <TD className="font-semibold text-[#111] text-[12.5px]">{j.product_desc}</TD>
               <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-[#666]">{j.promised_date || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#666]">{fmtDate(j.promised_date)}</TD>
               <TD className="text-[12px]">{j.courier || <span className="text-[#555]">—</span>}</TD>
               <TD className="font-mono text-[11px] text-[#666]">
                 {j.consignment_no || <span className="text-[#555]">—</span>}

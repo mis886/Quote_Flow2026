@@ -6,6 +6,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
 import type { ProductionJob, Worker } from '../../lib/types';
+import { fmtDate } from '../../../lib/utils';
 
 interface Props {
   jobs: ProductionJob[];
@@ -59,7 +60,7 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
               <TD className="text-[12px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
               <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>
-              <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>
               <TD className="font-mono text-[11px]">{j.batch_code || '—'}</TD>
               <TD><ResultPill result={j.inspection_result} status={j.status} /></TD>
               <TD>

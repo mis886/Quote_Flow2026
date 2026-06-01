@@ -12,7 +12,7 @@ import {
 } from '../lib/db';
 import { jcStats, deriveJCStatus } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
-import { fmtIST } from '../../lib/utils';
+import { fmtIST, fmtDate } from '../../lib/utils';
 import type {
   MoldingSession, FinishingSession, InspectionSession, DispatchItem,
   Dispatch,
@@ -116,7 +116,7 @@ export function DispatchBoard() {
                     </div>
                   </div>
                   <div className="text-[10px] text-[#555] mt-1">
-                    Promised: <strong className="text-[#111]">{job.promised_date || '—'}</strong>
+                    Promised: <strong className="text-[#111]">{fmtDate(job.promised_date)}</strong>
                     <span className="mx-1.5">·</span>
                     Ordered: {job.qty}
                     <span className="mx-1.5">·</span>

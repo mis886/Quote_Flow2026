@@ -8,7 +8,7 @@ import { Check, Workflow } from 'lucide-react';
 import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from './table';
-import { fmtIST } from '../../lib/utils';
+import { fmtIST, fmtDate } from '../../lib/utils';
 import {
   calcMilestones, stageRAG, currentStagePlan,
   type StageRAGDot,
@@ -165,7 +165,7 @@ export function StageMilestoneTracker({ jobs, settings, actuals }: Props) {
                   </TD>
                 ))}
                 <TD className="font-mono text-[11px] text-[#666]">
-                  {job.promised_date || '—'}
+                  {fmtDate(job.promised_date)}
                 </TD>
               </TR>
             );

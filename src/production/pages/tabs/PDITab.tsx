@@ -5,7 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import {
   Table, THead, TH, TR, TD, EmptyRow,
 } from '../../components/table';
-import { fmtIST } from '../../../lib/utils';
+import { fmtIST, fmtDate } from '../../../lib/utils';
 import type { ProductionJob } from '../../lib/types';
 
 interface Props {
@@ -48,7 +48,7 @@ export function PDITab({ jobs, onApprove }: Props) {
               <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
               <TD className="text-[12px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
-              <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
+              <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>
               <TD className="font-mono text-[11px] text-[#333]">
                 {j.inspection_passed_at ? fmtIST(new Date(j.inspection_passed_at), 'dd MMM HH:mm') : '—'}
               </TD>

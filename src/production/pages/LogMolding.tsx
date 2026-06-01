@@ -2,16 +2,12 @@
 // Append-only. Prefills from last session history or product master.
 // Two-panel: form left, session log right. Multi-operator rows per entry.
 
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Save, Info, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Save, Info, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
-import {
-  listMoldingSessions, insertMoldingSession, listJobs,
-} from '../lib/db';
+import { listMoldingSessions, insertMoldingSession } from '../lib/db';
 import { nextMldId, calcWorkingMinutes } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
-import { fmtIST } from '../../lib/utils';
 import type { MoldingSession } from '../lib/types';
 import { useAppStore } from '../../store';
 
@@ -36,13 +32,14 @@ const newRow = (): OperatorRow => ({
 });
 
 export function LogMolding() {
-  const navigate = useNavigate();
   const { jobs, presses } = useProductionData();
   const { user } = useAppStore();
 
   const [allSessions, setAllSessions] = useState<MoldingSession[]>([]);
   const [saving, setSaving]           = useState(false);
   const [prefillSource, setPrefillSource] = useState<string | null>(null);
+  const [savedIds, setSavedIds]       = useState<string[]>([]);   // flash banner
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form state
   const [jcId, setJcId]               = useState('');
@@ -69,6 +66,9 @@ export function LogMolding() {
     listMoldingSessions().then(setAllSessions);
   }, []);
 
+  // Clean up timer on unmount
+  useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
+
   const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
 
   const prevMolded = useMemo(
@@ -76,10 +76,10 @@ export function LogMolding() {
     [allSessions, jcId]
   );
 
-  // Sessions for selected JC (log panel)
   const jcSessions = useMemo(
-    () => allSessions.filter(s => s.job_card_id === jcId)
-           .sort((a, b) => (b.molding_date || '').localeCompare(a.molding_date || '') || (b.id || '').localeCompare(a.id || '')),
+    () => allSessions
+      .filter(s => s.job_card_id === jcId)
+      .sort((a, b) => (b.molding_date || '').localeCompare(a.molding_date || '') || (b.id || '').localeCompare(a.id || '')),
     [allSessions, jcId]
   );
 
@@ -104,16 +104,21 @@ export function LogMolding() {
   }, [jcId, allSessions, selectedJob]);
 
   const totalThisEntry = opRows.reduce((a, r) => a + (parseInt(r.qtyMolded, 10) || 0), 0);
-  const newTotal    = prevMolded + totalThisEntry;
-  const plannedQty  = selectedJob?.qty || 0;
-  const totalMet    = plannedQty > 0 && newTotal >= plannedQty;
+  const newTotal       = prevMolded + totalThisEntry;
+  const plannedQty     = selectedJob?.qty || 0;
+  const totalMet       = plannedQty > 0 && newTotal >= plannedQty;
 
   const updateRow = (id: number, field: keyof OperatorRow, value: string) => {
     setOpRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
-
-  const addRow = () => setOpRows(rows => [...rows, newRow()]);
+  const addRow    = () => setOpRows(rows => [...rows, newRow()]);
   const removeRow = (id: number) => setOpRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
+
+  const showBanner = (ids: string[]) => {
+    setSavedIds(ids);
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => setSavedIds([]), 6000);
+  };
 
   const save = async () => {
     if (!jcId || !pressNo) {
@@ -127,7 +132,11 @@ export function LogMolding() {
     }
     setSaving(true);
     try {
-      const existingIds = allSessions.map(s => s.id);
+      // Re-fetch latest IDs to avoid collisions
+      const latest = await listMoldingSessions();
+      const existingIds = latest.map(s => s.id);
+      const savedRowIds: string[] = [];
+
       for (const row of validRows) {
         const id = nextMldId(existingIds);
         existingIds.push(id);
@@ -163,8 +172,21 @@ export function LogMolding() {
           our_desc:         selectedJob?.product_desc || null,
         };
         await insertMoldingSession(record);
+        savedRowIds.push(id);
+        latest.unshift(record); // optimistic update
       }
-      navigate('/production/log-molding?saved=1');
+
+      // Refresh log panel with latest from DB
+      const refreshed = await listMoldingSessions();
+      setAllSessions(refreshed);
+
+      // Reset only the variable fields — keep JC, date, press, cure settings
+      setOpRows([newRow()]);
+      setRemarks('');
+      setWtBefore('');
+      setWtAfter('');
+
+      showBanner(savedRowIds);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
     } finally {
@@ -188,13 +210,28 @@ export function LogMolding() {
         }
       />
 
+      {/* Success banner */}
+      {savedIds.length > 0 && (
+        <div className="mx-4 mt-3 bg-[#E8F5E9] border border-[#C5E1A5] rounded-[3px] px-3 py-2.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+          <CheckCircle2 size={14} className="text-[#107E3E] shrink-0" />
+          <div className="flex-1 text-[11.5px] text-[#107E3E]">
+            <strong>{savedIds.length === 1 ? 'Entry saved' : `${savedIds.length} entries saved`}:</strong>{' '}
+            {savedIds.map((id, i) => (
+              <span key={id} className="font-mono font-bold">{id}{i < savedIds.length - 1 ? ', ' : ''}</span>
+            ))}
+            <span className="ml-2 text-[#107E3E]/70 text-[10.5px]">— visible in the log panel →</span>
+          </div>
+          <button type="button" onClick={() => setSavedIds([])}
+            className="text-[#107E3E]/60 hover:text-[#107E3E] text-[14px] leading-none px-1">×</button>
+        </div>
+      )}
+
       {/* Two-panel layout */}
       <div className="flex-1 overflow-hidden flex gap-3 p-4">
 
         {/* LEFT — form */}
         <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
 
-          {/* Section 1: Job Card & Date */}
           <Card title="Job Card & Date">
             <Grid3>
               <Field label="Job Card *">
@@ -221,7 +258,6 @@ export function LogMolding() {
             </Grid3>
           </Card>
 
-          {/* JC info banner */}
           {selectedJob && (
             <div className="bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2.5 flex items-start gap-2">
               <Info size={14} className="text-[#0A6ED1] mt-0.5 flex-shrink-0" />
@@ -234,7 +270,7 @@ export function LogMolding() {
                 <span className="mx-1.5 text-[#0A6ED1]/60">·</span>
                 Ordered: <strong>{selectedJob.qty} pcs</strong>
                 <span className="mx-1.5 text-[#0A6ED1]/60">·</span>
-                Previously molded: <strong>{prevMolded} pcs</strong>
+                Molded so far: <strong>{prevMolded} pcs</strong>
                 {prefillSource && (
                   <span className="ml-3 bg-[#0A6ED1]/10 px-1.5 py-0.5 rounded text-[10px]">
                     Prefilled from: {prefillSource}
@@ -244,7 +280,6 @@ export function LogMolding() {
             </div>
           )}
 
-          {/* Section 2: Press & Die */}
           <Card title="Press & Die Details">
             <Grid3>
               <Field label="Press No *">
@@ -287,7 +322,6 @@ export function LogMolding() {
             </Grid3>
           </Card>
 
-          {/* Section 3: Quantity & Operators (multi-row) */}
           <Card
             title="Quantity & Operator"
             action={
@@ -297,7 +331,6 @@ export function LogMolding() {
               </button>
             }
           >
-            {/* Table header */}
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_32px] gap-2 mb-1.5 px-1">
               {['Operator Name *', 'Qty Molded *', 'Start Time', 'End Time', ''].map((h, i) => (
                 <div key={i} className="text-[9.5px] font-semibold uppercase tracking-wider text-[#555]">{h}</div>
@@ -340,7 +373,6 @@ export function LogMolding() {
               })}
             </div>
 
-            {/* Running total */}
             {jcId && totalThisEntry > 0 && (
               <div className={`mt-4 border rounded-[3px] px-3 py-2.5 text-[12px] flex items-center gap-3 ${totalMet ? 'bg-[#E8F5E9] border-[#C5E1A5]' : 'bg-[#E8F0FD] border-[#C2D8F8]'}`}>
                 <span className="text-[#555]">Previously molded:</span>
@@ -365,7 +397,7 @@ export function LogMolding() {
         </div>
 
         {/* RIGHT — session log for selected JC */}
-        <div className="w-[340px] flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
+        <div className="w-[340px] flex-shrink-0 flex flex-col overflow-y-auto">
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] flex-1 min-h-0 flex flex-col">
             <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
               Molding Log
@@ -377,47 +409,47 @@ export function LogMolding() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {!jcId ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
-                  Select a Job Card to see its molding history
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
+                  Select a Job Card<br />to see its molding history
                 </div>
               ) : jcSessions.length === 0 ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
-                  No molding entries yet for this job card
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
+                  No molding entries yet
                 </div>
               ) : (
                 <div className="divide-y divide-[#F0F0F0]">
-                  {jcSessions.map(s => {
-                    const grpDate = s.molding_date || '—';
-                    return (
-                      <div key={s.id} className="px-3 py-2.5 hover:bg-[#FAFAFA]">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="font-mono text-[10px] text-[#0A6ED1] font-bold">{s.id}</span>
-                            <span className="ml-2 text-[10px] text-[#555]">{grpDate} · Shift {s.shift}</span>
-                          </div>
-                          <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">{s.qty_molded} pcs</span>
+                  {jcSessions.map((s, idx) => (
+                    <div key={s.id}
+                      className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
+                            {savedIds.includes(s.id) && '✓ '}{s.id}
+                          </span>
+                          <span className="ml-2 text-[10px] text-[#555]">{s.molding_date} · Shift {s.shift}</span>
                         </div>
-                        <div className="mt-1 text-[10px] text-[#555] flex gap-3 flex-wrap">
-                          <span>Press: <strong className="text-[#333]">{s.press_no || '—'}</strong></span>
-                          {s.die_no && <span>Die: <strong className="text-[#333]">{s.die_no}</strong></span>}
-                          <span>Op: <strong className="text-[#333]">{s.operator_name || '—'}</strong></span>
-                          {s.operation_type && s.operation_type !== 'Production' && (
-                            <span className="bg-[#FFF3E0] text-[#E9730C] px-1.5 rounded-full font-medium">{s.operation_type}</span>
-                          )}
-                        </div>
-                        {(s.cure_time_min || s.cure_temp_c) && (
-                          <div className="mt-0.5 text-[9.5px] text-[#888]">
-                            {s.cure_time_min && `Cure: ${s.cure_time_min} min`}
-                            {s.cure_temp_c && ` @ ${s.cure_temp_c}°C`}
-                            {s.working_time_min && ` · Working: ${s.working_time_min} min`}
-                          </div>
-                        )}
-                        {s.remarks && (
-                          <div className="mt-0.5 text-[9.5px] text-[#666] italic truncate">{s.remarks}</div>
+                        <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">{s.qty_molded} pcs</span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-[#555] flex gap-3 flex-wrap">
+                        <span>Press: <strong className="text-[#333]">{s.press_no || '—'}</strong></span>
+                        {s.die_no && <span>Die: <strong className="text-[#333]">{s.die_no}</strong></span>}
+                        <span>Op: <strong className="text-[#333]">{s.operator_name || '—'}</strong></span>
+                        {s.operation_type && s.operation_type !== 'Production' && (
+                          <span className="bg-[#FFF3E0] text-[#E9730C] px-1.5 rounded-full font-medium">{s.operation_type}</span>
                         )}
                       </div>
-                    );
-                  })}
+                      {(s.cure_time_min || s.cure_temp_c) && (
+                        <div className="mt-0.5 text-[9.5px] text-[#888]">
+                          {s.cure_time_min && `Cure: ${s.cure_time_min} min`}
+                          {s.cure_temp_c && ` @ ${s.cure_temp_c}°C`}
+                          {s.working_time_min && ` · Working: ${s.working_time_min} min`}
+                        </div>
+                      )}
+                      {s.remarks && (
+                        <div className="mt-0.5 text-[9.5px] text-[#666] italic truncate">{s.remarks}</div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

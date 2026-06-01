@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, Truck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { ProductionJob } from '../lib/types';
+import { fmtDate } from '../../lib/utils';
 
 const COURIERS = ['Blue Dart', 'DTDC', 'Delhivery', 'FedEx', 'Own vehicle'];
 
@@ -86,7 +87,7 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
           <div className="grid grid-cols-2 gap-2 text-[12px]">
             <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5">
               <div className="text-[10px] text-[#333]">Promised Date</div>
-              <div className="text-[#111] font-medium">{job.promised_date || '—'}</div>
+              <div className="text-[#111] font-medium">{fmtDate(job.promised_date)}</div>
             </div>
             <div className={`border rounded-[3px] px-2.5 py-1.5 ${onTime ? 'bg-green-50 border-green-200' : 'bg-[#E8F0FD] border-[#0A6ED1]/30'}`}>
               <div className={`text-[10px] ${onTime ? 'text-green-700' : 'text-[#0A6ED1]'}`}>OTD Verdict</div>

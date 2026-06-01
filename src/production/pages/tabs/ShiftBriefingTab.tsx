@@ -3,12 +3,12 @@
 
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sunrise, Users, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Sunrise, Users, CheckCircle2, XCircle, AlertTriangle, Sun, Moon } from 'lucide-react';
 import type { ProductionData } from '../../lib/useProductionData';
 import { getOTDImpactSummary, getJobImpact } from '../../lib/otdImpact';
 import { toggleWorkerPresence } from '../../lib/actions';
 import { updateShopFloorSettings } from '../../lib/db';
-import { fmtIST } from '../../../lib/utils';
+import { fmtIST, fmtDate } from '../../../lib/utils';
 
 export function ShiftBriefingTab({ data }: { data: ProductionData }) {
   const { workers, jobs, settings, refresh } = data;
@@ -27,9 +27,13 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
   const present = {
     finishing:  workers.filter(w => w.department === 'finishing'  && w.present).length,
     inspection: workers.filter(w => w.department === 'inspection' && w.present).length,
+    pressDay:   workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day' && w.present).length,
+    pressNight: workers.filter(w => w.department === 'press' && w.shift === 'night' && w.present).length,
   };
   const totalF = workers.filter(w => w.department === 'finishing').length;
   const totalI = workers.filter(w => w.department === 'inspection').length;
+  const totalPressDay   = workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day').length;
+  const totalPressNight = workers.filter(w => w.department === 'press' && w.shift === 'night').length;
 
   const hc = {
     finishers:  Math.max(1, present.finishing),
@@ -81,47 +85,40 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
           <div className="text-[11px] text-[#333]">Toggle worker attendance. OTD projections update instantly.</div>
         </div>
         <div className="text-[11px] text-[#111] font-mono text-right">
-          {today} · Day Shift
+          {today}
         </div>
       </div>
 
-      {/* 4 summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <SummaryCard
-          value={present.finishing}
-          label="Finishers Present"
+      {/* 6 summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+        <SummaryCard value={present.finishing}  label="Finishers"
           sub={present.finishing === totalF ? '✓ Full strength' : `${totalF - present.finishing} absent`}
-          accentClass="border-t-[#0A6ED1]"
-          subClass={present.finishing === totalF ? 'text-[#107E3E]' : 'text-[#E9730C]'}
-        />
-        <SummaryCard
-          value={present.inspection}
-          label="Inspectors Present"
+          accentClass="border-t-[#0A6ED1]" subClass={present.finishing === totalF ? 'text-[#107E3E]' : 'text-[#E9730C]'} />
+        <SummaryCard value={present.inspection} label="Inspectors"
           sub={present.inspection === totalI ? '✓ Full strength' : `${totalI - present.inspection} absent`}
-          accentClass="border-t-[#107E3E]"
-          subClass={present.inspection === totalI ? 'text-[#107E3E]' : 'text-[#E9730C]'}
-        />
-        <SummaryCard
-          value={safe}
-          label="Jobs — On Track"
-          sub="Will meet promised date"
-          accentClass="border-t-[#107E3E]"
-          subClass="text-[#107E3E]"
-        />
-        <SummaryCard
-          value={atrisk + breach}
-          label="At Risk / Breach"
+          accentClass="border-t-[#107E3E]" subClass={present.inspection === totalI ? 'text-[#107E3E]' : 'text-[#E9730C]'} />
+        <SummaryCard value={present.pressDay}   label="Press Ops · Day"
+          sub={present.pressDay === totalPressDay ? '✓ Full strength' : `${totalPressDay - present.pressDay} absent`}
+          accentClass="border-t-[#E9730C]" subClass={present.pressDay === totalPressDay ? 'text-[#107E3E]' : 'text-[#E9730C]'}
+          icon={<Sun size={12} className="text-[#E9730C]" />} />
+        <SummaryCard value={present.pressNight} label="Press Ops · Night"
+          sub={present.pressNight === totalPressNight ? '✓ Full strength' : `${totalPressNight - present.pressNight} absent`}
+          accentClass="border-t-[#555]" subClass={present.pressNight === totalPressNight ? 'text-[#107E3E]' : 'text-[#E9730C]'}
+          icon={<Moon size={12} className="text-[#555]" />} />
+        <SummaryCard value={safe}           label="Jobs On Track"
+          sub="Will meet promised date" accentClass="border-t-[#107E3E]" subClass="text-[#107E3E]" />
+        <SummaryCard value={atrisk + breach} label="At Risk / Breach"
           sub={breach > 0 ? `${breach} breach · ${atrisk} at risk` : atrisk > 0 ? `${atrisk} at risk` : 'All on track'}
           accentClass={breach > 0 ? 'border-t-[#BB0000]' : atrisk > 0 ? 'border-t-[#E9730C]' : 'border-t-[#107E3E]'}
           subClass={breach > 0 ? 'text-[#BB0000]' : atrisk > 0 ? 'text-[#E9730C]' : 'text-[#107E3E]'}
-          icon={atrisk + breach > 0 ? <AlertTriangle size={13} /> : undefined}
-        />
+          icon={atrisk + breach > 0 ? <AlertTriangle size={13} /> : undefined} />
       </div>
 
-      {/* Worker rosters + shift config */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Roster dept="finishing"  label="✂ Finishing"  accentColor="border-t-[#0A6ED1]" workers={workers} busyId={busyId} onToggle={toggle} />
-        <Roster dept="inspection" label="🔍 Inspection" accentColor="border-t-[#107E3E]" workers={workers} busyId={busyId} onToggle={toggle} />
+      {/* Worker rosters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Roster dept="finishing"  label="✂ Finishing"      accentColor="border-t-[#0A6ED1]" workers={workers} busyId={busyId} onToggle={toggle} />
+        <Roster dept="inspection" label="🔍 Inspection"     accentColor="border-t-[#107E3E]" workers={workers} busyId={busyId} onToggle={toggle} />
+        <PressRoster workers={workers} busyId={busyId} onToggle={toggle} />
       </div>
 
       {/* Shift config row */}
@@ -231,7 +228,7 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                       {fmtIST(impact.projEnd, 'hh:mm aa, dd MMM')}
                     </td>
                     <td className="px-[10px] py-[7px] font-mono text-[11px] whitespace-nowrap text-[#333]">
-                      {job.promised_date || '—'}
+                      {fmtDate(job.promised_date)}
                     </td>
                     <td className={[
                       'px-[10px] py-[7px] font-mono text-[11px] font-semibold whitespace-nowrap',
@@ -331,6 +328,68 @@ function Roster({
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function PressRoster({ workers, busyId, onToggle }: {
+  workers: ProductionData['workers'];
+  busyId: string | null;
+  onToggle: (id: string, next: boolean) => void;
+}) {
+  const dayList   = workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day');
+  const nightList = workers.filter(w => w.department === 'press' && w.shift === 'night');
+  const hereDay   = dayList.filter(w => w.present).length;
+  const hereNight = nightList.filter(w => w.present).length;
+
+  const renderList = (list: typeof workers, shift: 'day' | 'night') => (
+    <>
+      <div className="px-3 py-1 bg-[#F7F7F7] border-b border-[#F3F3F3] flex items-center gap-1.5">
+        {shift === 'day'
+          ? <><Sun size={9} className="text-[#E9730C]" /><span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#555]">Day</span></>
+          : <><Moon size={9} className="text-[#555]" /><span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#555]">Night</span></>}
+        <span className="text-[9.5px] text-[#888] ml-1">· {list.filter(w => w.present).length}/{list.length}</span>
+      </div>
+      {list.map(w => (
+        <div key={w.id} className={`px-3 py-2 flex items-center gap-3 border-b border-[#F3F3F3] last:border-b-0 ${!w.present ? 'bg-[#FFF1F0]' : ''}`}>
+          <div className="flex-1">
+            <div className="text-[12px] font-medium text-[#111]">{w.name}</div>
+            <div className="text-[10px] text-[#333]">
+              {w.role}{w.press_id && <span className="ml-1 text-[#E9730C]">· {w.press_id}</span>}
+            </div>
+          </div>
+          <button type="button" disabled={busyId === w.id}
+            onClick={() => onToggle(w.id, !w.present)}
+            className={['px-[9px] py-[3px] text-[11px] rounded-[3px] border transition-colors disabled:opacity-50',
+              w.present
+                ? 'bg-[#E8F5E9] border-[#107E3E]/40 text-[#107E3E] hover:bg-[#C5E1A5]/40'
+                : 'bg-[#F5F6F7] border-[#E4E5E6] text-[#333] hover:bg-[#EBEBEB]',
+            ].join(' ')}>
+            {w.present ? 'Present ✓' : 'Absent'}
+          </button>
+        </div>
+      ))}
+    </>
+  );
+
+  return (
+    <div className="bg-white border border-[#E4E5E6] border-t-[3px] border-t-[#E9730C] rounded-[3px]">
+      <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+        <Users size={13} className="text-[#333]" />
+        <div className="text-[12px] font-semibold text-[#111] flex-1">
+          ⚙ Press Operators
+          <span className="ml-2 text-[10px] font-normal text-[#333]">
+            {hereDay + hereNight} of {dayList.length + nightList.length} present
+          </span>
+        </div>
+      </div>
+      <div className="divide-y divide-[#F3F3F3]">
+        {dayList.length > 0 && renderList(dayList, 'day')}
+        {nightList.length > 0 && renderList(nightList, 'night')}
+        {dayList.length === 0 && nightList.length === 0 && (
+          <div className="px-3 py-4 text-[11px] text-[#888] text-center italic">No press operators added.</div>
+        )}
       </div>
     </div>
   );

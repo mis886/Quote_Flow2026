@@ -15,7 +15,7 @@ export type JobStatus =
 
 export type Priority = 'normal' | 'emergency';
 export type PressStatus = 'idle' | 'setup' | 'running' | 'maintenance';
-export type Department = 'finishing' | 'inspection';
+export type Department = 'finishing' | 'inspection' | 'press';
 
 export interface ProductionJob {
   id: string;
@@ -87,6 +87,8 @@ export interface Worker {
   role: string;
   department: Department;
   present: boolean;
+  shift?: 'day' | 'night' | null;      // press operators: day or night shift
+  press_id?: string | null;             // press they operate (press dept only)
   updated_at?: string;
 }
 

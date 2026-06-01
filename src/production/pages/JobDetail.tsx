@@ -12,6 +12,7 @@ import {
   toneForStage, toneForStatus,
 } from '../components/table';
 import type { ProductionJob, JobStageEvent } from '../lib/types';
+import { fmtDate } from '../../lib/utils';
 
 const STAGE_SEQ = ['moulding', 'finishing', 'inspection', 'pdi', 'dispatch'] as const;
 const STAGE_LABEL: Record<string, string> = {
@@ -129,7 +130,7 @@ export function JobDetail() {
             <Field label="Order Date"        value={job.order_start_date || '—'} />
             <Field label="Press No"         value={job.press_id || '—'} />
             <Field label="Total Quantity"   value={job.qty.toLocaleString()} />
-            <Field label="Promised Date"    value={job.promised_date || '—'} accent />
+            <Field label="Promised Date"    value={fmtDate(job.promised_date)} accent />
             <Field label="Priority"         value={job.priority.toUpperCase()} accent={job.priority === 'emergency'} />
           </Grid4>
         </Section>

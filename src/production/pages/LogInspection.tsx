@@ -1,8 +1,7 @@
 // Module 08 — Log Inspection
 // Append-only. Multi-inspector rows with split validator per row. Log panel on right.
 
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Save, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
@@ -44,19 +43,18 @@ const newRow = (): InspectorRow => ({
 });
 
 export function LogInspection() {
-  const navigate = useNavigate();
   const { jobs } = useProductionData();
   const { user } = useAppStore();
 
   const [allIns, setAllIns] = useState<InspectionSession[]>([]);
   const [allFin, setAllFin] = useState<FinishingSession[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [jcId,    setJcId]    = useState('');
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
-
-  // Multi-inspector rows
   const [insRows, setInsRows] = useState<InspectorRow[]>([newRow()]);
 
   useEffect(() => {
@@ -64,31 +62,29 @@ export function LogInspection() {
       .then(([i, f]) => { setAllIns(i); setAllFin(f); });
   }, []);
 
-  const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
+  useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
-  const prevPassed = useMemo(
+  const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
+  const prevPassed  = useMemo(
     () => allIns.filter(i => i.job_card_id === jcId).reduce((a, i) => a + (i.passed || 0), 0),
     [allIns, jcId]
   );
-
-  // Sessions for selected JC (log panel), newest first
-  const jcSessions = useMemo(
-    () => allIns.filter(i => i.job_card_id === jcId)
-           .sort((a, b) => (b.inspection_date || '').localeCompare(a.inspection_date || '') || (b.id || '').localeCompare(a.id || '')),
+  const jcSessions  = useMemo(
+    () => allIns
+      .filter(i => i.job_card_id === jcId)
+      .sort((a, b) => (b.inspection_date || '').localeCompare(a.inspection_date || '') || (b.id || '').localeCompare(a.id || '')),
     [allIns, jcId]
   );
-
   const eligibleJobs = jobs.filter(j =>
     ['finishing', 'inspection', 'dispatch'].includes(j.stage)
     || allFin.some(f => f.job_card_id === j.id)
   );
 
-  const updateRow = (id: number, field: keyof InspectorRow, value: string) => {
+  const updateRow    = (id: number, field: keyof InspectorRow, value: string) => {
     setInsRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
-  const addRow    = () => setInsRows(rows => [...rows, newRow()]);
-  const removeRow = (id: number) => setInsRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
-
+  const addRow       = () => setInsRows(rows => [...rows, newRow()]);
+  const removeRow    = (id: number) => setInsRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
   const appendReason = (rowId: number, reason: string) => {
     setInsRows(rows => rows.map(r => {
       if (r.id !== rowId) return r;
@@ -97,7 +93,6 @@ export function LogInspection() {
     }));
   };
 
-  // Validate each row
   const rowValidations = useMemo(() => {
     const n = (v: string) => parseInt(v, 10) || 0;
     return insRows.map(row => {
@@ -112,6 +107,12 @@ export function LogInspection() {
     return rowValidations[i]?.ok === true;
   });
 
+  const showBanner = (ids: string[]) => {
+    setSavedIds(ids);
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => setSavedIds([]), 6000);
+  };
+
   const save = async () => {
     if (!jcId) { alert('Select a Job Card.'); return; }
     const validRows = insRows.filter(r => r.inspector.trim() && r.qtyToInspect);
@@ -119,18 +120,21 @@ export function LogInspection() {
       alert('Add at least one inspector row with Qty and Inspector Name.');
       return;
     }
-    const badRow = validRows.find((r, i) => {
+    const badIdx = validRows.findIndex(r => {
       const idx = insRows.indexOf(r);
       return rowValidations[idx]?.ok === false;
     });
-    if (badRow) {
-      alert('One or more inspection splits do not balance. Fix before saving.');
+    if (badIdx !== -1) {
+      alert(`Inspector ${badIdx + 1}: split does not balance. Fix before saving.`);
       return;
     }
     setSaving(true);
     try {
       const n = (v: string) => parseInt(v, 10) || 0;
-      const existingIds = allIns.map(i => i.id);
+      const latest = await listInspectionSessions();
+      const existingIds = latest.map(i => i.id);
+      const savedRowIds: string[] = [];
+
       for (const row of validRows) {
         const id  = nextInsId(existingIds);
         existingIds.push(id);
@@ -158,8 +162,15 @@ export function LogInspection() {
           order_id:          selectedJob?.order_id || null,
         };
         await insertInspectionSession(record);
+        savedRowIds.push(id);
       }
-      navigate('/production/log-inspection?saved=1');
+
+      const refreshed = await listInspectionSessions();
+      setAllIns(refreshed);
+
+      setInsRows([newRow()]);
+      setRemarks('');
+      showBanner(savedRowIds);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
     } finally {
@@ -181,13 +192,28 @@ export function LogInspection() {
         }
       />
 
+      {/* Success banner */}
+      {savedIds.length > 0 && (
+        <div className="mx-4 mt-3 bg-[#E8F5E9] border border-[#C5E1A5] rounded-[3px] px-3 py-2.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+          <CheckCircle2 size={14} className="text-[#107E3E] shrink-0" />
+          <div className="flex-1 text-[11.5px] text-[#107E3E]">
+            <strong>{savedIds.length === 1 ? 'Entry saved' : `${savedIds.length} entries saved`}:</strong>{' '}
+            {savedIds.map((id, i) => (
+              <span key={id} className="font-mono font-bold">{id}{i < savedIds.length - 1 ? ', ' : ''}</span>
+            ))}
+            <span className="ml-2 text-[#107E3E]/70 text-[10.5px]">— visible in the log panel →</span>
+          </div>
+          <button type="button" onClick={() => setSavedIds([])}
+            className="text-[#107E3E]/60 hover:text-[#107E3E] text-[14px] leading-none px-1">×</button>
+        </div>
+      )}
+
       {/* Two-panel layout */}
       <div className="flex-1 overflow-hidden flex gap-3 p-4">
 
         {/* LEFT — form */}
         <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
 
-          {/* Job Card + Date */}
           <Card title="Inspection Entry">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Field label="Job Card *" className="md:col-span-2">
@@ -215,7 +241,6 @@ export function LogInspection() {
             </div>
           </Card>
 
-          {/* Multi-inspector rows */}
           <Card
             title="Inspectors & Split"
             action={
@@ -238,7 +263,6 @@ export function LogInspection() {
 
                 return (
                   <div key={row.id} className="border border-[#E4E5E6] rounded-[3px] overflow-hidden">
-                    {/* Row header */}
                     <div className="bg-[#FAFAFA] px-3 py-1.5 border-b border-[#E4E5E6] flex items-center gap-2">
                       <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider flex-1">
                         Inspector {idx + 1}
@@ -252,7 +276,6 @@ export function LogInspection() {
                     </div>
 
                     <div className="p-3 space-y-3">
-                      {/* Inspector + time */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Field label="Inspector Name *" className="md:col-span-2">
                           <input className={inp} value={row.inspector}
@@ -272,7 +295,6 @@ export function LogInspection() {
                         </div>
                       </div>
 
-                      {/* Split */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Field label="Passed ✓">
                           <input type="number" className={`${inp} border-[#107E3E] focus:border-[#107E3E]`}
@@ -296,7 +318,6 @@ export function LogInspection() {
                         </Field>
                       </div>
 
-                      {/* Time */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Field label="Start Time">
                           <input type="time" className={inp} value={row.startTime}
@@ -322,7 +343,6 @@ export function LogInspection() {
                         </Field>
                       </div>
 
-                      {/* Split validator */}
                       {validation !== null && (
                         <div className={`flex items-center gap-2 px-3 py-2 rounded-[3px] border text-[12px] font-semibold ${
                           validation.ok
@@ -360,8 +380,8 @@ export function LogInspection() {
           </div>
         </div>
 
-        {/* RIGHT — inspection log for selected JC */}
-        <div className="w-[300px] flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
+        {/* RIGHT — inspection log */}
+        <div className="w-[300px] flex-shrink-0 flex flex-col overflow-y-auto">
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] flex-1 min-h-0 flex flex-col">
             <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
               Inspection Log
@@ -373,11 +393,11 @@ export function LogInspection() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {!jcId ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
-                  Select a Job Card to see inspection history
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
+                  Select a Job Card<br />to see inspection history
                 </div>
               ) : jcSessions.length === 0 ? (
-                <div className="p-4 text-[11px] text-[#888] text-center">
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
                   No inspection entries yet
                 </div>
               ) : (
@@ -387,10 +407,13 @@ export function LogInspection() {
                       ? Math.round(((s.passed || 0) / s.qty_to_inspect) * 100)
                       : null;
                     return (
-                      <div key={s.id} className="px-3 py-2.5 hover:bg-[#FAFAFA]">
+                      <div key={s.id}
+                        className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <span className="font-mono text-[10px] text-[#0A6ED1] font-bold">{s.id}</span>
+                            <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
+                              {savedIds.includes(s.id) && '✓ '}{s.id}
+                            </span>
                             <span className="ml-2 text-[10px] text-[#555]">{s.inspection_date}</span>
                           </div>
                           {yPct !== null && (

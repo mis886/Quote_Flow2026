@@ -6,7 +6,7 @@ import { Truck, Undo2, Loader2 } from 'lucide-react';
 import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
-import { fmtIST } from '../../../lib/utils';
+import { fmtIST, fmtDate } from '../../../lib/utils';
 import type { ProductionJob } from '../../lib/types';
 import {
   canUndoDispatch, undoDispatch, UNDO_DISPATCH_WINDOW_MIN,
@@ -78,7 +78,7 @@ export function DispatchTab({ jobs, onConfirmDispatch, onChanged }: Props) {
                 <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
                 <TD className="text-[12px]">{j.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
-                <TD className="font-mono text-[11px] text-[#333]">{j.promised_date || '—'}</TD>
+                <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>
                 <TD className="text-[12px]">{j.courier || <span className="text-[#555]">—</span>}</TD>
                 <TD className="font-mono text-[11px] text-[#333]">{j.consignment_no || <span className="text-[#555]">—</span>}</TD>
                 <TD>
