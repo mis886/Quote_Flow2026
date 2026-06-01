@@ -2,10 +2,12 @@
 // Append-only. Multi-inspector rows with split validator per row. Log panel on right.
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Save, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-react';
+import { Save, CheckCircle2, XCircle, Plus, Trash2, Pencil } from 'lucide-react';
+import { SearchableWorkerInput } from '../components/SearchableWorkerInput';
+import { CorrectionModal } from '../components/CorrectionModal';
 import { useProductionData } from '../lib/useProductionData';
 import {
-  listInspectionSessions, insertInspectionSession,
+  listInspectionSessions, insertInspectionSession, updateInspectionSession,
   listFinishingSessions,
 } from '../lib/db';
 import { nextInsId, validateInsSplit, calcWorkingMinutes } from '../lib/jcStats';
@@ -43,7 +45,7 @@ const newRow = (): InspectorRow => ({
 });
 
 export function LogInspection() {
-  const { jobs } = useProductionData();
+  const { jobs, workers } = useProductionData();
   const { user } = useAppStore();
 
   const [allIns, setAllIns] = useState<InspectionSession[]>([]);
@@ -112,6 +114,29 @@ export function LogInspection() {
     if (!r.inspector.trim() || !r.qtyToInspect) return false;
     return rowValidations[i]?.ok === true;
   });
+
+  const [correcting, setCorrecting] = useState<import('../lib/types').InspectionSession | null>(null);
+  const [corrFields, setCorrFields] = useState<{ inspector: string; passed: string; rejected: string; rework: string; scrapped: string }>({ inspector: '', passed: '', rejected: '', rework: '', scrapped: '' });
+
+  const startCorr = (s: import('../lib/types').InspectionSession) => {
+    setCorrecting(s);
+    setCorrFields({ inspector: s.inspector_name, passed: String(s.passed), rejected: String(s.rejected), rework: String(s.rework), scrapped: String(s.scrapped) });
+  };
+
+  const saveCorrection = async (note: string) => {
+    if (!correcting) return;
+    const n = (v: string) => parseInt(v, 10) || 0;
+    await updateInspectionSession(correcting.id, {
+      inspector_name: corrFields.inspector.trim(),
+      passed:   n(corrFields.passed),
+      rejected: n(corrFields.rejected),
+      rework:   n(corrFields.rework),
+      scrapped: n(corrFields.scrapped),
+    }, user?.email, note);
+    const refreshed = await listInspectionSessions();
+    setAllIns(refreshed);
+    setCorrecting(null);
+  };
 
   const showBanner = (ids: string[]) => {
     setSavedIds(ids);
@@ -284,8 +309,9 @@ export function LogInspection() {
                     <div className="p-3 space-y-3">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Field label="Inspector Name *" className="md:col-span-2">
-                          <input className={inp} value={row.inspector}
-                            onChange={e => updateRow(row.id, 'inspector', e.target.value)}
+                          <SearchableWorkerInput value={row.inspector}
+                            onChange={v => updateRow(row.id, 'inspector', v)}
+                            workers={workers} department="inspection"
                             placeholder="Inspector name" title="Inspector name" />
                         </Field>
                         <Field label="Qty to Inspect *">
@@ -415,13 +441,15 @@ export function LogInspection() {
                     return (
                       <div key={s.id}
                         className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="min-w-0">
                             <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
                               {savedIds.includes(s.id) && '✓ '}{s.id}
                             </span>
                             <span className="ml-2 text-[10px] text-[#555]">{s.inspection_date}</span>
+                            {s.corrected_at && <span className="ml-1 text-[9px] bg-[#FFF3E0] text-[#E9730C] px-1 rounded">edited</span>}
                           </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
                           {yPct !== null && (
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                               yPct >= 90 ? 'bg-[#E8F5E9] text-[#107E3E]' :
@@ -431,6 +459,11 @@ export function LogInspection() {
                               {yPct}%
                             </span>
                           )}
+                          <button type="button" onClick={() => startCorr(s)} title="Correct this entry"
+                            className="text-[#555] hover:text-[#0A6ED1] p-0.5 rounded hover:bg-[#E8F0FD] transition-colors">
+                            <Pencil size={10} />
+                          </button>
+                          </div>
                         </div>
                         <div className="mt-1 text-[10px] text-[#555]">
                           <span>Inspector: <strong className="text-[#333]">{s.inspector_name || '—'}</strong></span>
@@ -454,6 +487,26 @@ export function LogInspection() {
           </div>
         </div>
 
+      {correcting && (
+        <CorrectionModal entryId={correcting.id} onClose={() => setCorrecting(null)} onConfirm={saveCorrection}>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Inspector Name</label>
+              <SearchableWorkerInput value={corrFields.inspector} onChange={v => setCorrFields(f => ({ ...f, inspector: v }))}
+                workers={workers} department="inspection" placeholder="Inspector name" title="Inspector name" />
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              {(['passed', 'rejected', 'rework', 'scrapped'] as const).map(field => (
+                <div key={field}>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">{field}</label>
+                  <input type="number" className={inp} value={corrFields[field]} title={field} placeholder="0"
+                    onChange={e => setCorrFields(f => ({ ...f, [field]: e.target.value }))} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </CorrectionModal>
+      )}
       </div>
     </div>
   );

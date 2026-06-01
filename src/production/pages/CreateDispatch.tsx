@@ -1,15 +1,18 @@
 // Module 09 — Create Dispatch
-// Two-panel: form left, dispatch log right. Multi-line per dispatch.
+// Two-panel: form left, dispatch log right.
+// Invoice format: FY/TAX_TYPE/NNNN  e.g. 26-27/SGST/0650
+// Unit-wise: same invoice seq allowed in different units, duplicate blocked within same unit.
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Plus, Trash2, CheckCircle2, Truck } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, Truck, Search } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listMoldingSessions, listFinishingSessions,
   listInspectionSessions, listDispatchItems,
   insertDispatch, insertDispatchItem, listDispatches,
 } from '../lib/db';
+import { AttachmentUploader } from '../components/AttachmentUploader';
 import { jcStats, nextDspId, nextDspItemId } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
 import type {
@@ -20,16 +23,32 @@ import { useAppStore } from '../../store';
 import { fmtDate } from '../../lib/utils';
 
 const TRANSPORT_MODES = ['Road', 'Courier', 'Rail', 'Air', 'Hand Delivery'];
+const UNITS      = ['Unit 1', 'Unit 2'];
+const TAX_TYPES  = ['SGST', 'IGST'];
+
+/** Returns '26-27' for dates in FY 2026-27, etc. */
+function financialYear(isoDate: string): string {
+  const [y, m] = isoDate.split('-').map(Number);
+  const start  = m >= 4 ? y : y - 1;
+  return `${String(start).slice(-2)}-${String(start + 1).slice(-2)}`;
+}
+
+/** Builds the full invoice number from parts */
+function buildInvoiceNo(fy: string, taxType: string, seq: string): string {
+  return `${fy}/${taxType}/${seq.padStart(4, '0')}`;
+}
 
 interface LineRow {
   key: number;
   jcId: string;
   qty: string;
   unit: string;
+  poNo: string;      // prefilled from job's order
+  search: string;    // search box text
 }
 
 let keySeq = 0;
-const mkRow = (): LineRow => ({ key: ++keySeq, jcId: '', qty: '', unit: 'pcs' });
+const mkRow = (): LineRow => ({ key: ++keySeq, jcId: '', qty: '', unit: 'pcs', poNo: '', search: '' });
 
 export function CreateDispatch() {
   const navigate       = useNavigate();
@@ -46,20 +65,22 @@ export function CreateDispatch() {
   const [savedId,    setSavedId]    = useState<string | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Header fields
-  const [invoiceNo,    setInvoiceNo]    = useState('');
-  const [dispDate,     setDispDate]     = useState(new Date().toISOString().slice(0, 10));
-  const [customerName, setCustomerName] = useState('');
-  const [poNo,         setPoNo]         = useState('');
-  const [mode,         setMode]         = useState('Road');
-  const [courier,      setCourier]      = useState('');
-  const [tracking,     setTracking]     = useState('');
-  const [biltyNo,      setBiltyNo]      = useState('');
-  const [biltyDate,    setBiltyDate]    = useState('');
-  const [cartons,      setCartons]      = useState('');
-  const [invoiceValue, setInvoiceValue] = useState('');
-  const [remarks,      setRemarks]      = useState('');
-  const [lines, setLines]              = useState<LineRow[]>([mkRow()]);
+  // ── Invoice header ──
+  const [unitId,        setUnitId]        = useState('Unit 1');
+  const [taxType,       setTaxType]       = useState('SGST');
+  const [invoiceSeq,    setInvoiceSeq]    = useState('');    // 4-digit
+  const [dispDate,      setDispDate]      = useState(new Date().toISOString().slice(0, 10));
+  const [customerName,  setCustomerName]  = useState('');
+  const [mode,          setMode]          = useState('Road');
+  const [courier,       setCourier]       = useState('');
+  const [tracking,      setTracking]      = useState('');
+  const [biltyNo,       setBiltyNo]       = useState('');
+  const [biltyDate,     setBiltyDate]     = useState('');
+  const [cartons,       setCartons]       = useState('');
+  const [invoiceValue,  setInvoiceValue]  = useState('');
+  const [remarks,       setRemarks]       = useState('');
+  const [lines,         setLines]         = useState<LineRow[]>([mkRow()]);
+  const [lineSearchOpen, setLineSearchOpen] = useState<number | null>(null); // key of open dropdown
 
   useEffect(() => {
     Promise.all([
@@ -73,13 +94,27 @@ export function CreateDispatch() {
         const job = jobs.find(j => j.id === preJc);
         if (job) {
           setCustomerName(job.customer_name || '');
-          setLines([{ key: ++keySeq, jcId: preJc, qty: '', unit: 'pcs' }]);
+          setLines([{ key: ++keySeq, jcId: preJc, qty: '', unit: 'pcs', poNo: job.po_no || '', search: `${preJc} · ${job.product_desc}` }]);
         }
       }
     });
   }, []);
 
   useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
+
+  // Computed
+  const fy         = useMemo(() => financialYear(dispDate), [dispDate]);
+  const invoiceNo  = useMemo(() => invoiceSeq ? buildInvoiceNo(fy, taxType, invoiceSeq) : '', [fy, taxType, invoiceSeq]);
+
+  // Duplicate check within same unit
+  const isDuplicate = useMemo(() => {
+    if (!invoiceSeq) return false;
+    return allDisps.some(d =>
+      d.unit_id === unitId &&
+      d.invoice_seq === invoiceSeq.padStart(4, '0') &&
+      d.financial_year === fy
+    );
+  }, [allDisps, unitId, invoiceSeq, fy]);
 
   const readyMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -90,12 +125,9 @@ export function CreateDispatch() {
     return map;
   }, [jobs, molding, finishing, inspection, dispItems]);
 
-  const readyJobs = useMemo(() =>
-    jobs.filter(j => (readyMap[j.id] || 0) > 0),
-    [jobs, readyMap]
-  );
+  const readyJobs = useMemo(() => jobs.filter(j => (readyMap[j.id] || 0) > 0), [jobs, readyMap]);
 
-  // Dispatch log — sorted newest first
+  // Dispatch log sorted newest first
   const recentDisps = useMemo(
     () => [...allDisps].sort((a, b) => (b.dispatch_date || '').localeCompare(a.dispatch_date || '') || (b.id || '').localeCompare(a.id || '')),
     [allDisps]
@@ -104,11 +136,22 @@ export function CreateDispatch() {
   const updateLine = (key: number, patch: Partial<LineRow>) => {
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
   };
-  const removeLine = (key: number) => {
-    setLines(prev => prev.filter(l => l.key !== key));
-  };
+  const removeLine = (key: number) => setLines(prev => prev.length > 1 ? prev.filter(l => l.key !== key) : prev);
 
   const totalQty = lines.reduce((a, l) => a + (parseInt(l.qty, 10) || 0), 0);
+
+  const selectJob = (lineKey: number, jcId: string) => {
+    const job   = jobs.find(j => j.id === jcId);
+    const ready = readyMap[jcId] || 0;
+    updateLine(lineKey, {
+      jcId,
+      qty:    String(ready),
+      poNo:   job?.po_no || '',
+      search: jcId ? `${jcId} · ${job?.product_desc || ''}` : '',
+    });
+    if (job && !customerName) setCustomerName(job.customer_name || '');
+    setLineSearchOpen(null);
+  };
 
   const showBanner = (id: string) => {
     setSavedId(id);
@@ -117,35 +160,36 @@ export function CreateDispatch() {
   };
 
   const save = async () => {
-    if (!invoiceNo.trim() || !customerName.trim()) {
-      alert('Invoice No and Customer are required.');
-      return;
-    }
+    if (!invoiceSeq.trim()) { alert('Enter the invoice sequence number.'); return; }
+    if (isDuplicate) { alert(`Invoice ${invoiceNo} already exists for ${unitId}. Use a different number.`); return; }
+    if (!customerName.trim()) { alert('Customer name is required.'); return; }
     const validLines = lines.filter(l => l.jcId && l.qty);
-    if (validLines.length === 0) {
-      alert('Add at least one job card line with a quantity.');
-      return;
-    }
+    if (validLines.length === 0) { alert('Add at least one job card line with a quantity.'); return; }
     for (const l of validLines) {
       const ready = readyMap[l.jcId] || 0;
       const qty   = parseInt(l.qty, 10) || 0;
-      if (qty <= 0) { alert(`Line ${l.jcId}: qty must be > 0.`); return; }
-      if (qty > ready) { alert(`Line ${l.jcId}: qty (${qty}) exceeds ready pool (${ready} pcs).`); return; }
+      if (qty <= 0) { alert(`${l.jcId}: qty must be > 0.`); return; }
+      if (qty > ready) { alert(`${l.jcId}: qty (${qty}) exceeds ready pool (${ready} pcs).`); return; }
     }
     setSaving(true);
     try {
-      const dspId = nextDspId(allDisps.map(d => d.id));
+      const dspId    = nextDspId(allDisps.map(d => d.id));
+      const seqPad   = invoiceSeq.padStart(4, '0');
       const dsp: Dispatch = {
         id:                   dspId,
-        invoice_no:           invoiceNo.trim(),
+        invoice_no:           buildInvoiceNo(fy, taxType, invoiceSeq),
+        invoice_seq:          seqPad,
+        financial_year:       fy,
+        unit_id:              unitId,
+        tax_type:             taxType,
         dispatch_date:        dispDate,
         customer_name:        customerName.trim(),
-        po_no:                poNo.trim() || null,
+        po_no:                validLines[0]?.poNo?.trim() || null,
         total_qty_dispatched: totalQty,
         mode:                 mode || null,
-        courier_name:         courier.trim() || null,
+        courier_name:         courier.trim()  || null,
         tracking_number:      tracking.trim() || null,
-        bilty_no:             biltyNo.trim() || null,
+        bilty_no:             biltyNo.trim()  || null,
         bilty_date:           biltyDate || null,
         no_of_cartons:        cartons ? parseInt(cartons, 10) : null,
         invoice_value:        invoiceValue ? parseFloat(invoiceValue) : null,
@@ -156,51 +200,50 @@ export function CreateDispatch() {
       await insertDispatch(dsp);
 
       for (let seq = 0; seq < validLines.length; seq++) {
-        const l   = validLines[seq];
-        const job = jobs.find(j => j.id === l.jcId);
-        const orderedQty = job?.qty || null;
-        const prevDisp = dispItems
-          .filter(di => di.job_card_id === l.jcId)
-          .reduce((a, di) => a + (di.qty_dispatched || 0), 0);
-        const remainingQty = orderedQty != null
-          ? orderedQty - prevDisp - (parseInt(l.qty, 10) || 0)
-          : null;
+        const l    = validLines[seq];
+        const job  = jobs.find(j => j.id === l.jcId);
+        const ordQ = job?.qty || null;
+        const prev = dispItems.filter(di => di.job_card_id === l.jcId).reduce((a, di) => a + (di.qty_dispatched || 0), 0);
         const item: DispatchItem = {
           id:            nextDspItemId(seq),
           dispatch_id:   dspId,
           job_card_id:   l.jcId,
           qty_dispatched: parseInt(l.qty, 10),
           unit:          l.unit,
-          ordered_qty:   orderedQty,
-          remaining_qty: remainingQty,
+          ordered_qty:   ordQ,
+          remaining_qty: ordQ != null ? ordQ - prev - (parseInt(l.qty, 10) || 0) : null,
           order_id:      job?.order_id || null,
-          po_no:         poNo.trim() || null,
+          po_no:         l.poNo.trim() || null,
           ordered_item:  job?.product_desc || null,
-          die_no:        job?.mould_code || null,
+          die_no:        job?.mould_code   || null,
           dispatch_date: dispDate,
-          invoice_no:    invoiceNo.trim(),
+          invoice_no:    dsp.invoice_no,
           entered_by:    user?.email || null,
         };
         await insertDispatchItem(item);
       }
 
-      // Refresh log + reset form
       const refreshed = await listDispatches();
       setAllDisps(refreshed);
-      setInvoiceNo('');
+      setInvoiceSeq('');
       setLines([mkRow()]);
-      setTracking('');
-      setBiltyNo('');
-      setBiltyDate('');
-      setCartons('');
-      setInvoiceValue('');
-      setRemarks('');
+      setTracking(''); setBiltyNo(''); setBiltyDate('');
+      setCartons(''); setInvoiceValue(''); setRemarks('');
       showBanner(dspId);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
+  };
+
+  // Searchable job filter per line
+  const lineFilteredJobs = (search: string) => {
+    const t = search.trim().toLowerCase();
+    if (!t) return readyJobs.slice(0, 15);
+    return readyJobs.filter(j =>
+      j.id.toLowerCase().includes(t) ||
+      (j.product_desc || '').toLowerCase().includes(t) ||
+      (j.customer_name || '').toLowerCase().includes(t)
+    ).slice(0, 15);
   };
 
   return (
@@ -210,7 +253,7 @@ export function CreateDispatch() {
         title="Create Dispatch"
         subtitle="One invoice per dispatch. Qty capped to ready pool per job card."
         actions={
-          <button type="button" onClick={save} disabled={saving}
+          <button type="button" onClick={save} disabled={saving || isDuplicate}
             className="inline-flex items-center gap-1.5 bg-[#107E3E] text-white text-[11px] font-medium px-[11px] py-[5px] rounded-[3px] hover:bg-[#0B5C2A] disabled:opacity-40 transition-colors">
             <Save size={13} /> {saving ? 'Saving…' : 'Save Dispatch'}
           </button>
@@ -236,27 +279,93 @@ export function CreateDispatch() {
         {/* LEFT — form */}
         <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
 
-          {/* Invoice & Customer */}
-          <Card title="Invoice & Customer">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Field label="Invoice No *">
-                <input className={inp} value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="INV/26/0042" title="Invoice no" />
-              </Field>
-              <Field label="Dispatch Date *">
-                <input type="date" className={inp} value={dispDate} onChange={e => setDispDate(e.target.value)} title="Date" />
-              </Field>
-              <Field label="Customer *">
-                <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" />
-              </Field>
-              <Field label="PO No">
-                <input className={inp} value={poNo} onChange={e => setPoNo(e.target.value)} placeholder="PO/26/..." title="PO no" />
-              </Field>
+          {/* Invoice number */}
+          <Card title="Invoice">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Unit + Tax type row */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555]">Unit</label>
+                <div className="flex gap-2">
+                  {UNITS.map(u => (
+                    <button key={u} type="button" onClick={() => setUnitId(u)}
+                      className={`flex-1 text-[11.5px] font-medium py-1.5 border rounded-[3px] transition-colors ${
+                        unitId === u ? 'bg-[#0A6ED1] text-white border-[#0A6ED1]' : 'bg-white text-[#555] border-[#E4E5E6] hover:border-[#0A6ED1] hover:text-[#0A6ED1]'
+                      }`}>{u}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555]">Tax Type</label>
+                <div className="flex gap-2">
+                  {TAX_TYPES.map(t => (
+                    <button key={t} type="button" onClick={() => setTaxType(t)}
+                      className={`flex-1 text-[11.5px] font-medium py-1.5 border rounded-[3px] transition-colors ${
+                        taxType === t ? 'bg-[#E9730C] text-white border-[#E9730C]' : 'bg-white text-[#555] border-[#E4E5E6] hover:border-[#E9730C] hover:text-[#E9730C]'
+                      }`}>{t}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Invoice seq + preview */}
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555]">Invoice Number *</label>
+                <div className="flex items-center gap-2">
+                  {/* FY prefix (readonly) */}
+                  <span className="font-mono text-[12px] text-[#555] bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 whitespace-nowrap">
+                    {fy}/{taxType}/
+                  </span>
+                  {/* 4-digit seq */}
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    pattern="[0-9]{1,4}"
+                    className={`w-[80px] font-mono text-[13px] text-[#111] border rounded-[3px] px-2.5 py-1.5 outline-none text-center tracking-widest ${
+                      isDuplicate ? 'border-[#BB0000] bg-[#FFEBEE]' : 'border-[#E4E5E6] focus:border-[#0A6ED1]'
+                    }`}
+                    value={invoiceSeq}
+                    onChange={e => setInvoiceSeq(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="0001"
+                    title="4-digit invoice sequence"
+                  />
+                  {/* Live preview */}
+                  {invoiceNo && (
+                    <span className={`font-mono text-[13px] font-bold px-3 py-1.5 rounded-[3px] ${
+                      isDuplicate ? 'bg-[#FFEBEE] text-[#BB0000] border border-[#FFCDD2]' : 'bg-[#E8F5E9] text-[#107E3E] border border-[#C5E1A5]'
+                    }`}>
+                      {invoiceNo}
+                      {isDuplicate && <span className="ml-2 text-[10px]">⚠ duplicate in {unitId}</span>}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-[#888]">
+                  Same sequence is allowed across different units — duplicate blocked within the same unit.
+                </div>
+              </div>
             </div>
           </Card>
 
-          {/* Transport */}
-          <Card title="Transport Details">
+          {/* Invoice attachment */}
+          <Card title="Invoice Attachment">
+            <AttachmentUploader
+              type="other"
+              shiftDate={dispDate}
+              label="Invoice PDF / Scan"
+              accept=".pdf,.jpg,.jpeg,.png"
+            />
+          </Card>
+
+          {/* Customer & dates */}
+          <Card title="Shipment Details">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="Dispatch Date *">
+                <input type="date" className={inp} value={dispDate} onChange={e => setDispDate(e.target.value)} title="Date" />
+              </Field>
+              <Field label="Customer *" className="md:col-span-2">
+                <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" />
+              </Field>
               <Field label="Transport Mode">
                 <select className={inp} value={mode} onChange={e => setMode(e.target.value)} title="Mode">
                   {TRANSPORT_MODES.map(m => <option key={m}>{m}</option>)}
@@ -274,77 +383,116 @@ export function CreateDispatch() {
               <Field label="Bilty Date">
                 <input type="date" className={inp} value={biltyDate} onChange={e => setBiltyDate(e.target.value)} title="Bilty date" />
               </Field>
-              <Field label="No of Cartons">
-                <input type="number" className={inp} value={cartons} onChange={e => setCartons(e.target.value)} title="Cartons" />
+              <Field label="Cartons">
+                <input type="number" className={inp} value={cartons} onChange={e => setCartons(e.target.value)} title="No of cartons" />
               </Field>
               <Field label="Invoice Value (₹)">
                 <input type="number" step="0.01" className={inp} value={invoiceValue} onChange={e => setInvoiceValue(e.target.value)} title="Value" />
               </Field>
-              <Field label="Remarks" className="md:col-span-2">
+              <Field label="Remarks" className="md:col-span-3">
                 <input className={inp} value={remarks} onChange={e => setRemarks(e.target.value)} title="Remarks" />
               </Field>
             </div>
           </Card>
 
-          {/* Line items */}
+          {/* Line items with searchable job/product dropdown */}
           <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
             <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
               <span className="text-[11px] font-semibold text-[#333] uppercase tracking-wider flex-1">Dispatch Line Items</span>
               <span className="text-[10px] text-[#555]">Total: <strong className="text-[#107E3E]">{totalQty.toLocaleString()} pcs</strong></span>
             </div>
-            <div className="p-3 space-y-2">
-              {lines.map((line, idx) => {
-                const job       = jobs.find(j => j.id === line.jcId);
-                const ready     = line.jcId ? (readyMap[line.jcId] || 0) : 0;
-                const qtyNum    = parseInt(line.qty, 10) || 0;
-                const overLimit = qtyNum > ready && ready > 0;
+            <div className="p-3 space-y-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-[3fr_1fr_1fr_1fr_32px] gap-2">
+                {['Job Card / Product', 'Qty', 'Unit', 'PO No (auto)', ''].map((h, i) => (
+                  <div key={i} className="text-[9.5px] font-semibold uppercase tracking-wider text-[#555]">{h}</div>
+                ))}
+              </div>
+
+              {lines.map(line => {
+                const job    = jobs.find(j => j.id === line.jcId);
+                const ready  = line.jcId ? (readyMap[line.jcId] || 0) : 0;
+                const qtyNum = parseInt(line.qty, 10) || 0;
+                const over   = qtyNum > ready && ready > 0;
+                const filtered = lineFilteredJobs(line.search);
+
                 return (
-                  <div key={line.key} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end">
-                    <div>
-                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Job Card</label>}
-                      <select className={inp} value={line.jcId}
-                        onChange={e => {
-                          const id = e.target.value;
-                          const j  = jobs.find(j2 => j2.id === id);
-                          updateLine(line.key, { jcId: id, qty: String(readyMap[id] || ''), unit: 'pcs' });
-                          if (j && !customerName) setCustomerName(j.customer_name || '');
-                        }}
-                        title="Job card">
-                        <option value="">— Select Job Card (ready only) —</option>
-                        {readyJobs.map(j => (
-                          <option key={j.id} value={j.id}>
-                            {j.id} · {j.product_desc} · Ready: {readyMap[j.id]} pcs
-                          </option>
-                        ))}
-                      </select>
-                      {job && (
-                        <div className="text-[10px] text-[#555] mt-0.5">{job.product_desc} · {job.customer_name}</div>
-                      )}
-                    </div>
-                    <div>
-                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">
-                        Qty{ready > 0 ? ` (max ${ready})` : ''}
-                      </label>}
-                      <input type="number" min={1} max={ready || undefined}
-                        className={`${inp} ${overLimit ? 'border-[#BB0000]' : ''}`}
-                        value={line.qty}
-                        onChange={e => updateLine(line.key, { qty: e.target.value })}
-                        title="Qty to dispatch" />
-                      {overLimit && <div className="text-[10px] text-[#BB0000] mt-0.5">Exceeds ready ({ready})</div>}
-                    </div>
-                    <div>
-                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Unit</label>}
-                      <select className={inp} value={line.unit} onChange={e => updateLine(line.key, { unit: e.target.value })} title="Unit">
+                  <div key={line.key} className="space-y-1">
+                    <div className="grid grid-cols-[3fr_1fr_1fr_1fr_32px] gap-2 items-start">
+                      {/* Searchable job/product picker */}
+                      <div className="relative">
+                        <div className="relative">
+                          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#888]" />
+                          <input
+                            className={`${inp} pl-6`}
+                            value={line.search}
+                            placeholder="Search job ID or product…"
+                            title="Job card"
+                            onChange={e => {
+                              updateLine(line.key, { search: e.target.value, jcId: '', qty: '' });
+                              setLineSearchOpen(line.key);
+                            }}
+                            onFocus={() => setLineSearchOpen(line.key)}
+                            onBlur={() => setTimeout(() => setLineSearchOpen(null), 150)}
+                          />
+                        </div>
+                        {lineSearchOpen === line.key && filtered.length > 0 && (
+                          <div className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-[#E4E5E6] rounded-[3px] shadow-lg max-h-[200px] overflow-y-auto">
+                            {filtered.map(j => (
+                              <button key={j.id} type="button"
+                                onMouseDown={() => selectJob(line.key, j.id)}
+                                className="w-full px-2.5 py-2 text-left hover:bg-[#E8F0FD] transition-colors border-b border-[#F3F3F3] last:border-0">
+                                <div className="text-[11px] font-bold text-[#0A6ED1] font-mono">{j.id}</div>
+                                <div className="text-[10.5px] text-[#333] truncate">{j.product_desc}</div>
+                                <div className="text-[9.5px] text-[#888] flex gap-2">
+                                  <span>{j.customer_name}</span>
+                                  <span className="text-[#107E3E] font-medium">Ready: {readyMap[j.id]} pcs</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {job && (
+                          <div className="mt-0.5 text-[10px] text-[#555] flex gap-2">
+                            <span>{job.product_desc}</span>
+                            {job.mould_code && <span className="text-[#888]">· Die: {job.mould_code}</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Qty */}
+                      <div>
+                        <input type="number" min={1} max={ready || undefined}
+                          className={`${inp} ${over ? 'border-[#BB0000]' : ''}`}
+                          value={line.qty}
+                          onChange={e => updateLine(line.key, { qty: e.target.value })}
+                          title="Qty to dispatch"
+                          placeholder={ready > 0 ? `max ${ready}` : '0'} />
+                        {over && <div className="text-[9.5px] text-[#BB0000] mt-0.5">Exceeds ready ({ready})</div>}
+                      </div>
+
+                      {/* Unit */}
+                      <select className={inp} value={line.unit}
+                        onChange={e => updateLine(line.key, { unit: e.target.value })} title="Unit">
                         {['pcs', 'kg', 'sets', 'nos'].map(u => <option key={u}>{u}</option>)}
                       </select>
+
+                      {/* PO No (prefilled) */}
+                      <input className={inp} value={line.poNo}
+                        onChange={e => updateLine(line.key, { poNo: e.target.value })}
+                        placeholder="Auto from order"
+                        title="PO Number" />
+
+                      {/* Remove */}
+                      <button type="button" onClick={() => removeLine(line.key)} title="Remove line"
+                        className="text-[#BB0000] hover:text-[#8E0000] pt-1">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button type="button" onClick={() => removeLine(line.key)} title="Remove line"
-                      className="text-[#BB0000] hover:text-[#8E0000] pb-0.5">
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 );
               })}
+
               <button type="button" onClick={() => setLines(prev => [...prev, mkRow()])}
                 className="inline-flex items-center gap-1 text-[11px] text-[#0A6ED1] hover:underline mt-1">
                 <Plus size={12} /> Add Job Card Line
@@ -363,22 +511,18 @@ export function CreateDispatch() {
             <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
               <Truck size={12} className="text-[#333]" />
               Dispatch Log
-              <span className="font-normal normal-case text-[10.5px] text-[#555]">
-                — {recentDisps.length} dispatches
-              </span>
+              <span className="font-normal normal-case text-[10.5px] text-[#555]">— {recentDisps.length} dispatches</span>
             </div>
             <div className="flex-1 overflow-y-auto">
               {recentDisps.length === 0 ? (
-                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
-                  No dispatches recorded yet
-                </div>
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">No dispatches yet</div>
               ) : (
                 <div className="divide-y divide-[#F0F0F0]">
                   {recentDisps.map(d => (
                     <div key={d.id}
                       className={`px-3 py-2.5 hover:bg-[#FAFAFA] transition-colors ${savedId === d.id ? 'bg-[#E8F5E9]' : ''}`}>
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <span className={`font-mono text-[10px] font-bold ${savedId === d.id ? 'text-[#107E3E]' : 'text-[#107E3E]'}`}>
                             {savedId === d.id && '✓ '}{d.id}
                           </span>
@@ -388,16 +532,24 @@ export function CreateDispatch() {
                           {(d.total_qty_dispatched || 0).toLocaleString()} pcs
                         </span>
                       </div>
+                      {/* Invoice no with unit/tax badge */}
+                      <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[10.5px] text-[#0A6ED1] font-semibold">{d.invoice_no}</span>
+                        {d.unit_id && (
+                          <span className="text-[9px] bg-[#E8F0FD] text-[#0A6ED1] px-1.5 rounded font-medium">{d.unit_id}</span>
+                        )}
+                        {d.tax_type && (
+                          <span className={`text-[9px] px-1.5 rounded font-medium ${d.tax_type === 'IGST' ? 'bg-[#FFF3E0] text-[#E9730C]' : 'bg-[#E8F5E9] text-[#107E3E]'}`}>
+                            {d.tax_type}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1 text-[10px] text-[#555] space-y-0.5">
-                        <div className="truncate">
-                          <strong className="text-[#333]">{d.customer_name}</strong>
-                          {d.invoice_no && <span className="ml-1.5 text-[#888]">· {d.invoice_no}</span>}
-                        </div>
+                        <div className="truncate font-medium text-[#333]">{d.customer_name}</div>
                         <div className="flex gap-2 flex-wrap text-[9.5px]">
                           {d.mode && <span className="bg-[#F0F0F0] px-1.5 rounded">{d.mode}</span>}
-                          {d.courier_name && <span className="text-[#555]">{d.courier_name}</span>}
+                          {d.courier_name && <span>{d.courier_name}</span>}
                           {d.tracking_number && <span className="text-[#0A6ED1] font-mono">{d.tracking_number}</span>}
-                          {d.bilty_no && <span className="text-[#555]">Bilty: {d.bilty_no}</span>}
                         </div>
                         {d.remarks && (
                           <div className="text-[9.5px] text-[#666] italic truncate">{d.remarks}</div>

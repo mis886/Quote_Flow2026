@@ -65,6 +65,8 @@ export interface ProductionJob {
   finishing_checked_by?: string | null;
   inspection_checked_by?: string | null;
   approved_by?: string | null;
+  po_no?: string | null;
+  type_item_moc?: string | null;
 
   created_at?: string;
   updated_at?: string;
@@ -202,6 +204,9 @@ export interface PdiLog {
   entered_by?: string | null;
   order_id?: string | null;
   created_at?: string;
+  corrected_at?: string | null;
+  corrected_by?: string | null;
+  correction_note?: string | null;
 }
 
 export interface ProdAttachment {
@@ -252,6 +257,9 @@ export interface MoldingSession {
   our_desc?: string | null;
   type_item_moc?: string | null;
   created_at?: string;
+  corrected_at?: string | null;
+  corrected_by?: string | null;
+  correction_note?: string | null;
 }
 
 export interface FinishingSession {
@@ -269,6 +277,9 @@ export interface FinishingSession {
   die_no?: string | null;
   type_item_moc?: string | null;
   created_at?: string;
+  corrected_at?: string | null;
+  corrected_by?: string | null;
+  correction_note?: string | null;
 }
 
 export interface InspectionSession {
@@ -292,13 +303,20 @@ export interface InspectionSession {
   die_no?: string | null;
   type_item_moc?: string | null;
   created_at?: string;
+  corrected_at?: string | null;
+  corrected_by?: string | null;
+  correction_note?: string | null;
 }
 
 export type DispatchStatus = 'Dispatched' | 'In Transit' | 'Delivered' | 'Returned';
 
 export interface Dispatch {
   id: string;                     // DSP-YYYY-NNNNN
-  invoice_no: string;
+  invoice_no: string;             // computed: e.g. '26-27/SGST/0650'
+  invoice_seq?: string | null;    // 4-digit portion user enters, e.g. '0650'
+  financial_year?: string | null; // e.g. '26-27'
+  unit_id?: string | null;        // 'Unit 1' | 'Unit 2'
+  tax_type?: string | null;       // 'SGST' | 'IGST'
   dispatch_date: string;
   customer_name: string;
   po_no?: string | null;

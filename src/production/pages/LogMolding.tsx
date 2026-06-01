@@ -3,14 +3,17 @@
 // Two-panel: form left, session log right. Multi-operator rows per entry.
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Save, Info, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Save, Info, Plus, Trash2, CheckCircle2, Pencil } from 'lucide-react';
 import { AttachmentUploader } from '../components/AttachmentUploader';
+import { SearchableWorkerInput } from '../components/SearchableWorkerInput';
+import { CorrectionModal } from '../components/CorrectionModal';
 import { useProductionData } from '../lib/useProductionData';
-import { listMoldingSessions, insertMoldingSession } from '../lib/db';
+import { listMoldingSessions, insertMoldingSession, updateMoldingSession } from '../lib/db';
 import { nextMldId, calcWorkingMinutes } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
 import type { MoldingSession } from '../lib/types';
 import { useAppStore } from '../../store';
+import { fmtDate } from '../../lib/utils';
 
 const SHIFTS = ['A', 'B', 'C'];
 const OP_TYPES = ['Production', 'Trial', 'Rework'];
@@ -33,7 +36,7 @@ const newRow = (): OperatorRow => ({
 });
 
 export function LogMolding() {
-  const { jobs, presses } = useProductionData();
+  const { jobs, presses, workers } = useProductionData();
   const { user } = useAppStore();
 
   const [allSessions, setAllSessions] = useState<MoldingSession[]>([]);
@@ -204,6 +207,38 @@ export function LogMolding() {
     return m;
   }, [allSessions]);
 
+  // Correction modal state
+  const [correcting, setCorrecting] = useState<MoldingSession | null>(null);
+  const [corrEditRow, setCorrEditRow] = useState<OperatorRow & { mldId: string } | null>(null);
+
+  const startCorrection = (s: MoldingSession) => {
+    setCorrecting(s);
+    setCorrEditRow({
+      id: 0,
+      mldId: s.id,
+      operator: s.operator_name || '',
+      qtyMolded: String(s.qty_molded),
+      startTime: s.start_time || '',
+      endTime: s.end_time || '',
+    });
+  };
+
+  const saveCorrection = async (note: string) => {
+    if (!correcting || !corrEditRow) return;
+    await updateMoldingSession(correcting.id, {
+      operator_name: corrEditRow.operator.trim(),
+      qty_molded:    parseInt(corrEditRow.qtyMolded, 10) || correcting.qty_molded,
+      start_time:    corrEditRow.startTime || null,
+      end_time:      corrEditRow.endTime || null,
+      working_time_min: (corrEditRow.startTime && corrEditRow.endTime)
+        ? calcWorkingMinutes(corrEditRow.startTime, corrEditRow.endTime) : correcting.working_time_min,
+    }, user?.email, note);
+    const refreshed = await listMoldingSessions();
+    setAllSessions(refreshed);
+    setCorrecting(null);
+    setCorrEditRow(null);
+  };
+
   const eligibleJobs = useMemo(() => jobs.filter(j => {
     if (j.stage === 'dispatched') return false;
     if (opType === 'Rework' || opType === 'Trial') {
@@ -365,9 +400,13 @@ export function LogMolding() {
                   : null;
                 return (
                   <div key={row.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_32px] gap-2 items-center">
-                    <input className={inp} value={row.operator}
-                      onChange={e => updateRow(row.id, 'operator', e.target.value)}
-                      placeholder="Operator name" title="Operator name" />
+                    <SearchableWorkerInput
+                      value={row.operator}
+                      onChange={v => updateRow(row.id, 'operator', v)}
+                      workers={workers}
+                      department="press"
+                      placeholder="Operator name" title="Operator name"
+                    />
                     <input type="number" className={inp} value={row.qtyMolded}
                       onChange={e => updateRow(row.id, 'qtyMolded', e.target.value)}
                       placeholder="0" title="Qty molded" />
@@ -423,7 +462,7 @@ export function LogMolding() {
           </Card>
 
           <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
-            Entry is permanent · Corrections require a new entry
+            Entries are permanent · Use ✎ in the log panel to make corrections
           </div>
         </div>
 
@@ -449,17 +488,27 @@ export function LogMolding() {
                 </div>
               ) : (
                 <div className="divide-y divide-[#F0F0F0]">
-                  {jcSessions.map((s, idx) => (
+                  {jcSessions.map(s => (
                     <div key={s.id}
                       className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0">
                           <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
                             {savedIds.includes(s.id) && '✓ '}{s.id}
                           </span>
-                          <span className="ml-2 text-[10px] text-[#555]">{s.molding_date} · Shift {s.shift}</span>
+                          <span className="ml-2 text-[10px] text-[#555]">{fmtDate(s.molding_date)} · Shift {s.shift}</span>
+                          {s.corrected_at && (
+                            <span className="ml-1 text-[9px] bg-[#FFF3E0] text-[#E9730C] px-1 rounded">edited</span>
+                          )}
                         </div>
-                        <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">{s.qty_molded} pcs</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[11px] font-semibold text-[#111]">{s.qty_molded} pcs</span>
+                          <button type="button" onClick={() => startCorrection(s)}
+                            className="text-[#555] hover:text-[#0A6ED1] p-0.5 rounded hover:bg-[#E8F0FD] transition-colors"
+                            title="Correct this entry">
+                            <Pencil size={10} />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-1 text-[10px] text-[#555] flex gap-3 flex-wrap">
                         <span>Press: <strong className="text-[#333]">{s.press_no || '—'}</strong></span>
@@ -469,12 +518,8 @@ export function LogMolding() {
                           <span className="bg-[#FFF3E0] text-[#E9730C] px-1.5 rounded-full font-medium">{s.operation_type}</span>
                         )}
                       </div>
-                      {(s.cure_time_min || s.cure_temp_c) && (
-                        <div className="mt-0.5 text-[9.5px] text-[#888]">
-                          {s.cure_time_min && `Cure: ${s.cure_time_min} min`}
-                          {s.cure_temp_c && ` @ ${s.cure_temp_c}°C`}
-                          {s.working_time_min && ` · Working: ${s.working_time_min} min`}
-                        </div>
+                      {s.correction_note && (
+                        <div className="mt-0.5 text-[9.5px] text-[#E9730C] italic">✎ {s.correction_note}</div>
                       )}
                       {s.remarks && (
                         <div className="mt-0.5 text-[9.5px] text-[#666] italic truncate">{s.remarks}</div>
@@ -488,6 +533,34 @@ export function LogMolding() {
         </div>
 
       </div>
+
+      {/* Correction modal */}
+      {correcting && corrEditRow && (
+        <CorrectionModal entryId={correcting.id} onClose={() => setCorrecting(null)} onConfirm={saveCorrection}>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Operator Name</label>
+              <SearchableWorkerInput value={corrEditRow.operator} onChange={v => setCorrEditRow(r => r ? { ...r, operator: v } : r)}
+                workers={workers} department="press" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Qty Molded</label>
+              <input type="number" className={inp} value={corrEditRow.qtyMolded} title="Qty molded" placeholder="0"
+                onChange={e => setCorrEditRow(r => r ? { ...r, qtyMolded: e.target.value } : r)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Start Time</label>
+              <input type="time" className={inp} value={corrEditRow.startTime} title="Start time"
+                onChange={e => setCorrEditRow(r => r ? { ...r, startTime: e.target.value } : r)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">End Time</label>
+              <input type="time" className={inp} value={corrEditRow.endTime} title="End time"
+                onChange={e => setCorrEditRow(r => r ? { ...r, endTime: e.target.value } : r)} />
+            </div>
+          </div>
+        </CorrectionModal>
+      )}
     </div>
   );
 }

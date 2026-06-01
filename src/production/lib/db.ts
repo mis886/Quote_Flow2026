@@ -267,6 +267,21 @@ export async function insertMoldingSession(row: MoldingSession): Promise<Molding
   return data as MoldingSession;
 }
 
+export async function updateMoldingSession(
+  id: string,
+  patch: Partial<MoldingSession>,
+  correctedBy?: string | null,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_molding').update({
+    ...patch,
+    corrected_at:   new Date().toISOString(),
+    corrected_by:   correctedBy ?? null,
+    correction_note: correctionNote ?? null,
+  }).eq('id', id);
+  if (error) throw error;
+}
+
 // ── Finishing sessions ──────────────────────────────────────────────
 export async function listFinishingSessions(jobCardId?: string): Promise<FinishingSession[]> {
   let q = supabase.from('prod_finishing').select('*').order('created_at', { ascending: false });
@@ -280,6 +295,21 @@ export async function insertFinishingSession(row: FinishingSession): Promise<Fin
   const { data, error } = await supabase.from('prod_finishing').insert(row).select().single();
   if (error) throw error;
   return data as FinishingSession;
+}
+
+export async function updateFinishingSession(
+  id: string,
+  patch: Partial<FinishingSession>,
+  correctedBy?: string | null,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_finishing').update({
+    ...patch,
+    corrected_at: new Date().toISOString(),
+    corrected_by: correctedBy ?? null,
+    correction_note: correctionNote ?? null,
+  }).eq('id', id);
+  if (error) throw error;
 }
 
 // ── Inspection sessions ─────────────────────────────────────────────
@@ -341,6 +371,21 @@ export async function insertDispatchItem(row: DispatchItem): Promise<DispatchIte
   return data as DispatchItem;
 }
 
+export async function updateInspectionSession(
+  id: string,
+  patch: Partial<InspectionSession>,
+  correctedBy?: string | null,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_inspection').update({
+    ...patch,
+    corrected_at: new Date().toISOString(),
+    corrected_by: correctedBy ?? null,
+    correction_note: correctionNote ?? null,
+  }).eq('id', id);
+  if (error) throw error;
+}
+
 // ── PDI Logs ────────────────────────────────────────────────────────────────
 export async function listPdiLogs(jobCardId?: string): Promise<PdiLog[]> {
   let q = supabase.from('prod_pdi_logs').select('*').order('created_at', { ascending: false });
@@ -348,6 +393,21 @@ export async function listPdiLogs(jobCardId?: string): Promise<PdiLog[]> {
   const { data, error } = await q;
   if (error) { console.error('listPdiLogs', error); return []; }
   return data || [];
+}
+
+export async function updatePdiLog(
+  id: string,
+  patch: Partial<PdiLog>,
+  correctedBy?: string | null,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_pdi_logs').update({
+    ...patch,
+    corrected_at: new Date().toISOString(),
+    corrected_by: correctedBy ?? null,
+    correction_note: correctionNote ?? null,
+  }).eq('id', id);
+  if (error) throw error;
 }
 
 export async function insertPdiLog(row: PdiLog): Promise<PdiLog> {

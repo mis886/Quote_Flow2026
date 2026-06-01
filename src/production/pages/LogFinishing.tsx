@@ -2,11 +2,13 @@
 // Append-only. Multi-finisher rows per entry. Log panel on right.
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Save, AlertTriangle, ArrowRight, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Save, AlertTriangle, ArrowRight, Plus, Trash2, CheckCircle2, Pencil } from 'lucide-react';
 import { AttachmentUploader } from '../components/AttachmentUploader';
+import { SearchableWorkerInput } from '../components/SearchableWorkerInput';
+import { CorrectionModal } from '../components/CorrectionModal';
 import { useProductionData } from '../lib/useProductionData';
 import {
-  listFinishingSessions, insertFinishingSession,
+  listFinishingSessions, insertFinishingSession, updateFinishingSession,
   listInspectionSessions, listMoldingSessions,
 } from '../lib/db';
 import { nextFinId, getReworkQueue } from '../lib/jcStats';
@@ -32,7 +34,7 @@ const newRow = (): FinisherRow => ({
 });
 
 export function LogFinishing() {
-  const { jobs }  = useProductionData();
+  const { jobs, workers }  = useProductionData();
   const { user }  = useAppStore();
 
   const [allFin,  setAllFin]  = useState<FinishingSession[]>([]);
@@ -94,6 +96,28 @@ export function LogFinishing() {
   const plannedQty     = selectedJob?.qty || 0;
   const newTotal       = prevFinished + totalThisEntry;
   const totalMet       = plannedQty > 0 && newTotal >= plannedQty;
+
+  // Correction modal state
+  const [correcting, setCorrecting] = useState<import('../lib/types').FinishingSession | null>(null);
+  const [corrFields, setCorrFields] = useState<{ name: string; qty: string; hrs: string; rework: boolean }>({ name: '', qty: '', hrs: '', rework: false });
+
+  const startCorrection = (s: import('../lib/types').FinishingSession) => {
+    setCorrecting(s);
+    setCorrFields({ name: s.finisher_name, qty: String(s.actual_qty), hrs: String(s.working_hours ?? ''), rework: !!s.is_rework });
+  };
+
+  const saveCorrection = async (note: string) => {
+    if (!correcting) return;
+    await updateFinishingSession(correcting.id, {
+      finisher_name: corrFields.name.trim(),
+      actual_qty:    parseInt(corrFields.qty, 10) || correcting.actual_qty,
+      working_hours: corrFields.hrs ? parseFloat(corrFields.hrs) : correcting.working_hours,
+      is_rework:     corrFields.rework,
+    }, user?.email, note);
+    const refreshed = await listFinishingSessions();
+    setAllFin(refreshed);
+    setCorrecting(null);
+  };
 
   const showBanner = (ids: string[]) => {
     setSavedIds(ids);
@@ -258,8 +282,9 @@ export function LogFinishing() {
             <div className="space-y-2">
               {finRows.map(row => (
                 <div key={row.id} className="grid grid-cols-[2fr_1fr_1fr_80px_32px] gap-2 items-center">
-                  <input className={inp} value={row.finisherName}
-                    onChange={e => updateRow(row.id, 'finisherName', e.target.value)}
+                  <SearchableWorkerInput value={row.finisherName}
+                    onChange={v => updateRow(row.id, 'finisherName', v as any)}
+                    workers={workers} department="finishing"
                     placeholder="Finisher name" title="Finisher name" />
                   <input type="number" className={inp} value={row.actualQty}
                     onChange={e => updateRow(row.id, 'actualQty', e.target.value)}
@@ -306,7 +331,7 @@ export function LogFinishing() {
           </Card>
 
           <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
-            Entry is permanent · Corrections require a new entry
+            Entries are permanent · Use ✎ in the log panel to make corrections
           </div>
         </div>
 
@@ -335,14 +360,21 @@ export function LogFinishing() {
                   {jcSessions.map(s => (
                     <div key={s.id}
                       className={`px-3 py-2.5 transition-colors ${savedIds.includes(s.id) ? 'bg-[#E8F5E9]' : 'hover:bg-[#FAFAFA]'}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0">
                           <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
                             {savedIds.includes(s.id) && '✓ '}{s.id}
                           </span>
                           <span className="ml-2 text-[10px] text-[#555]">{s.finishing_date}</span>
+                          {s.corrected_at && <span className="ml-1 text-[9px] bg-[#FFF3E0] text-[#E9730C] px-1 rounded">edited</span>}
                         </div>
-                        <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">{s.actual_qty} pcs</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[11px] font-semibold text-[#111]">{s.actual_qty} pcs</span>
+                          <button type="button" onClick={() => startCorrection(s)} title="Correct this entry"
+                            className="text-[#555] hover:text-[#0A6ED1] p-0.5 rounded hover:bg-[#E8F0FD] transition-colors">
+                            <Pencil size={10} />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-1 text-[10px] text-[#555] flex gap-3 flex-wrap">
                         <span>Finisher: <strong className="text-[#333]">{s.finisher_name || '—'}</strong></span>
@@ -363,6 +395,33 @@ export function LogFinishing() {
         </div>
 
       </div>
+      {correcting && (
+        <CorrectionModal entryId={correcting.id} onClose={() => setCorrecting(null)} onConfirm={saveCorrection}>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Finisher Name</label>
+              <SearchableWorkerInput value={corrFields.name} onChange={v => setCorrFields(f => ({ ...f, name: v }))}
+                workers={workers} department="finishing" placeholder="Finisher name" title="Finisher name" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Actual Qty</label>
+              <input type="number" className={inp} value={corrFields.qty} title="Qty finished" placeholder="0"
+                onChange={e => setCorrFields(f => ({ ...f, qty: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Working Hours</label>
+              <input type="number" step="0.25" className={inp} value={corrFields.hrs} title="Working hours" placeholder="2.5"
+                onChange={e => setCorrFields(f => ({ ...f, hrs: e.target.value }))} />
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" checked={corrFields.rework} title="Is rework"
+                onChange={e => setCorrFields(f => ({ ...f, rework: e.target.checked }))}
+                className="w-3.5 h-3.5 accent-[#E9730C]" />
+              <span className="text-[12px] text-[#333]">Rework</span>
+            </div>
+          </div>
+        </CorrectionModal>
+      )}
     </div>
   );
 }
