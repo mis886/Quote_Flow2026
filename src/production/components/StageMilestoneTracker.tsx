@@ -1,7 +1,6 @@
 // Stage Milestone Tracker — dashboard widget.
-// Each active job → planned start dates for Mould/Finish/Inspect/PDI,
-// RAG-coloured by today vs plan. Mirrors MRT v2 _ms_renderDashboard()
-// milestone grid (lines 3535-3588).
+// Each active job → planned vs actual progress for Mould/Finish/Inspect/PDI,
+// RAG-coloured by today vs plan. Actuals drawn from daily append-only log tables.
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -14,16 +13,40 @@ import {
   calcMilestones, stageRAG, currentStagePlan,
   type StageRAGDot,
 } from '../lib/otdImpact';
-import type { ProductionJob, ShopFloorSettings } from '../lib/types';
+import type { ProductionJob, ShopFloorSettings, MoldingSession, FinishingSession, InspectionSession } from '../lib/types';
 
 const STAGE_SEQ = ['moulding', 'finishing', 'inspection', 'pdi'] as const;
+
+export interface LogActuals {
+  molding: MoldingSession[];
+  finishing: FinishingSession[];
+  inspection: InspectionSession[];
+}
 
 interface Props {
   jobs: ProductionJob[];
   settings: ShopFloorSettings | null;
+  actuals?: LogActuals;
 }
 
-export function StageMilestoneTracker({ jobs, settings }: Props) {
+function jobActuals(jcId: string, actuals: LogActuals, plannedQty: number) {
+  const molded  = actuals.molding.filter(s => s.job_card_id === jcId)
+                    .reduce((a, s) => a + (s.qty_molded || 0), 0);
+  const finished = actuals.finishing.filter(s => s.job_card_id === jcId)
+                    .reduce((a, s) => a + (s.actual_qty || 0), 0);
+  const passed  = actuals.inspection.filter(s => s.job_card_id === jcId)
+                    .reduce((a, s) => a + (s.passed || 0), 0);
+
+  const pct = (n: number) => plannedQty > 0 ? Math.min(100, Math.round((n / plannedQty) * 100)) : null;
+
+  return {
+    molded,  moldedPct:  pct(molded),
+    finished, finishedPct: pct(finished),
+    passed,  passedPct:  pct(passed),
+  };
+}
+
+export function StageMilestoneTracker({ jobs, settings, actuals }: Props) {
   const plannedF = settings?.planned_finishers  ?? 6;
   const plannedI = settings?.planned_inspectors ?? 3;
 
@@ -33,7 +56,8 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
       .map(j => {
         const ms  = calcMilestones(j, plannedF, plannedI);
         const cur = stageRAG(currentStagePlan(j, ms));
-        return { job: j, ms, cur };
+        const act = actuals ? jobActuals(j.id, actuals, j.qty || 0) : null;
+        return { job: j, ms, cur, act };
       })
       .sort((a, b) => {
         const pri: Record<StageRAGDot, number> = { red: 0, amber: 1, green: 2, gray: 3 };
@@ -41,7 +65,7 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
         if (d !== 0) return d;
         return (a.job.promised_date || '').localeCompare(b.job.promised_date || '');
       });
-  }, [jobs, plannedF, plannedI]);
+  }, [jobs, plannedF, plannedI, actuals]);
 
   return (
     <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
@@ -66,17 +90,17 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
             <TH>Job</TH>
             <TH>Product</TH>
             <TH>Stage Now</TH>
-            <TH>🔵 Moulding Start</TH>
-            <TH>🟡 Finishing Start</TH>
-            <TH>🟣 Inspection Start</TH>
-            <TH>🟤 PDI Start</TH>
+            <TH>🔵 Moulding</TH>
+            <TH>🟡 Finishing</TH>
+            <TH>🟣 Inspection</TH>
+            <TH>🟤 PDI</TH>
             <TH>Promised</TH>
           </tr>
         </THead>
         <tbody>
           {rows.length === 0 ? (
             <EmptyRow colSpan={8} text="No active jobs to track." />
-          ) : rows.map(({ job, ms, cur }) => {
+          ) : rows.map(({ job, ms, cur, act }) => {
             const curIdx = STAGE_SEQ.indexOf(job.stage as any);
             const stagePlans = [
               ms?.pmMouldStart,
@@ -84,22 +108,30 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
               ms?.pmInspStart,
               ms?.pmPDIStart,
             ];
+            // Actual progress % per stage
+            const stageActualPcts = [
+              act?.moldedPct ?? null,
+              act?.finishedPct ?? null,
+              act?.passedPct ?? null,
+              null, // PDI — no separate log table yet
+            ];
 
             return (
               <TR key={job.id}>
                 <TD>
                   <div className="flex items-center gap-1.5">
                     <Dot dot={cur.dot} />
-                    <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
+                    <Link to={`/production/jobs/${job.id}`}
+                      className="font-mono text-[10.5px] font-bold text-[#0A6ED1] hover:underline">
                       {job.priority === 'emergency' && <span className="mr-1">🔴</span>}{job.id}
-                    </span>
+                    </Link>
                   </div>
                 </TD>
                 <TD>
-                  <div className="font-semibold text-[#111] text-[12.5px] truncate max-w-[180px]">
+                  <div className="font-semibold text-[#111] text-[12.5px] truncate max-w-[160px]">
                     {job.product_desc}
                   </div>
-                  <div className="text-[10.5px] text-[#333] truncate max-w-[180px]">
+                  <div className="text-[10.5px] text-[#333] truncate max-w-[160px]">
                     {job.customer_name || '—'}
                   </div>
                 </TD>
@@ -112,9 +144,21 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
                     className={idx === curIdx ? 'bg-red-mrt/5' : ''}
                   >
                     {idx < curIdx ? (
-                      <Check size={13} className="text-[#107E3E]" />
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <Check size={13} className="text-[#107E3E]" />
+                          {stageActualPcts[idx] !== null && (
+                            <span className="text-[9.5px] text-[#107E3E] font-medium">{stageActualPcts[idx]}%</span>
+                          )}
+                        </div>
+                      </div>
                     ) : plan ? (
-                      <RAGCell plan={plan} />
+                      <div className="flex flex-col gap-0.5">
+                        <RAGCell plan={plan} />
+                        {stageActualPcts[idx] !== null && (
+                          <ActualBar pct={stageActualPcts[idx]!} isCurrent={idx === curIdx} />
+                        )}
+                      </div>
                     ) : (
                       <span className="text-[#555] text-[10.5px]">No plan</span>
                     )}
@@ -135,7 +179,7 @@ export function StageMilestoneTracker({ jobs, settings }: Props) {
         <span className="flex items-center gap-1.5"><Dot dot="amber" /> Due today / tomorrow</span>
         <span className="flex items-center gap-1.5"><Dot dot="red" /> Milestone missed</span>
         <span className="ml-auto italic text-[#333]">
-          Highlighted = current stage · ✓ = stage complete
+          Highlighted = current stage · ✓ = stage complete · bar = actual progress
         </span>
       </div>
     </div>
@@ -170,6 +214,22 @@ function RAGCell({ plan }: { plan: string }) {
         {fmtIST(new Date(plan), 'dd MMM')}
       </span>
       <span className="text-[9.5px] text-[#555]">{r.label}</span>
+    </div>
+  );
+}
+
+function ActualBar({ pct, isCurrent }: { pct: number; isCurrent: boolean }) {
+  const barColor = pct >= 100
+    ? 'bg-[#107E3E]'
+    : isCurrent
+      ? 'bg-[#0A6ED1]'
+      : 'bg-[#C2D8F8]';
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex-1 h-[4px] bg-[#F0F0F0] rounded-full overflow-hidden min-w-[48px]">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+      <span className={`text-[9.5px] font-medium ${pct >= 100 ? 'text-[#107E3E]' : 'text-[#555]'}`}>{pct}%</span>
     </div>
   );
 }
