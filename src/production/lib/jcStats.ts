@@ -59,14 +59,18 @@ export function deriveJCStatus(
 
 // ── Status colour (stable per stage) ─────────────────────────────────────────
 
-export const JC_STATUS_COLOR: Record<JCDerivedStatus, { bg: string; text: string; border: string }> = {
-  'Pending Molding':     { bg: '#F5F6F7',  text: '#6A6D70', border: '#E4E5E6' },
-  'Molding':             { bg: '#FFF3E0',  text: '#E9730C', border: '#FFE0B2' },
-  'Finishing':           { bg: '#E8F0FD',  text: '#0A6ED1', border: '#C2D8F8' },
-  'Inspection':          { bg: '#F3E8FD',  text: '#7C3AED', border: '#DDD6FE' },
-  'Ready to Dispatch':   { bg: '#E8F5E9',  text: '#107E3E', border: '#C5E1A5' },
-  'Partially Dispatched':{ bg: '#FFEBEE',  text: '#BB0000', border: '#FFCDD2' },
-  'Dispatched':          { bg: '#F5F6F7',  text: '#6A6D70', border: '#E4E5E6' },
+export const JC_STATUS_COLOR: Record<JCDerivedStatus, {
+  bg: string; text: string; border: string;
+  chipCls: string;        // pre-built Tailwind classes for the status chip
+  activeChipCls: string;  // when the chip is selected (filter button)
+}> = {
+  'Pending Molding':     { bg: '#F5F6F7', text: '#6A6D70', border: '#E4E5E6', chipCls: 'bg-[#F5F6F7] text-[#6A6D70] border-[#E4E5E6]', activeChipCls: 'bg-[#6A6D70] text-white border-[#6A6D70]' },
+  'Molding':             { bg: '#FFF3E0', text: '#E9730C', border: '#FFE0B2', chipCls: 'bg-[#FFF3E0] text-[#E9730C] border-[#FFE0B2]', activeChipCls: 'bg-[#E9730C] text-white border-[#E9730C]' },
+  'Finishing':           { bg: '#E8F0FD', text: '#0A6ED1', border: '#C2D8F8', chipCls: 'bg-[#E8F0FD] text-[#0A6ED1] border-[#C2D8F8]', activeChipCls: 'bg-[#0A6ED1] text-white border-[#0A6ED1]' },
+  'Inspection':          { bg: '#F3E8FD', text: '#7C3AED', border: '#DDD6FE', chipCls: 'bg-[#F3E8FD] text-[#7C3AED] border-[#DDD6FE]', activeChipCls: 'bg-[#7C3AED] text-white border-[#7C3AED]' },
+  'Ready to Dispatch':   { bg: '#E8F5E9', text: '#107E3E', border: '#C5E1A5', chipCls: 'bg-[#E8F5E9] text-[#107E3E] border-[#C5E1A5]', activeChipCls: 'bg-[#107E3E] text-white border-[#107E3E]' },
+  'Partially Dispatched':{ bg: '#FFEBEE', text: '#BB0000', border: '#FFCDD2', chipCls: 'bg-[#FFEBEE] text-[#BB0000] border-[#FFCDD2]', activeChipCls: 'bg-[#BB0000] text-white border-[#BB0000]' },
+  'Dispatched':          { bg: '#F5F6F7', text: '#6A6D70', border: '#E4E5E6', chipCls: 'bg-[#F5F6F7] text-[#6A6D70] border-[#E4E5E6]', activeChipCls: 'bg-[#6A6D70] text-white border-[#6A6D70]' },
 };
 
 // ── ID generators — scan existing records, year-prefixed ─────────────────────

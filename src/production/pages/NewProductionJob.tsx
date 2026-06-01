@@ -1,70 +1,107 @@
-// New Production Job — minimal form for Beta vertical slice.
-// Header fields + one-or-more line items. Each line becomes a prod_jobs row.
-//
-// Phase 2 will let the user pick a CRM order to import lines from.
+// New Production Job — v2 design system.
+// Each line item becomes a separate Job Card entering the Moulding queue.
+// "Our Product" searchable dropdown prefills Die, Cavities, Cure, Temp, Compound per line.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, Download } from 'lucide-react';
+import { Plus, Trash2, Download, Save, AlertTriangle, Search, CheckCircle2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { insertJob, logStageEvent, nextJobId } from '../lib/db';
 import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
-import { localDateStr } from '../../lib/utils';
-import type { ProductionJob } from '../lib/types';
+import { localDateStr, fmtDate } from '../../lib/utils';
+import { PageHeader } from '../components/table';
+import type { ProductionJob, Product } from '../lib/types';
 
+// ── Per-line draft ──────────────────────────────────────────────────────────
 interface DraftLine {
-  product_desc: string;
-  qty: string;
-  mould_code: string;
-  cavities: string;
+  product_id:    string;    // selected from product master (optional)
+  product_desc:  string;
+  qty:           string;
+  mould_code:    string;
+  cavities:      string;
   cure_time_min: string;
-  cure_temp_c: string;
+  cure_temp_c:   string;
   compound_code: string;
-  tikli_size: string;
+  tikli_size:    string;
+  productSearch: string;    // text in the search box
 }
 
 const blankLine = (): DraftLine => ({
-  product_desc: '',
-  qty: '',
-  mould_code: '',
-  cavities: '',
+  product_id:    '',
+  product_desc:  '',
+  qty:           '',
+  mould_code:    '',
+  cavities:      '',
   cure_time_min: '',
-  cure_temp_c: '',
+  cure_temp_c:   '',
   compound_code: '',
-  tikli_size: '',
+  tikli_size:    '',
+  productSearch: '',
 });
 
+// ── Component ───────────────────────────────────────────────────────────────
 export function NewProductionJob() {
   const navigate = useNavigate();
-  const { jobs, refresh, loading } = useProductionData();
+  const { jobs, products, compounds, refresh, loading } = useProductionData();
 
-  const [customerName, setCustomerName] = useState('');
-  const [orderRef, setOrderRef]         = useState('');
-  const [importedOrderId, setImportedOrderId] = useState<string | null>(null);
-  const [promised, setPromised]         = useState(localDateStr(new Date(Date.now() + 7 * 86400000)));
-  const [priority, setPriority]         = useState<'normal' | 'emergency'>('normal');
-  const [emergencyReason, setEmergencyReason] = useState('');
-  const [notes, setNotes]               = useState('');
-  const [lines, setLines]               = useState<DraftLine[]>([blankLine()]);
-  const [saving, setSaving]             = useState(false);
-  const [err, setErr]                   = useState<string | null>(null);
+  const [customerName,     setCustomerName]     = useState('');
+  const [orderRef,         setOrderRef]         = useState('');
+  const [importedOrderId,  setImportedOrderId]  = useState<string | null>(null);
+  const [promised,         setPromised]         = useState(localDateStr(new Date(Date.now() + 7 * 86400000)));
+  const [priority,         setPriority]         = useState<'normal' | 'emergency'>('normal');
+  const [emergencyReason,  setEmergencyReason]  = useState('');
+  const [notes,            setNotes]            = useState('');
+  const [lines,            setLines]            = useState<DraftLine[]>([blankLine()]);
+  const [saving,           setSaving]           = useState(false);
+  const [err,              setErr]              = useState<string | null>(null);
+  const [productDropOpen,  setProductDropOpen]  = useState<number | null>(null);
 
-  // Open CRM orders that don't already have a Production Job linked.
-  const [openOrders, setOpenOrders] = useState<CrmOrderLite[]>([]);
+  // CRM open orders
+  const [openOrders,    setOpenOrders]    = useState<CrmOrderLite[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+
   useEffect(() => {
-    (async () => {
-      setLoadingOrders(true);
-      const list = await listOrdersWithoutJobs();
-      setOpenOrders(list);
-      setLoadingOrders(false);
-    })();
+    listOrdersWithoutJobs().then(list => { setOpenOrders(list); setLoadingOrders(false); });
   }, []);
 
   const existingIds = useMemo(() => jobs.map(j => j.id), [jobs]);
 
   useEffect(() => { setErr(null); }, [customerName, lines, promised]);
 
+  // Compound code lookup from compound_id
+  const compoundCodeFor = (compoundId?: string | null): string => {
+    if (!compoundId) return '';
+    return compounds.find(c => c.id === compoundId)?.code || '';
+  };
+
+  // ── Product selection per line ─────────────────────────────────────────────
+  const selectProduct = (lineIdx: number, p: Product) => {
+    setLines(ls => ls.map((l, i) => i !== lineIdx ? l : {
+      ...l,
+      product_id:    p.id,
+      product_desc:  l.product_desc || p.name,   // don't override if already typed
+      mould_code:    p.mould_code    ?? l.mould_code,
+      cavities:      p.cavities      != null ? String(p.cavities)      : l.cavities,
+      cure_time_min: p.cure_time_min != null ? String(p.cure_time_min) : l.cure_time_min,
+      cure_temp_c:   p.cure_temp_c   != null ? String(p.cure_temp_c)   : l.cure_temp_c,
+      compound_code: compoundCodeFor(p.compound_id) || l.compound_code,
+      productSearch: `${p.code} · ${p.name}`,
+    }));
+    setProductDropOpen(null);
+  };
+
+  const filteredProducts = (search: string): Product[] => {
+    const t = search.trim().toLowerCase();
+    const active = products.filter(p => p.is_active !== false);
+    if (!t) return active.slice(0, 12);
+    return active.filter(p =>
+      p.code.toLowerCase().includes(t) ||
+      p.name.toLowerCase().includes(t) ||
+      (p.mould_code || '').toLowerCase().includes(t)
+    ).slice(0, 12);
+  };
+
+  // ── Import from CRM order ──────────────────────────────────────────────────
   const importFromOrder = (orderId: string) => {
     if (!orderId) return;
     const o = openOrders.find(x => x.id === orderId);
@@ -74,28 +111,21 @@ export function NewProductionJob() {
     setOrderRef(o.po_no || o.id);
     if (o.dlv_date) setPromised(o.dlv_date);
     const newLines: DraftLine[] = (o.items || []).map(it => ({
-      product_desc: [it.desc, it.mat].filter(Boolean).join(' · '),
-      qty:          it.qty != null ? String(it.qty) : '',
-      mould_code: '',
-      cavities: '',
-      cure_time_min: '',
-      cure_temp_c: '',
+      ...blankLine(),
+      product_desc:  [it.desc, it.mat].filter(Boolean).join(' · '),
+      qty:           it.qty != null ? String(it.qty) : '',
       compound_code: it.mat || '',
-      tikli_size: '',
     }));
     setLines(newLines.length ? newLines : [blankLine()]);
   };
 
   const clearImport = () => {
-    setImportedOrderId(null);
-    setCustomerName('');
-    setOrderRef('');
-    setLines([blankLine()]);
+    setImportedOrderId(null); setCustomerName(''); setOrderRef(''); setLines([blankLine()]);
   };
 
-  const updateLine = (i: number, patch: Partial<DraftLine>) => {
-    setLines(ls => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  };
+  // ── Line helpers ───────────────────────────────────────────────────────────
+  const updateLine = (i: number, patch: Partial<DraftLine>) =>
+    setLines(ls => ls.map((l, idx) => idx === i ? { ...l, ...patch } : l));
   const addLine    = () => setLines(ls => [...ls, blankLine()]);
   const removeLine = (i: number) => setLines(ls => ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls);
 
@@ -105,40 +135,42 @@ export function NewProductionJob() {
     lines.every(l => l.product_desc.trim() && Number(l.qty) > 0) &&
     (priority !== 'emergency' || emergencyReason.trim().length > 0);
 
+  // ── Save ───────────────────────────────────────────────────────────────────
   const save = async () => {
     if (!canSave) {
-      setErr('Customer name, promised date, and product/qty per line are required. Emergency requires a reason.');
+      setErr('Customer name, promised date, and product/qty per line are required.');
       return;
     }
     setSaving(true);
     try {
       const ids = [...existingIds];
       for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
+        const l  = lines[i];
         const id = nextJobId(ids);
         ids.push(id);
         const job: ProductionJob = {
           id,
-          order_id: importedOrderId || orderRef || null,
-          order_line_seq: i + 1,
-          customer_name: customerName.trim(),
-          product_desc: l.product_desc.trim(),
-          qty: Number(l.qty),
-          qty_to_mould: Number(l.qty),
-          qty_done: 0,
-          promised_date: promised,
+          order_id:         importedOrderId || orderRef || null,
+          order_line_seq:   i + 1,
+          customer_name:    customerName.trim(),
+          product_desc:     l.product_desc.trim(),
+          qty:              Number(l.qty),
+          qty_to_mould:     Number(l.qty),
+          qty_done:         0,
+          promised_date:    promised,
           priority,
           emergency_reason: priority === 'emergency' ? emergencyReason.trim() : null,
-          notes: notes.trim() || null,
-          stage: 'moulding',
-          status: 'queued',
-          mould_code: l.mould_code.trim() || null,
-          cavities: l.cavities ? Number(l.cavities) : null,
-          cure_time_min: l.cure_time_min ? Number(l.cure_time_min) : null,
-          cure_temp_c: l.cure_temp_c ? Number(l.cure_temp_c) : null,
-          compound_code: l.compound_code.trim() || null,
-          tikli_size: l.tikli_size.trim() || null,
-          job_card_no: `JC${id.split('-').pop()}`,
+          notes:            notes.trim() || null,
+          stage:            'moulding',
+          status:           'queued',
+          mould_code:       l.mould_code.trim()    || null,
+          cavities:         l.cavities             ? Number(l.cavities)      : null,
+          cure_time_min:    l.cure_time_min        ? Number(l.cure_time_min) : null,
+          cure_temp_c:      l.cure_temp_c          ? Number(l.cure_temp_c)   : null,
+          compound_code:    l.compound_code.trim() || null,
+          tikli_size:       l.tikli_size.trim()    || null,
+          job_card_no:      `JC${id.split('-').pop()}`,
+          po_no:            orderRef.trim() || null,
         };
         await insertJob(job);
         await logStageEvent(id, 'moulding', null, null, 'Job created');
@@ -151,246 +183,281 @@ export function NewProductionJob() {
     }
   };
 
-  if (loading) {
-    return <div className="p-6 text-[12px] text-[#333]">Loading…</div>;
-  }
-
-  const input = 'w-full font-sans text-[13px] text-[#111] bg-white border border-[#CCC] rounded-[3px] px-2.5 py-2 outline-none focus:border-[#0A6ED1] focus:ring-[3px] focus:ring-red-lt';
-  const lbl   = 'block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1';
+  if (loading) return <div className="p-6 text-[12px] text-[#333]">Loading…</div>;
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1100px]">
-      <button
-        onClick={() => navigate('/production')}
-        className="flex items-center gap-1 text-[12px] text-[#0A6ED1] hover:underline mb-3"
-      >
-        <ArrowLeft size={13} /> Back to Production
-      </button>
-
-      <h1 className="text-[18px] font-semibold text-[#111] mb-1">New Production Job</h1>
-      <p className="text-[12px] text-[#333] mb-4">
-        One row per line item. Each line becomes a separate Job Card and enters the Moulding queue.
-      </p>
-
-      {/* Import from open CRM Order */}
-      <div className="bg-blue-50 border border-blue-200 rounded-[3px] p-3 mb-3 flex items-center gap-2 flex-wrap">
-        <Download size={14} className="text-blue-700 shrink-0" />
-        <span className="text-[12px] font-semibold text-blue-900">
-          Import from open Order
-        </span>
-        <select
-          title="Pick an open CRM order to autofill customer + lines"
-          className="flex-1 min-w-[240px] font-sans text-[12.5px] text-[#111] bg-white border border-blue-200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-          value={importedOrderId || ''}
-          onChange={e => importFromOrder(e.target.value)}
-          disabled={loadingOrders}
-        >
-          <option value="">
-            {loadingOrders
-              ? 'Loading open orders…'
-              : openOrders.length === 0
-              ? 'No open orders without jobs'
-              : '— Select an open Order —'}
-          </option>
-          {openOrders.map(o => {
-            const lineCount = (o.items || []).length;
-            const totalQty = (o.items || []).reduce((s, i) => s + (i.qty || 0), 0);
-            return (
-              <option key={o.id} value={o.id}>
-                {o.po_no || o.id} · {o.cust || '—'} · {lineCount} line{lineCount === 1 ? '' : 's'} · {totalQty.toLocaleString()} pcs
-                {o.dlv_date ? ` · due ${o.dlv_date}` : ''}
-              </option>
-            );
-          })}
-        </select>
-        {importedOrderId && (
-          <button
-            type="button"
-            onClick={clearImport}
-            className="text-[11px] text-blue-700 border border-blue-300 rounded px-2 py-1 hover:bg-blue-100"
-          >
-            Clear & enter manually
+    <div className="flex flex-col h-full">
+      <PageHeader
+        module="Production · New"
+        title="New Production Job"
+        subtitle="One line per product — each becomes a separate Job Card in the Moulding queue."
+        actions={
+          <button type="button" onClick={save} disabled={!canSave || saving}
+            className="inline-flex items-center gap-1.5 bg-[#0A6ED1] text-white text-[11px] font-medium px-[11px] py-[5px] rounded-[3px] hover:bg-[#085EA8] disabled:opacity-40 transition-colors">
+            <Save size={13} /> {saving ? 'Saving…' : 'Save & Send to Moulding'}
           </button>
-        )}
-      </div>
-      {importedOrderId && (
-        <div className="text-[11px] text-[#666] mb-3 -mt-1.5">
-          Imported from CRM Order <code className="bg-[#FAFAFA] px-1 rounded">{orderRef}</code>.
-          Fill in Mould / Cavities / Cure per line below — these aren't on the CRM order.
-        </div>
-      )}
+        }
+      />
 
-      {/* Header */}
-      <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-4 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className={lbl}>Customer / Party <span className="text-[#0A6ED1]">*</span></label>
-          <input
-            className={input}
-            value={customerName}
-            onChange={e => setCustomerName(e.target.value)}
-            placeholder="e.g. Varalka Engineers Pvt Ltd"
-          />
-        </div>
-        <div>
-          <label className={lbl}>Customer PO / Reference</label>
-          <input
-            className={input}
-            value={orderRef}
-            onChange={e => setOrderRef(e.target.value)}
-            placeholder="e.g. Dom2627/7059"
-          />
-        </div>
-        <div>
-          <label className={lbl}>Promised Date <span className="text-[#0A6ED1]">*</span></label>
-          <input type="date" className={input} value={promised} onChange={e => setPromised(e.target.value)} />
-        </div>
-        <div>
-          <label className={lbl}>Priority</label>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-[1100px]">
+
+        {/* Import from CRM order */}
+        <div className="bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2.5 flex items-center gap-2 flex-wrap">
+          <Download size={13} className="text-[#0A6ED1] shrink-0" />
+          <span className="text-[11.5px] font-semibold text-[#0A6ED1]">Import from open CRM Order</span>
           <select
-            className={input}
-            value={priority}
-            onChange={e => setPriority(e.target.value as any)}
+            title="Pick an open CRM order"
+            className={`${inp} flex-1 min-w-[240px]`}
+            value={importedOrderId || ''}
+            onChange={e => importFromOrder(e.target.value)}
+            disabled={loadingOrders}
           >
-            <option value="normal">Normal</option>
-            <option value="emergency">🔴 Emergency</option>
+            <option value="">
+              {loadingOrders ? 'Loading orders…' : openOrders.length === 0 ? 'No open orders without jobs' : '— Select an open Order —'}
+            </option>
+            {openOrders.map(o => {
+              const lc  = (o.items || []).length;
+              const tq  = (o.items || []).reduce((s, i) => s + (i.qty || 0), 0);
+              return (
+                <option key={o.id} value={o.id}>
+                  {o.po_no || o.id} · {o.cust || '—'} · {lc} line{lc !== 1 ? 's' : ''} · {tq.toLocaleString()} pcs
+                  {o.dlv_date ? ` · due ${fmtDate(o.dlv_date)}` : ''}
+                </option>
+              );
+            })}
           </select>
+          {importedOrderId && (
+            <button type="button" onClick={clearImport}
+              className="text-[11px] text-[#0A6ED1] border border-[#C2D8F8] rounded-[3px] px-2 py-1 hover:bg-[#C2D8F8] transition-colors">
+              Clear import
+            </button>
+          )}
         </div>
-        {priority === 'emergency' && (
-          <div className="md:col-span-2">
-            <label className={lbl}>Emergency Reason <span className="text-[#0A6ED1]">*</span></label>
-            <input
-              className={input}
-              value={emergencyReason}
-              onChange={e => setEmergencyReason(e.target.value)}
-              placeholder="e.g. Plant shutdown risk, site commissioning…"
-            />
+        {importedOrderId && (
+          <div className="flex items-center gap-1.5 text-[11px] text-[#555] -mt-1">
+            <CheckCircle2 size={11} className="text-[#107E3E]" />
+            Imported from order <span className="font-mono bg-[#FAFAFA] border border-[#E4E5E6] px-1.5 rounded">{orderRef}</span> — fill in Mould / Cavities / Cure per line below.
           </div>
         )}
-        <div className="md:col-span-2">
-          <label className={lbl}>Internal Notes</label>
-          <input className={input} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional remarks…" />
-        </div>
-      </div>
 
-      {/* Lines */}
-      <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
-        <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[11px] font-mono font-bold tracking-wider uppercase text-[#333]">
-            Line Items
-            <span className="ml-2 font-normal text-[#555] normal-case tracking-normal">
-              one production job per line
-            </span>
+        {/* Header card */}
+        <Card title="Job Details">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field label="Customer / Party *">
+              <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)}
+                placeholder="e.g. Varalka Engineers Pvt Ltd" title="Customer name" />
+            </Field>
+            <Field label="Customer PO / Reference">
+              <input className={inp} value={orderRef} onChange={e => setOrderRef(e.target.value)}
+                placeholder="e.g. Dom2627/7059" title="PO reference" />
+            </Field>
+            <Field label="Promised Date *">
+              <input type="date" className={inp} value={promised} onChange={e => setPromised(e.target.value)}
+                title="Promised date" />
+            </Field>
+            <Field label="Priority">
+              <select className={inp} value={priority} onChange={e => setPriority(e.target.value as any)} title="Priority">
+                <option value="normal">Normal</option>
+                <option value="emergency">🔴 Emergency</option>
+              </select>
+            </Field>
+            {priority === 'emergency' && (
+              <Field label="Emergency Reason *" className="md:col-span-2">
+                <input className={`${inp} border-[#BB0000] focus:border-[#BB0000]`}
+                  value={emergencyReason} onChange={e => setEmergencyReason(e.target.value)}
+                  placeholder="e.g. Plant shutdown risk…" title="Emergency reason" />
+              </Field>
+            )}
+            <Field label="Internal Notes" className={priority === 'emergency' ? '' : 'md:col-span-2'}>
+              <input className={inp} value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder="Optional remarks" title="Notes" />
+            </Field>
           </div>
-          <button
-            onClick={addLine}
-            className="text-[11px] text-[#0A6ED1] border border-[#0A6ED1]/30 rounded px-2 py-1 hover:bg-[#E8F0FD] flex items-center gap-1"
-          >
-            <Plus size={12} /> Add Line
-          </button>
-        </div>
+        </Card>
 
-        <div className="divide-y divide-[#F3F3F3]">
-          {lines.map((l, i) => (
-            <div key={i} className="p-3 grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-12 md:col-span-4">
-                <label className={lbl}>Product Description <span className="text-[#0A6ED1]">*</span></label>
-                <input
-                  className={input}
-                  value={l.product_desc}
-                  onChange={e => updateLine(i, { product_desc: e.target.value })}
-                  placeholder="e.g. PHE Gasket M10 EPDM"
-                />
-              </div>
-              <div className="col-span-6 md:col-span-1">
-                <label className={lbl}>Qty <span className="text-[#0A6ED1]">*</span></label>
-                <input
-                  type="number"
-                  className={input}
-                  value={l.qty}
-                  onChange={e => updateLine(i, { qty: e.target.value })}
-                />
-              </div>
-              <div className="col-span-6 md:col-span-2">
-                <label className={lbl}>Die / Mould</label>
-                <input
-                  className={input}
-                  value={l.mould_code}
-                  onChange={e => updateLine(i, { mould_code: e.target.value })}
-                  placeholder="e.g. 551/1100"
-                />
-              </div>
-              <div className="col-span-3 md:col-span-1">
-                <label className={lbl}>Cav</label>
-                <input
-                  type="number"
-                  className={input}
-                  value={l.cavities}
-                  onChange={e => updateLine(i, { cavities: e.target.value })}
-                />
-              </div>
-              <div className="col-span-3 md:col-span-1">
-                <label className={lbl}>Cure (m)</label>
-                <input
-                  type="number"
-                  className={input}
-                  value={l.cure_time_min}
-                  onChange={e => updateLine(i, { cure_time_min: e.target.value })}
-                />
-              </div>
-              <div className="col-span-3 md:col-span-1">
-                <label className={lbl}>Temp (°C)</label>
-                <input
-                  type="number"
-                  className={input}
-                  value={l.cure_temp_c}
-                  onChange={e => updateLine(i, { cure_temp_c: e.target.value })}
-                />
-              </div>
-              <div className="col-span-3 md:col-span-2">
-                <label className={lbl}>Compound</label>
-                <input
-                  className={input}
-                  value={l.compound_code}
-                  onChange={e => updateLine(i, { compound_code: e.target.value })}
-                  placeholder="GCH_M6M_NBR"
-                />
-              </div>
-              <div className="col-span-12 flex items-center justify-end">
+        {/* Priority banner */}
+        {priority === 'emergency' && (
+          <div className="bg-[#FFF1F0] border border-[#FFCDD2] rounded-[3px] px-3 py-2 flex items-center gap-2 text-[12px] text-[#BB0000]">
+            <AlertTriangle size={13} className="shrink-0" />
+            <strong>🔴 Emergency job</strong> — will be flagged across all dashboards and prioritised in the moulding queue.
+          </div>
+        )}
+
+        {/* Line items */}
+        <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+          <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+            <div className="text-[11px] font-semibold text-[#333] uppercase tracking-wider flex-1">
+              Line Items
+              <span className="ml-2 font-normal normal-case tracking-normal text-[#555]">· one production job per line</span>
+            </div>
+            <button type="button" onClick={addLine}
+              className="inline-flex items-center gap-1 text-[10.5px] text-[#0A6ED1] border border-[#C2D8F8] rounded-[3px] px-2 py-0.5 hover:bg-[#E8F0FD] transition-colors">
+              <Plus size={10} /> Add Line
+            </button>
+          </div>
+
+          <div className="divide-y divide-[#F3F3F3]">
+            {lines.map((l, i) => (
+              <div key={i} className="p-3 space-y-2">
+
+                {/* Row 1: Our Product + Product Description + Qty */}
+                <div className="grid grid-cols-1 md:grid-cols-[240px_1fr_80px] gap-2 items-end">
+
+                  {/* Our Product — searchable dropdown */}
+                  <Field label="Our Product">
+                    <div className="relative">
+                      <div className="relative">
+                        <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#888] pointer-events-none" />
+                        <input
+                          className={`${inp} pl-6`}
+                          value={l.productSearch}
+                          placeholder="Search product code or name…"
+                          title="Our product"
+                          autoComplete="off"
+                          onChange={e => {
+                            updateLine(i, { productSearch: e.target.value, product_id: '' });
+                            setProductDropOpen(i);
+                          }}
+                          onFocus={() => setProductDropOpen(i)}
+                          onBlur={() => setTimeout(() => setProductDropOpen(null), 150)}
+                        />
+                      </div>
+                      {productDropOpen === i && (
+                        <div className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-[#E4E5E6] rounded-[3px] shadow-lg max-h-[200px] overflow-y-auto">
+                          {filteredProducts(l.productSearch).length === 0 ? (
+                            <div className="px-3 py-2.5 text-[11px] text-[#888] italic">No products match</div>
+                          ) : filteredProducts(l.productSearch).map(p => (
+                            <button key={p.id} type="button"
+                              onMouseDown={() => selectProduct(i, p)}
+                              className={`w-full px-2.5 py-2 text-left hover:bg-[#E8F0FD] transition-colors border-b border-[#F3F3F3] last:border-0 ${l.product_id === p.id ? 'bg-[#F0F7FF]' : ''}`}>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{p.code}</span>
+                                {l.product_id === p.id && <CheckCircle2 size={10} className="text-[#107E3E]" />}
+                              </div>
+                              <div className="text-[11px] text-[#333] truncate">{p.name}</div>
+                              <div className="text-[9.5px] text-[#888] flex gap-2 mt-0.5 flex-wrap">
+                                {p.mould_code    && <span>Die: {p.mould_code}</span>}
+                                {p.cavities      && <span>Cav: {p.cavities}</span>}
+                                {p.cure_time_min && <span>Cure: {p.cure_time_min}m</span>}
+                                {p.cure_temp_c   && <span>{p.cure_temp_c}°C</span>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {l.product_id && (
+                      <div className="mt-0.5 text-[9.5px] text-[#107E3E] flex items-center gap-1">
+                        <CheckCircle2 size={9} /> Prefilled from product master
+                      </div>
+                    )}
+                  </Field>
+
+                  {/* Product Description */}
+                  <Field label="Product Description *">
+                    <input className={inp} value={l.product_desc}
+                      onChange={e => updateLine(i, { product_desc: e.target.value })}
+                      placeholder="e.g. PHE Gasket M10 EPDM 500×500mm"
+                      title="Product description" />
+                  </Field>
+
+                  {/* Qty */}
+                  <Field label="Qty *">
+                    <input type="number" className={inp} value={l.qty}
+                      onChange={e => updateLine(i, { qty: e.target.value })}
+                      placeholder="0" title="Qty" />
+                  </Field>
+                </div>
+
+                {/* Row 2: Die / Mould, Cav, Cure, Temp, Compound, Tikli */}
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                  <Field label="Die / Mould">
+                    <input className={inp} value={l.mould_code}
+                      onChange={e => updateLine(i, { mould_code: e.target.value })}
+                      placeholder="e.g. 551/1100" title="Die / mould code" />
+                  </Field>
+                  <Field label="Cav">
+                    <input type="number" className={inp} value={l.cavities}
+                      onChange={e => updateLine(i, { cavities: e.target.value })}
+                      placeholder="2" title="Cavities" />
+                  </Field>
+                  <Field label="Cure (min)">
+                    <input type="number" className={inp} value={l.cure_time_min}
+                      onChange={e => updateLine(i, { cure_time_min: e.target.value })}
+                      placeholder="18" title="Cure time minutes" />
+                  </Field>
+                  <Field label="Temp (°C)">
+                    <input type="number" className={inp} value={l.cure_temp_c}
+                      onChange={e => updateLine(i, { cure_temp_c: e.target.value })}
+                      placeholder="165" title="Cure temperature" />
+                  </Field>
+                  <Field label="Compound">
+                    <input className={inp} value={l.compound_code}
+                      onChange={e => updateLine(i, { compound_code: e.target.value })}
+                      placeholder="GCH_M6M_NBR" title="Compound code" />
+                  </Field>
+                  <Field label="Tikli Size">
+                    <input className={inp} value={l.tikli_size}
+                      onChange={e => updateLine(i, { tikli_size: e.target.value })}
+                      placeholder="5.4×6 holes" title="Tikli size" />
+                  </Field>
+                </div>
+
+                {/* Remove line */}
                 {lines.length > 1 && (
-                  <button
-                    onClick={() => removeLine(i)}
-                    className="text-[11px] text-[#0A6ED1] hover:underline flex items-center gap-1"
-                  >
-                    <Trash2 size={11} /> Remove line
-                  </button>
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => removeLine(i)}
+                      className="inline-flex items-center gap-1 text-[10.5px] text-[#BB0000] hover:text-[#8E0000] hover:bg-[#FFEBEE] px-2 py-0.5 rounded-[3px] transition-colors">
+                      <Trash2 size={10} /> Remove line
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {err && (
-        <div className="mt-3 text-[12px] text-[#0A6ED1] bg-[#E8F0FD] border border-[#0A6ED1]/30 rounded px-3 py-2">
-          {err}
+        {/* Error */}
+        {err && (
+          <div className="bg-[#FFEBEE] border border-[#FFCDD2] rounded-[3px] px-3 py-2 text-[11.5px] text-[#BB0000] flex items-center gap-2">
+            <AlertTriangle size={13} className="shrink-0" /> {err}
+          </div>
+        )}
+
+        {/* Bottom actions */}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={() => navigate('/production')}
+            className="px-[11px] py-[5px] text-[11px] border border-[#E4E5E6] rounded-[3px] text-[#333] bg-white hover:bg-[#F5F6F7] transition-colors">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={!canSave || saving}
+            className="inline-flex items-center gap-1.5 bg-[#0A6ED1] text-white text-[11px] font-medium px-[11px] py-[5px] rounded-[3px] hover:bg-[#085EA8] disabled:opacity-40 transition-colors">
+            <Save size={13} /> {saving ? 'Saving…' : 'Save & Send to Moulding'}
+          </button>
         </div>
-      )}
 
-      <div className="mt-4 flex items-center justify-end gap-2">
-        <button
-          onClick={() => navigate('/production')}
-          className="px-3 py-2 text-[12px] border border-[#CCC] rounded-[3px] hover:bg-[#FAFAFA]"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={save}
-          disabled={!canSave || saving}
-          className="px-4 py-2 text-[12px] bg-red-mrt text-white rounded-[3px] hover:bg-red-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save & Send to Moulding'}
-        </button>
       </div>
+    </div>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const inp = 'w-full font-sans text-[12px] text-[#111] bg-white border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]';
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+      <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider">{title}</div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">{label}</label>
+      {children}
     </div>
   );
 }
