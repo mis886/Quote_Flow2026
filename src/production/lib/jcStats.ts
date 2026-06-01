@@ -82,6 +82,7 @@ function nextId(prefix: string, existing: string[]): string {
 export const nextMldId = (existing: string[]) => nextId('MLD', existing);
 export const nextFinId = (existing: string[]) => nextId('FIN', existing);
 export const nextInsId = (existing: string[]) => nextId('INS', existing);
+export const nextPdiId = (existing: string[]) => nextId('PDI', existing);
 export const nextDspId = (existing: string[]) => nextId('DSP', existing);
 
 export function nextDspItemId(seq: number): string {

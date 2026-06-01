@@ -1,53 +1,49 @@
-// Module 08 — Log Inspection
-// Append-only. Multi-inspector rows with split validator per row. Log panel on right.
+// Module 09-B — Log PDI (Pre-Despatch Inspection)
+// Append-only. Split validator: passed + failed + hold = qty_checked.
+// PDI document upload per entry. Log panel on right.
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Save, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
-import {
-  listInspectionSessions, insertInspectionSession,
-  listFinishingSessions,
-} from '../lib/db';
-import { nextInsId, validateInsSplit, calcWorkingMinutes } from '../lib/jcStats';
+import { listPdiLogs, insertPdiLog, listInspectionSessions } from '../lib/db';
+import { nextPdiId } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
-import type { InspectionSession, FinishingSession } from '../lib/types';
+import { AttachmentUploader } from '../components/AttachmentUploader';
+import type { PdiLog, InspectionSession } from '../lib/types';
 import { useAppStore } from '../../store';
+import { fmtDate } from '../../lib/utils';
 
-const REJECTION_OPTIONS = ['Flash', 'Unfill', 'Blow', 'Dimension', 'Damage', 'Surface Defect', 'Other'];
-
-interface InspectorRow {
+interface OfficerRow {
   id: number;
-  inspector: string;
-  qtyToInspect: string;
+  officer: string;
+  qtyChecked: string;
   passed: string;
-  rejected: string;
-  rework: string;
-  scrapped: string;
-  startTime: string;
-  endTime: string;
-  rejReasons: string;
+  failed: string;
+  hold: string;
 }
 
 let _rowId = 0;
-const newRow = (): InspectorRow => ({
+const newRow = (): OfficerRow => ({
   id: ++_rowId,
-  inspector: '',
-  qtyToInspect: '',
+  officer: '',
+  qtyChecked: '',
   passed: '',
-  rejected: '',
-  rework: '',
-  scrapped: '',
-  startTime: '',
-  endTime: '',
-  rejReasons: '',
+  failed: '',
+  hold: '',
 });
 
-export function LogInspection() {
+function validateSplit(qty: number, passed: number, failed: number, hold: number) {
+  const sum = passed + failed + hold;
+  if (sum === qty) return { ok: true, message: `✓ Split balances — ${qty} pcs` };
+  return { ok: false, message: `Sum ${sum} ≠ Qty ${qty} (diff ${sum - qty > 0 ? '+' : ''}${sum - qty})` };
+}
+
+export function LogPDI() {
   const { jobs } = useProductionData();
   const { user } = useAppStore();
 
+  const [allPdi, setAllPdi] = useState<PdiLog[]>([]);
   const [allIns, setAllIns] = useState<InspectionSession[]>([]);
-  const [allFin, setAllFin] = useState<FinishingSession[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,61 +51,60 @@ export function LogInspection() {
   const [jcId,    setJcId]    = useState('');
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
-  const [insRows, setInsRows] = useState<InspectorRow[]>([newRow()]);
+  const [rows,    setRows]    = useState<OfficerRow[]>([newRow()]);
 
   useEffect(() => {
-    Promise.all([listInspectionSessions(), listFinishingSessions()])
-      .then(([i, f]) => { setAllIns(i); setAllFin(f); });
+    Promise.all([listPdiLogs(), listInspectionSessions()])
+      .then(([p, i]) => { setAllPdi(p); setAllIns(i); });
   }, []);
 
   useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
-  const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
-  const prevPassed  = useMemo(
-    () => allIns.filter(i => i.job_card_id === jcId).reduce((a, i) => a + (i.passed || 0), 0),
-    [allIns, jcId]
-  );
-  const jcSessions  = useMemo(
-    () => allIns
-      .filter(i => i.job_card_id === jcId)
-      .sort((a, b) => (b.inspection_date || '').localeCompare(a.inspection_date || '') || (b.id || '').localeCompare(a.id || '')),
-    [allIns, jcId]
-  );
-  // Only show jobs where finishing has actually begun (has sessions OR stage ≥ inspection)
-  const jobsWithFinishing = useMemo(
-    () => new Set(allFin.map(f => f.job_card_id)),
-    [allFin]
+  // Jobs eligible for PDI: stage is 'pdi' OR has inspection sessions
+  const jobsWithInspection = useMemo(
+    () => new Set(allIns.map(i => i.job_card_id)),
+    [allIns]
   );
   const eligibleJobs = useMemo(() => jobs.filter(j => {
-    if (['queued', 'moulding', 'dispatched'].includes(j.stage)) return false;
-    return jobsWithFinishing.has(j.id)
-      || ['inspection', 'pdi', 'dispatch'].includes(j.stage);
-  }), [jobs, jobsWithFinishing]);
+    if (j.stage === 'dispatched') return false;
+    return j.stage === 'pdi' || j.stage === 'dispatch'
+      || jobsWithInspection.has(j.id);
+  }), [jobs, jobsWithInspection]);
 
-  const updateRow    = (id: number, field: keyof InspectorRow, value: string) => {
-    setInsRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r));
+  const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
+
+  const prevPdiChecked = useMemo(
+    () => allPdi.filter(p => p.job_card_id === jcId).reduce((a, p) => a + (p.qty_checked || 0), 0),
+    [allPdi, jcId]
+  );
+  const prevPassed = useMemo(
+    () => allPdi.filter(p => p.job_card_id === jcId).reduce((a, p) => a + (p.passed || 0), 0),
+    [allPdi, jcId]
+  );
+
+  const jcSessions = useMemo(
+    () => allPdi.filter(p => p.job_card_id === jcId)
+           .sort((a, b) => (b.pdi_date || '').localeCompare(a.pdi_date || '') || (b.id || '').localeCompare(a.id || '')),
+    [allPdi, jcId]
+  );
+
+  const updateRow = (id: number, field: keyof OfficerRow, value: string) => {
+    setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
-  const addRow       = () => setInsRows(rows => [...rows, newRow()]);
-  const removeRow    = (id: number) => setInsRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
-  const appendReason = (rowId: number, reason: string) => {
-    setInsRows(rows => rows.map(r => {
-      if (r.id !== rowId) return r;
-      const prev = r.rejReasons.trim();
-      return { ...r, rejReasons: prev ? `${prev}, ${reason}` : reason };
-    }));
-  };
+  const addRow    = () => setRows(rs => [...rs, newRow()]);
+  const removeRow = (id: number) => setRows(rs => rs.length > 1 ? rs.filter(r => r.id !== id) : rs);
 
   const rowValidations = useMemo(() => {
     const n = (v: string) => parseInt(v, 10) || 0;
-    return insRows.map(row => {
-      const qty = parseInt(row.qtyToInspect, 10);
+    return rows.map(row => {
+      const qty = parseInt(row.qtyChecked, 10);
       if (!qty || isNaN(qty)) return null;
-      return validateInsSplit(qty, n(row.passed), n(row.rejected), n(row.rework), n(row.scrapped));
+      return validateSplit(qty, n(row.passed), n(row.failed), n(row.hold));
     });
-  }, [insRows]);
+  }, [rows]);
 
-  const allRowsOk = insRows.every((r, i) => {
-    if (!r.inspector.trim() || !r.qtyToInspect) return false;
+  const allRowsOk = rows.every((r, i) => {
+    if (!r.officer.trim() || !r.qtyChecked) return false;
     return rowValidations[i]?.ok === true;
   });
 
@@ -121,77 +116,62 @@ export function LogInspection() {
 
   const save = async () => {
     if (!jcId) { alert('Select a Job Card.'); return; }
-    const validRows = insRows.filter(r => r.inspector.trim() && r.qtyToInspect);
+    const validRows = rows.filter(r => r.officer.trim() && r.qtyChecked);
     if (validRows.length === 0) {
-      alert('Add at least one inspector row with Qty and Inspector Name.');
+      alert('Add at least one PDI officer row.');
       return;
     }
-    const badIdx = validRows.findIndex(r => {
-      const idx = insRows.indexOf(r);
-      return rowValidations[idx]?.ok === false;
-    });
+    const badIdx = validRows.findIndex((r, i) => rowValidations[rows.indexOf(r)]?.ok === false);
     if (badIdx !== -1) {
-      alert(`Inspector ${badIdx + 1}: split does not balance. Fix before saving.`);
+      alert(`Row ${badIdx + 1}: split does not balance.`);
       return;
     }
     setSaving(true);
     try {
       const n = (v: string) => parseInt(v, 10) || 0;
-      const latest = await listInspectionSessions();
-      const existingIds = latest.map(i => i.id);
+      const latest = await listPdiLogs();
+      const existingIds = latest.map(p => p.id);
       const savedRowIds: string[] = [];
 
       for (const row of validRows) {
-        const id  = nextInsId(existingIds);
+        const id = nextPdiId(existingIds);
         existingIds.push(id);
-        const qty = parseInt(row.qtyToInspect, 10);
-        const workingHrs = (row.startTime && row.endTime)
-          ? +(calcWorkingMinutes(row.startTime, row.endTime) / 60).toFixed(2)
-          : null;
-        const record: InspectionSession = {
+        const record: PdiLog = {
           id,
-          job_card_id:       jcId,
-          inspection_date:   date,
-          qty_to_inspect:    qty,
-          qty_inspected:     qty,
-          passed:            n(row.passed),
-          rejected:          n(row.rejected),
-          rework:            n(row.rework),
-          scrapped:          n(row.scrapped),
-          inspector_name:    row.inspector.trim(),
-          start_time:        row.startTime || null,
-          end_time:          row.endTime   || null,
-          working_hours:     workingHrs,
-          rejection_reasons: row.rejReasons.trim() || null,
-          remarks:           remarks.trim() || null,
-          entered_by:        user?.email || null,
-          order_id:          selectedJob?.order_id || null,
+          job_card_id: jcId,
+          pdi_date:    date,
+          pdi_officer: row.officer.trim(),
+          qty_checked: n(row.qtyChecked),
+          passed:      n(row.passed),
+          failed:      n(row.failed),
+          hold:        n(row.hold),
+          remarks:     remarks.trim() || null,
+          entered_by:  user?.email ?? null,
+          order_id:    selectedJob?.order_id ?? null,
         };
-        await insertInspectionSession(record);
+        await insertPdiLog(record);
         savedRowIds.push(id);
       }
 
-      const refreshed = await listInspectionSessions();
-      setAllIns(refreshed);
-
-      setInsRows([newRow()]);
+      const refreshed = await listPdiLogs();
+      setAllPdi(refreshed);
+      setRows([newRow()]);
       setRemarks('');
       showBanner(savedRowIds);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         module="Production · Log"
-        title="Log Inspection"
-        subtitle="Module 08 — append-only. Split must balance before saving."
+        title="Log PDI"
+        subtitle="Module 09-B — Pre-Despatch Inspection. Append-only. Split must balance."
         actions={
-          <button type="button" onClick={save} disabled={saving || (insRows.some(r => r.qtyToInspect) && !allRowsOk)}
+          <button type="button" onClick={save}
+            disabled={saving || (rows.some(r => r.qtyChecked) && !allRowsOk)}
             className="inline-flex items-center gap-1.5 bg-[#0A6ED1] text-white text-[11px] font-medium px-[11px] py-[5px] rounded-[3px] hover:bg-[#085EA8] disabled:opacity-40 transition-colors">
             <Save size={13} /> {saving ? 'Saving…' : 'Save Entry'}
           </button>
@@ -220,24 +200,29 @@ export function LogInspection() {
         {/* LEFT — form */}
         <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
 
-          <Card title="Inspection Entry">
+          {/* Job Card + Date */}
+          <Card title="PDI Entry">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Field label="Job Card *" className="md:col-span-2">
                 <select className={inp} value={jcId} onChange={e => setJcId(e.target.value)} title="Job card">
                   <option value="">— Select Job Card —</option>
                   {eligibleJobs.map(j => (
-                    <option key={j.id} value={j.id}>{j.id} · {j.product_desc}</option>
+                    <option key={j.id} value={j.id}>{j.id} · {j.product_desc} · {j.customer_name}</option>
                   ))}
                 </select>
               </Field>
 
               {selectedJob && (
                 <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1]">
-                  <strong>{selectedJob.id}</strong> · {selectedJob.product_desc} · Ordered: <strong>{selectedJob.qty} pcs</strong> · Previously passed: <strong>{prevPassed} pcs</strong>
+                  <strong>{selectedJob.id}</strong> · {selectedJob.product_desc}
+                  · Ordered: <strong>{selectedJob.qty} pcs</strong>
+                  · Promised: <strong>{fmtDate(selectedJob.promised_date)}</strong>
+                  · PDI checked so far: <strong>{prevPdiChecked} pcs</strong>
+                  · Passed: <strong>{prevPassed} pcs</strong>
                 </div>
               )}
 
-              <Field label="Inspection Date">
+              <Field label="PDI Date">
                 <input type="date" className={inp} value={date} onChange={e => setDate(e.target.value)} title="Date" />
               </Field>
               <Field label="Shared Remarks">
@@ -247,108 +232,69 @@ export function LogInspection() {
             </div>
           </Card>
 
+          {/* PDI Officers + Split */}
           <Card
-            title="Inspectors & Split"
+            title="PDI Officers & Result"
             action={
               <button type="button" onClick={addRow}
                 className="inline-flex items-center gap-1 text-[10.5px] bg-[#E8F0FD] text-[#0A6ED1] border border-[#C2D8F8] px-2 py-0.5 rounded-[3px] hover:bg-[#C2D8F8] transition-colors">
-                <Plus size={10} /> Add Inspector
+                <Plus size={10} /> Add Officer
               </button>
             }
           >
             <div className="space-y-4">
-              {insRows.map((row, idx) => {
+              {rows.map((row, idx) => {
                 const validation = rowValidations[idx];
                 const n = (v: string) => parseInt(v, 10) || 0;
-                const yieldPct = (validation?.ok && n(row.qtyToInspect))
-                  ? Math.round((n(row.passed) / n(row.qtyToInspect)) * 100)
-                  : null;
-                const workingHrs = (row.startTime && row.endTime)
-                  ? +(calcWorkingMinutes(row.startTime, row.endTime) / 60).toFixed(2)
+                const yieldPct = (validation?.ok && n(row.qtyChecked))
+                  ? Math.round((n(row.passed) / n(row.qtyChecked)) * 100)
                   : null;
 
                 return (
                   <div key={row.id} className="border border-[#E4E5E6] rounded-[3px] overflow-hidden">
                     <div className="bg-[#FAFAFA] px-3 py-1.5 border-b border-[#E4E5E6] flex items-center gap-2">
                       <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider flex-1">
-                        Inspector {idx + 1}
+                        PDI Officer {idx + 1}
                       </span>
-                      {insRows.length > 1 && (
+                      {rows.length > 1 && (
                         <button type="button" onClick={() => removeRow(row.id)}
                           className="flex items-center gap-1 text-[10px] text-[#BB0000] hover:bg-[#FFEBEE] px-1.5 py-0.5 rounded-[3px] transition-colors">
                           <Trash2 size={10} /> Remove
                         </button>
                       )}
                     </div>
-
                     <div className="p-3 space-y-3">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <Field label="Inspector Name *" className="md:col-span-2">
-                          <input className={inp} value={row.inspector}
-                            onChange={e => updateRow(row.id, 'inspector', e.target.value)}
-                            placeholder="Inspector name" title="Inspector name" />
+                        <Field label="PDI Officer *" className="md:col-span-2">
+                          <input className={inp} value={row.officer}
+                            onChange={e => updateRow(row.id, 'officer', e.target.value)}
+                            placeholder="Officer name" title="PDI officer" />
                         </Field>
-                        <Field label="Qty to Inspect *">
-                          <input type="number" className={inp} value={row.qtyToInspect}
-                            onChange={e => updateRow(row.id, 'qtyToInspect', e.target.value)}
-                            placeholder="0" title="Batch size" />
+                        <Field label="Qty Checked *">
+                          <input type="number" className={inp} value={row.qtyChecked}
+                            onChange={e => updateRow(row.id, 'qtyChecked', e.target.value)}
+                            placeholder="0" title="Qty checked" />
                         </Field>
-                        <div className="text-[10px] text-[#555]">
-                          <div className="font-semibold uppercase tracking-wider mb-1">Working Hrs</div>
-                          <div className="h-[30px] flex items-center text-[12px] text-[#333] font-medium">
-                            {workingHrs !== null ? `${workingHrs} hrs` : '—'}
-                          </div>
-                        </div>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <Field label="Passed ✓">
                           <input type="number" className={`${inp} border-[#107E3E] focus:border-[#107E3E]`}
                             value={row.passed} onChange={e => updateRow(row.id, 'passed', e.target.value)}
                             placeholder="0" title="Passed" />
                         </Field>
-                        <Field label="Rejected ✕">
+                        <Field label="Failed ✕">
                           <input type="number" className={`${inp} border-[#BB0000] focus:border-[#BB0000]`}
-                            value={row.rejected} onChange={e => updateRow(row.id, 'rejected', e.target.value)}
-                            placeholder="0" title="Rejected" />
+                            value={row.failed} onChange={e => updateRow(row.id, 'failed', e.target.value)}
+                            placeholder="0" title="Failed" />
                         </Field>
-                        <Field label="Rework ↺">
+                        <Field label="Hold ⏸">
                           <input type="number" className={`${inp} border-[#E9730C] focus:border-[#E9730C]`}
-                            value={row.rework} onChange={e => updateRow(row.id, 'rework', e.target.value)}
-                            placeholder="0" title="Rework" />
-                        </Field>
-                        <Field label="Scrapped 🗑">
-                          <input type="number" className={`${inp} border-[#6A6D70] focus:border-[#6A6D70]`}
-                            value={row.scrapped} onChange={e => updateRow(row.id, 'scrapped', e.target.value)}
-                            placeholder="0" title="Scrapped" />
+                            value={row.hold} onChange={e => updateRow(row.id, 'hold', e.target.value)}
+                            placeholder="0" title="On hold" />
                         </Field>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <Field label="Start Time">
-                          <input type="time" className={inp} value={row.startTime}
-                            onChange={e => updateRow(row.id, 'startTime', e.target.value)} title="Start" />
-                        </Field>
-                        <Field label="End Time">
-                          <input type="time" className={inp} value={row.endTime}
-                            onChange={e => updateRow(row.id, 'endTime', e.target.value)} title="End" />
-                        </Field>
-                        <Field label="Rejection Reasons" className="md:col-span-2">
-                          <div className="flex flex-wrap gap-1 mb-1.5">
-                            {REJECTION_OPTIONS.map(r => (
-                              <button key={r} type="button"
-                                onClick={() => appendReason(row.id, r)}
-                                className="text-[9.5px] px-1.5 py-0.5 border border-[#E4E5E6] rounded-full hover:bg-[#E8F0FD] hover:border-[#0A6ED1] hover:text-[#0A6ED1] transition-colors text-[#555]">
-                                {r}
-                              </button>
-                            ))}
-                          </div>
-                          <input className={inp} value={row.rejReasons}
-                            onChange={e => updateRow(row.id, 'rejReasons', e.target.value)}
-                            placeholder="Flash, Unfill…" title="Rejection reasons" />
-                        </Field>
-                      </div>
-
+                      {/* Split validator */}
                       {validation !== null && (
                         <div className={`flex items-center gap-2 px-3 py-2 rounded-[3px] border text-[12px] font-semibold ${
                           validation.ok
@@ -359,19 +305,13 @@ export function LogInspection() {
                           {validation.message}
                           {yieldPct !== null && (
                             <span className={`ml-3 text-[11px] font-medium px-2 py-0.5 rounded-[3px] ${
-                              yieldPct >= 90 ? 'bg-[#E8F5E9] text-[#107E3E]' :
-                              yieldPct >= 70 ? 'bg-[#FFF3E0] text-[#E9730C]' :
+                              yieldPct >= 95 ? 'bg-[#E8F5E9] text-[#107E3E]' :
+                              yieldPct >= 80 ? 'bg-[#FFF3E0] text-[#E9730C]' :
                                                'bg-[#FFEBEE] text-[#BB0000]'
                             }`}>
                               Yield: {yieldPct}%
                             </span>
                           )}
-                        </div>
-                      )}
-
-                      {(parseInt(row.rework, 10) || 0) > 0 && (
-                        <div className="bg-[#FFF8EC] border border-[#FFE0B2] rounded-[3px] px-3 py-1.5 text-[11px] text-[#E9730C]">
-                          ⚠ {row.rework} pcs rework will auto-queue to Finishing (Module 07).
                         </div>
                       )}
                     </div>
@@ -381,16 +321,28 @@ export function LogInspection() {
             </div>
           </Card>
 
+          {/* PDI Document attachment */}
+          {jcId && (
+            <Card title="PDI Document">
+              <AttachmentUploader
+                type="pdi_doc"
+                shiftDate={date}
+                jobCardId={jcId}
+                label={`PDI Document — ${jcId} · ${fmtDate(date)}`}
+              />
+            </Card>
+          )}
+
           <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
             Entry is permanent · Corrections require a new entry
           </div>
         </div>
 
-        {/* RIGHT — inspection log */}
+        {/* RIGHT — PDI log for selected JC */}
         <div className="w-[300px] flex-shrink-0 flex flex-col overflow-y-auto">
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] flex-1 min-h-0 flex flex-col">
             <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
-              Inspection Log
+              PDI Log
               {jcId && (
                 <span className="font-normal normal-case text-[10.5px] text-[#555]">
                   — {jcSessions.length} entries · {prevPassed} passed
@@ -400,17 +352,17 @@ export function LogInspection() {
             <div className="flex-1 overflow-y-auto">
               {!jcId ? (
                 <div className="p-4 text-[11px] text-[#888] text-center mt-6">
-                  Select a Job Card<br />to see inspection history
+                  Select a Job Card<br />to see PDI history
                 </div>
               ) : jcSessions.length === 0 ? (
                 <div className="p-4 text-[11px] text-[#888] text-center mt-6">
-                  No inspection entries yet
+                  No PDI entries yet
                 </div>
               ) : (
                 <div className="divide-y divide-[#F0F0F0]">
                   {jcSessions.map(s => {
-                    const yPct = s.qty_to_inspect
-                      ? Math.round(((s.passed || 0) / s.qty_to_inspect) * 100)
+                    const yPct = s.qty_checked
+                      ? Math.round((s.passed / s.qty_checked) * 100)
                       : null;
                     return (
                       <div key={s.id}
@@ -420,12 +372,12 @@ export function LogInspection() {
                             <span className={`font-mono text-[10px] font-bold ${savedIds.includes(s.id) ? 'text-[#107E3E]' : 'text-[#0A6ED1]'}`}>
                               {savedIds.includes(s.id) && '✓ '}{s.id}
                             </span>
-                            <span className="ml-2 text-[10px] text-[#555]">{s.inspection_date}</span>
+                            <span className="ml-2 text-[10px] text-[#555]">{fmtDate(s.pdi_date)}</span>
                           </div>
                           {yPct !== null && (
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                              yPct >= 90 ? 'bg-[#E8F5E9] text-[#107E3E]' :
-                              yPct >= 70 ? 'bg-[#FFF3E0] text-[#E9730C]' :
+                              yPct >= 95 ? 'bg-[#E8F5E9] text-[#107E3E]' :
+                              yPct >= 80 ? 'bg-[#FFF3E0] text-[#E9730C]' :
                                            'bg-[#FFEBEE] text-[#BB0000]'
                             }`}>
                               {yPct}%
@@ -433,17 +385,16 @@ export function LogInspection() {
                           )}
                         </div>
                         <div className="mt-1 text-[10px] text-[#555]">
-                          <span>Inspector: <strong className="text-[#333]">{s.inspector_name || '—'}</strong></span>
-                          <span className="ml-2">Batch: {s.qty_to_inspect}</span>
+                          <span>Officer: <strong className="text-[#333]">{s.pdi_officer}</strong></span>
+                          <span className="ml-2">Batch: {s.qty_checked}</span>
                         </div>
                         <div className="mt-0.5 text-[9.5px] text-[#555] flex gap-2 flex-wrap">
-                          <span className="text-[#107E3E]">✓ {s.passed ?? 0}</span>
-                          <span className="text-[#BB0000]">✕ {s.rejected ?? 0}</span>
-                          {(s.rework ?? 0) > 0 && <span className="text-[#E9730C]">↺ {s.rework}</span>}
-                          {(s.scrapped ?? 0) > 0 && <span className="text-[#6A6D70]">🗑 {s.scrapped}</span>}
+                          <span className="text-[#107E3E]">✓ {s.passed}</span>
+                          <span className="text-[#BB0000]">✕ {s.failed}</span>
+                          {s.hold > 0 && <span className="text-[#E9730C]">⏸ {s.hold}</span>}
                         </div>
-                        {s.rejection_reasons && (
-                          <div className="mt-0.5 text-[9.5px] text-[#666] italic truncate">{s.rejection_reasons}</div>
+                        {s.remarks && (
+                          <div className="mt-0.5 text-[9.5px] text-[#666] italic truncate">{s.remarks}</div>
                         )}
                       </div>
                     );

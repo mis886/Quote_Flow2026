@@ -1,21 +1,23 @@
-// Module 09b — Create Dispatch
-// Multi-line form. Each JC row gated by readyQty > 0. readyQty re-checked at save.
+// Module 09 — Create Dispatch
+// Two-panel: form left, dispatch log right. Multi-line per dispatch.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Plus, Trash2 } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, Truck } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listMoldingSessions, listFinishingSessions,
   listInspectionSessions, listDispatchItems,
-  insertDispatch, insertDispatchItem,
+  insertDispatch, insertDispatchItem, listDispatches,
 } from '../lib/db';
 import { jcStats, nextDspId, nextDspItemId } from '../lib/jcStats';
 import { PageHeader } from '../components/table';
 import type {
-  MoldingSession, FinishingSession, InspectionSession, DispatchItem, Dispatch,
+  MoldingSession, FinishingSession, InspectionSession,
+  DispatchItem, Dispatch,
 } from '../lib/types';
 import { useAppStore } from '../../store';
+import { fmtDate } from '../../lib/utils';
 
 const TRANSPORT_MODES = ['Road', 'Courier', 'Rail', 'Air', 'Hand Delivery'];
 
@@ -41,6 +43,8 @@ export function CreateDispatch() {
   const [dispItems,  setDispItems]  = useState<DispatchItem[]>([]);
   const [allDisps,   setAllDisps]   = useState<Dispatch[]>([]);
   const [saving,     setSaving]     = useState(false);
+  const [savedId,    setSavedId]    = useState<string | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Header fields
   const [invoiceNo,    setInvoiceNo]    = useState('');
@@ -55,18 +59,15 @@ export function CreateDispatch() {
   const [cartons,      setCartons]      = useState('');
   const [invoiceValue, setInvoiceValue] = useState('');
   const [remarks,      setRemarks]      = useState('');
-
-  // Line items
-  const [lines, setLines] = useState<LineRow[]>([mkRow()]);
+  const [lines, setLines]              = useState<LineRow[]>([mkRow()]);
 
   useEffect(() => {
     Promise.all([
       listMoldingSessions(), listFinishingSessions(),
       listInspectionSessions(), listDispatchItems(),
-      import('../lib/db').then(m => m.listDispatches()),
+      listDispatches(),
     ]).then(([m, f, i, di, d]) => {
       setMolding(m); setFinishing(f); setInspection(i); setDispItems(di); setAllDisps(d);
-      // Pre-select JC from query param
       const preJc = params.get('jc');
       if (preJc) {
         const job = jobs.find(j => j.id === preJc);
@@ -78,7 +79,8 @@ export function CreateDispatch() {
     });
   }, []);
 
-  // Per-JC ready qty
+  useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
+
   const readyMap = useMemo(() => {
     const map: Record<string, number> = {};
     for (const j of jobs) {
@@ -93,15 +95,26 @@ export function CreateDispatch() {
     [jobs, readyMap]
   );
 
+  // Dispatch log — sorted newest first
+  const recentDisps = useMemo(
+    () => [...allDisps].sort((a, b) => (b.dispatch_date || '').localeCompare(a.dispatch_date || '') || (b.id || '').localeCompare(a.id || '')),
+    [allDisps]
+  );
+
   const updateLine = (key: number, patch: Partial<LineRow>) => {
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
   };
-
   const removeLine = (key: number) => {
     setLines(prev => prev.filter(l => l.key !== key));
   };
 
   const totalQty = lines.reduce((a, l) => a + (parseInt(l.qty, 10) || 0), 0);
+
+  const showBanner = (id: string) => {
+    setSavedId(id);
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => setSavedId(null), 8000);
+  };
 
   const save = async () => {
     if (!invoiceNo.trim() || !customerName.trim()) {
@@ -113,7 +126,6 @@ export function CreateDispatch() {
       alert('Add at least one job card line with a quantity.');
       return;
     }
-    // Validate readyQty gate
     for (const l of validLines) {
       const ready = readyMap[l.jcId] || 0;
       const qty   = parseInt(l.qty, 10) || 0;
@@ -147,7 +159,6 @@ export function CreateDispatch() {
         const l   = validLines[seq];
         const job = jobs.find(j => j.id === l.jcId);
         const orderedQty = job?.qty || null;
-        // previously dispatched for this JC (before this save)
         const prevDisp = dispItems
           .filter(di => di.job_card_id === l.jcId)
           .reduce((a, di) => a + (di.qty_dispatched || 0), 0);
@@ -172,7 +183,19 @@ export function CreateDispatch() {
         };
         await insertDispatchItem(item);
       }
-      navigate('/production/dispatch');
+
+      // Refresh log + reset form
+      const refreshed = await listDispatches();
+      setAllDisps(refreshed);
+      setInvoiceNo('');
+      setLines([mkRow()]);
+      setTracking('');
+      setBiltyNo('');
+      setBiltyDate('');
+      setCartons('');
+      setInvoiceValue('');
+      setRemarks('');
+      showBanner(dspId);
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
     } finally {
@@ -185,7 +208,7 @@ export function CreateDispatch() {
       <PageHeader
         module="Production · Module 09"
         title="Create Dispatch"
-        subtitle="One invoice per dispatch. Qty is capped to ready pool per job card."
+        subtitle="One invoice per dispatch. Qty capped to ready pool per job card."
         actions={
           <button type="button" onClick={save} disabled={saving}
             className="inline-flex items-center gap-1.5 bg-[#107E3E] text-white text-[11px] font-medium px-[11px] py-[5px] rounded-[3px] hover:bg-[#0B5C2A] disabled:opacity-40 transition-colors">
@@ -194,127 +217,200 @@ export function CreateDispatch() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-[860px]">
-
-        {/* Invoice & Customer */}
-        <Card title="Invoice & Customer">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Invoice No *">
-              <input className={inp} value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="INV/26/0042" title="Invoice no" />
-            </Field>
-            <Field label="Dispatch Date *">
-              <input type="date" className={inp} value={dispDate} onChange={e => setDispDate(e.target.value)} title="Date" />
-            </Field>
-            <Field label="Customer *">
-              <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" />
-            </Field>
-            <Field label="PO No">
-              <input className={inp} value={poNo} onChange={e => setPoNo(e.target.value)} placeholder="PO/26/..." title="PO no" />
-            </Field>
+      {/* Success banner */}
+      {savedId && (
+        <div className="mx-4 mt-3 bg-[#E8F5E9] border border-[#C5E1A5] rounded-[3px] px-3 py-2.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+          <CheckCircle2 size={14} className="text-[#107E3E] shrink-0" />
+          <div className="flex-1 text-[11.5px] text-[#107E3E]">
+            Dispatch saved: <strong className="font-mono">{savedId}</strong>
+            <span className="ml-2 text-[#107E3E]/70 text-[10.5px]">— visible in the log panel →</span>
           </div>
-        </Card>
+          <button type="button" onClick={() => setSavedId(null)}
+            className="text-[#107E3E]/60 hover:text-[#107E3E] text-[14px] leading-none px-1">×</button>
+        </div>
+      )}
 
-        {/* Transport */}
-        <Card title="Transport Details">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Transport Mode">
-              <select className={inp} value={mode} onChange={e => setMode(e.target.value)} title="Mode">
-                {TRANSPORT_MODES.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </Field>
-            <Field label="Courier Name">
-              <input className={inp} value={courier} onChange={e => setCourier(e.target.value)} placeholder="Blue Dart" title="Courier" />
-            </Field>
-            <Field label="Tracking / LR No">
-              <input className={inp} value={tracking} onChange={e => setTracking(e.target.value)} title="Tracking" />
-            </Field>
-            <Field label="Bilty No">
-              <input className={inp} value={biltyNo} onChange={e => setBiltyNo(e.target.value)} title="Bilty no" />
-            </Field>
-            <Field label="Bilty Date">
-              <input type="date" className={inp} value={biltyDate} onChange={e => setBiltyDate(e.target.value)} title="Bilty date" />
-            </Field>
-            <Field label="No of Cartons">
-              <input type="number" className={inp} value={cartons} onChange={e => setCartons(e.target.value)} title="Cartons" />
-            </Field>
-            <Field label="Invoice Value (₹)">
-              <input type="number" step="0.01" className={inp} value={invoiceValue} onChange={e => setInvoiceValue(e.target.value)} title="Value" />
-            </Field>
-            <Field label="Remarks" className="md:col-span-2">
-              <input className={inp} value={remarks} onChange={e => setRemarks(e.target.value)} title="Remarks" />
-            </Field>
-          </div>
-        </Card>
+      {/* Two-panel layout */}
+      <div className="flex-1 overflow-hidden flex gap-3 p-4">
 
-        {/* Line items */}
-        <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
-          <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-[#333] uppercase tracking-wider flex-1">Dispatch Line Items</span>
-            <span className="text-[10px] text-[#555]">Total: <strong className="text-[#107E3E]">{totalQty.toLocaleString()} pcs</strong></span>
+        {/* LEFT — form */}
+        <div className="flex-1 overflow-y-auto space-y-3 min-w-0">
+
+          {/* Invoice & Customer */}
+          <Card title="Invoice & Customer">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="Invoice No *">
+                <input className={inp} value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="INV/26/0042" title="Invoice no" />
+              </Field>
+              <Field label="Dispatch Date *">
+                <input type="date" className={inp} value={dispDate} onChange={e => setDispDate(e.target.value)} title="Date" />
+              </Field>
+              <Field label="Customer *">
+                <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" />
+              </Field>
+              <Field label="PO No">
+                <input className={inp} value={poNo} onChange={e => setPoNo(e.target.value)} placeholder="PO/26/..." title="PO no" />
+              </Field>
+            </div>
+          </Card>
+
+          {/* Transport */}
+          <Card title="Transport Details">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="Transport Mode">
+                <select className={inp} value={mode} onChange={e => setMode(e.target.value)} title="Mode">
+                  {TRANSPORT_MODES.map(m => <option key={m}>{m}</option>)}
+                </select>
+              </Field>
+              <Field label="Courier Name">
+                <input className={inp} value={courier} onChange={e => setCourier(e.target.value)} placeholder="Blue Dart" title="Courier" />
+              </Field>
+              <Field label="Tracking / LR No">
+                <input className={inp} value={tracking} onChange={e => setTracking(e.target.value)} title="Tracking" />
+              </Field>
+              <Field label="Bilty No">
+                <input className={inp} value={biltyNo} onChange={e => setBiltyNo(e.target.value)} title="Bilty no" />
+              </Field>
+              <Field label="Bilty Date">
+                <input type="date" className={inp} value={biltyDate} onChange={e => setBiltyDate(e.target.value)} title="Bilty date" />
+              </Field>
+              <Field label="No of Cartons">
+                <input type="number" className={inp} value={cartons} onChange={e => setCartons(e.target.value)} title="Cartons" />
+              </Field>
+              <Field label="Invoice Value (₹)">
+                <input type="number" step="0.01" className={inp} value={invoiceValue} onChange={e => setInvoiceValue(e.target.value)} title="Value" />
+              </Field>
+              <Field label="Remarks" className="md:col-span-2">
+                <input className={inp} value={remarks} onChange={e => setRemarks(e.target.value)} title="Remarks" />
+              </Field>
+            </div>
+          </Card>
+
+          {/* Line items */}
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
+            <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-[#333] uppercase tracking-wider flex-1">Dispatch Line Items</span>
+              <span className="text-[10px] text-[#555]">Total: <strong className="text-[#107E3E]">{totalQty.toLocaleString()} pcs</strong></span>
+            </div>
+            <div className="p-3 space-y-2">
+              {lines.map((line, idx) => {
+                const job       = jobs.find(j => j.id === line.jcId);
+                const ready     = line.jcId ? (readyMap[line.jcId] || 0) : 0;
+                const qtyNum    = parseInt(line.qty, 10) || 0;
+                const overLimit = qtyNum > ready && ready > 0;
+                return (
+                  <div key={line.key} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end">
+                    <div>
+                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Job Card</label>}
+                      <select className={inp} value={line.jcId}
+                        onChange={e => {
+                          const id = e.target.value;
+                          const j  = jobs.find(j2 => j2.id === id);
+                          updateLine(line.key, { jcId: id, qty: String(readyMap[id] || ''), unit: 'pcs' });
+                          if (j && !customerName) setCustomerName(j.customer_name || '');
+                        }}
+                        title="Job card">
+                        <option value="">— Select Job Card (ready only) —</option>
+                        {readyJobs.map(j => (
+                          <option key={j.id} value={j.id}>
+                            {j.id} · {j.product_desc} · Ready: {readyMap[j.id]} pcs
+                          </option>
+                        ))}
+                      </select>
+                      {job && (
+                        <div className="text-[10px] text-[#555] mt-0.5">{job.product_desc} · {job.customer_name}</div>
+                      )}
+                    </div>
+                    <div>
+                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">
+                        Qty{ready > 0 ? ` (max ${ready})` : ''}
+                      </label>}
+                      <input type="number" min={1} max={ready || undefined}
+                        className={`${inp} ${overLimit ? 'border-[#BB0000]' : ''}`}
+                        value={line.qty}
+                        onChange={e => updateLine(line.key, { qty: e.target.value })}
+                        title="Qty to dispatch" />
+                      {overLimit && <div className="text-[10px] text-[#BB0000] mt-0.5">Exceeds ready ({ready})</div>}
+                    </div>
+                    <div>
+                      {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Unit</label>}
+                      <select className={inp} value={line.unit} onChange={e => updateLine(line.key, { unit: e.target.value })} title="Unit">
+                        {['pcs', 'kg', 'sets', 'nos'].map(u => <option key={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    <button type="button" onClick={() => removeLine(line.key)} title="Remove line"
+                      className="text-[#BB0000] hover:text-[#8E0000] pb-0.5">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+              <button type="button" onClick={() => setLines(prev => [...prev, mkRow()])}
+                className="inline-flex items-center gap-1 text-[11px] text-[#0A6ED1] hover:underline mt-1">
+                <Plus size={12} /> Add Job Card Line
+              </button>
+            </div>
           </div>
-          <div className="p-3 space-y-2">
-            {lines.map((line, idx) => {
-              const job       = jobs.find(j => j.id === line.jcId);
-              const ready     = line.jcId ? (readyMap[line.jcId] || 0) : 0;
-              const qtyNum    = parseInt(line.qty, 10) || 0;
-              const overLimit = qtyNum > ready && ready > 0;
-              return (
-                <div key={line.key} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end">
-                  <div>
-                    {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Job Card</label>}
-                    <select className={inp} value={line.jcId}
-                      onChange={e => {
-                        const id = e.target.value;
-                        const j  = jobs.find(j2 => j2.id === id);
-                        updateLine(line.key, { jcId: id, qty: String(readyMap[id] || ''), unit: 'pcs' });
-                        if (j && !customerName) setCustomerName(j.customer_name || '');
-                      }}
-                      title="Job card">
-                      <option value="">— Select Job Card (ready only) —</option>
-                      {readyJobs.map(j => (
-                        <option key={j.id} value={j.id}>
-                          {j.id} · {j.product_desc} · Ready: {readyMap[j.id]} pcs
-                        </option>
-                      ))}
-                    </select>
-                    {job && (
-                      <div className="text-[10px] text-[#555] mt-0.5">{job.product_desc} · {job.customer_name}</div>
-                    )}
-                  </div>
-                  <div>
-                    {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">
-                      Qty{ready > 0 ? ` (max ${ready})` : ''}
-                    </label>}
-                    <input type="number" min={1} max={ready || undefined}
-                      className={`${inp} ${overLimit ? 'border-[#BB0000]' : ''}`}
-                      value={line.qty}
-                      onChange={e => updateLine(line.key, { qty: e.target.value })}
-                      title="Qty to dispatch" />
-                    {overLimit && <div className="text-[10px] text-[#BB0000] mt-0.5">Exceeds ready pool ({ready})</div>}
-                  </div>
-                  <div>
-                    {idx === 0 && <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Unit</label>}
-                    <select className={inp} value={line.unit} onChange={e => updateLine(line.key, { unit: e.target.value })} title="Unit">
-                      {['pcs', 'kg', 'sets', 'nos'].map(u => <option key={u}>{u}</option>)}
-                    </select>
-                  </div>
-                  <button type="button" onClick={() => removeLine(line.key)} title="Remove line"
-                    className="text-[#BB0000] hover:text-[#8E0000] pb-0.5">
-                    <Trash2 size={14} />
-                  </button>
+
+          <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
+            Entry is permanent · Corrections require a new entry
+          </div>
+        </div>
+
+        {/* RIGHT — dispatch log */}
+        <div className="w-[340px] flex-shrink-0 flex flex-col overflow-y-auto">
+          <div className="bg-white border border-[#E4E5E6] rounded-[3px] flex-1 min-h-0 flex flex-col">
+            <div className="px-3 py-2 border-b border-[#E4E5E6] text-[11px] font-semibold text-[#333] uppercase tracking-wider flex items-center gap-2">
+              <Truck size={12} className="text-[#333]" />
+              Dispatch Log
+              <span className="font-normal normal-case text-[10.5px] text-[#555]">
+                — {recentDisps.length} dispatches
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {recentDisps.length === 0 ? (
+                <div className="p-4 text-[11px] text-[#888] text-center mt-6">
+                  No dispatches recorded yet
                 </div>
-              );
-            })}
-            <button type="button" onClick={() => setLines(prev => [...prev, mkRow()])}
-              className="inline-flex items-center gap-1 text-[11px] text-[#0A6ED1] hover:underline mt-1">
-              <Plus size={12} /> Add Job Card Line
-            </button>
+              ) : (
+                <div className="divide-y divide-[#F0F0F0]">
+                  {recentDisps.map(d => (
+                    <div key={d.id}
+                      className={`px-3 py-2.5 hover:bg-[#FAFAFA] transition-colors ${savedId === d.id ? 'bg-[#E8F5E9]' : ''}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className={`font-mono text-[10px] font-bold ${savedId === d.id ? 'text-[#107E3E]' : 'text-[#107E3E]'}`}>
+                            {savedId === d.id && '✓ '}{d.id}
+                          </span>
+                          <span className="ml-2 text-[10px] text-[#555]">{fmtDate(d.dispatch_date)}</span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#111] whitespace-nowrap">
+                          {(d.total_qty_dispatched || 0).toLocaleString()} pcs
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-[#555] space-y-0.5">
+                        <div className="truncate">
+                          <strong className="text-[#333]">{d.customer_name}</strong>
+                          {d.invoice_no && <span className="ml-1.5 text-[#888]">· {d.invoice_no}</span>}
+                        </div>
+                        <div className="flex gap-2 flex-wrap text-[9.5px]">
+                          {d.mode && <span className="bg-[#F0F0F0] px-1.5 rounded">{d.mode}</span>}
+                          {d.courier_name && <span className="text-[#555]">{d.courier_name}</span>}
+                          {d.tracking_number && <span className="text-[#0A6ED1] font-mono">{d.tracking_number}</span>}
+                          {d.bilty_no && <span className="text-[#555]">Bilty: {d.bilty_no}</span>}
+                        </div>
+                        {d.remarks && (
+                          <div className="text-[9.5px] text-[#666] italic truncate">{d.remarks}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
-          Entry is permanent · Corrections require a new entry
-        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Workflow, Factory, FileText, AlertTriangle,
   Settings as Cog, ArrowLeftRight, Package, FlaskConical,
-  LayoutGrid, Hammer, Scissors, Microscope, Truck,
+  LayoutGrid, Hammer, Scissors, Microscope, Truck, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -25,6 +25,7 @@ const LOG_ITEMS = [
   { to: '/production/log-molding',    icon: Hammer,       label: 'Log Molding' },
   { to: '/production/log-finishing',  icon: Scissors,     label: 'Log Finishing' },
   { to: '/production/log-inspection', icon: Microscope,   label: 'Log Inspection' },
+  { to: '/production/log-pdi',        icon: ShieldCheck,  label: 'Log PDI' },
   { to: '/production/dispatch',       icon: Truck,        label: 'Dispatch' },
 ];
 

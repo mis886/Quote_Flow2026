@@ -8,7 +8,7 @@ import type {
   Press, ProductionJob, Worker, NCR, ShopFloorSettings,
   JobStage, Compound, Product, BOMRow,
   MoldingSession, FinishingSession, InspectionSession,
-  Dispatch, DispatchItem,
+  Dispatch, DispatchItem, ProdAttachment, PdiLog,
 } from './types';
 
 // ── Presses ────────────────────────────────────────────────────────
@@ -339,4 +339,80 @@ export async function insertDispatchItem(row: DispatchItem): Promise<DispatchIte
   const { data, error } = await supabase.from('prod_dispatch_items').insert(row).select().single();
   if (error) throw error;
   return data as DispatchItem;
+}
+
+// ── PDI Logs ────────────────────────────────────────────────────────────────
+export async function listPdiLogs(jobCardId?: string): Promise<PdiLog[]> {
+  let q = supabase.from('prod_pdi_logs').select('*').order('created_at', { ascending: false });
+  if (jobCardId) q = q.eq('job_card_id', jobCardId);
+  const { data, error } = await q;
+  if (error) { console.error('listPdiLogs', error); return []; }
+  return data || [];
+}
+
+export async function insertPdiLog(row: PdiLog): Promise<PdiLog> {
+  const { data, error } = await supabase.from('prod_pdi_logs').insert(row).select().single();
+  if (error) throw error;
+  return data as PdiLog;
+}
+
+// ── Attachments (DPR / PDI docs) ────────────────────────────────────────────
+const ATTACHMENT_BUCKET = 'prod-docs';
+
+export async function listAttachments(filters?: {
+  type?: string;
+  shift_date?: string;
+  job_card_id?: string;
+}): Promise<ProdAttachment[]> {
+  let q = supabase.from('prod_attachments').select('*').order('created_at', { ascending: false });
+  if (filters?.type)        q = q.eq('type', filters.type);
+  if (filters?.shift_date)  q = q.eq('shift_date', filters.shift_date);
+  if (filters?.job_card_id) q = q.eq('job_card_id', filters.job_card_id);
+  const { data, error } = await q;
+  if (error) { console.error('listAttachments', error); return []; }
+  return data || [];
+}
+
+export async function uploadAttachment(
+  file: File,
+  meta: Omit<ProdAttachment, 'id' | 'file_path' | 'file_name' | 'file_size' | 'mime_type' | 'created_at'>
+): Promise<ProdAttachment> {
+  const ts   = Date.now();
+  const ext  = file.name.split('.').pop() || 'bin';
+  const path = `${meta.type}/${meta.shift_date}/${ts}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+  const { error: upErr } = await supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) throw upErr;
+
+  const row: Omit<ProdAttachment, 'id'> = {
+    ...meta,
+    file_name:  file.name,
+    file_path:  path,
+    file_size:  file.size,
+    mime_type:  file.type || `application/${ext}`,
+  };
+  const { data, error: dbErr } = await supabase
+    .from('prod_attachments').insert(row).select().single();
+  if (dbErr) throw dbErr;
+  return data as ProdAttachment;
+}
+
+export async function getAttachmentUrl(filePath: string): Promise<string | null> {
+  const { data } = supabase.storage.from(ATTACHMENT_BUCKET).getPublicUrl(filePath);
+  return data?.publicUrl ?? null;
+}
+
+export async function getAttachmentSignedUrl(filePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .createSignedUrl(filePath, 3600); // 1 hour
+  if (error) { console.error('getSignedUrl', error); return null; }
+  return data?.signedUrl ?? null;
+}
+
+export async function deleteAttachment(id: number, filePath: string) {
+  await supabase.storage.from(ATTACHMENT_BUCKET).remove([filePath]);
+  await supabase.from('prod_attachments').delete().eq('id', id);
 }

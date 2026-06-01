@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Save, AlertTriangle, ArrowRight, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { AttachmentUploader } from '../components/AttachmentUploader';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listFinishingSessions, insertFinishingSession,
@@ -53,10 +54,17 @@ export function LogFinishing() {
 
   useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
-  const eligibleJobs = jobs.filter(j =>
-    ['moulding', 'finishing', 'inspection', 'dispatch', 'dispatched'].includes(j.stage)
-    || allMld.some(m => m.job_card_id === j.id)
+  // Only show jobs where molding has actually begun (has sessions OR stage ≥ finishing)
+  const jobsWithMolding = useMemo(
+    () => new Set(allMld.map(m => m.job_card_id)),
+    [allMld]
   );
+  const eligibleJobs = useMemo(() => jobs.filter(j => {
+    if (['queued', 'dispatched'].includes(j.stage)) return false;
+    // Must have some molding done OR already be in finishing/inspection/pdi/dispatch
+    return jobsWithMolding.has(j.id)
+      || ['finishing', 'inspection', 'pdi', 'dispatch'].includes(j.stage);
+  }), [jobs, jobsWithMolding]);
 
   const selectedJob  = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
   const prevFinished = useMemo(
@@ -286,6 +294,15 @@ export function LogFinishing() {
                 {totalMet && <span className="ml-auto font-semibold text-[#107E3E]">✓ Planned qty met</span>}
               </div>
             )}
+          </Card>
+
+          {/* DPR attachment */}
+          <Card title="DPR Attachment">
+            <AttachmentUploader
+              type="dpr"
+              shiftDate={date}
+              label={`DPR — ${date} · Finishing`}
+            />
           </Card>
 
           <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">

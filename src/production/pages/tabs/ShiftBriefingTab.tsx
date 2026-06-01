@@ -27,13 +27,13 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
   const present = {
     finishing:  workers.filter(w => w.department === 'finishing'  && w.present).length,
     inspection: workers.filter(w => w.department === 'inspection' && w.present).length,
-    pressDay:   workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day' && w.present).length,
-    pressNight: workers.filter(w => w.department === 'press' && w.shift === 'night' && w.present).length,
+    pressDay:   workers.filter(w => w.department === 'press' && (w.shift === 'day' || w.shift === 'both' || !w.shift) && w.present).length,
+    pressNight: workers.filter(w => w.department === 'press' && (w.shift === 'night' || w.shift === 'both') && w.present).length,
   };
   const totalF = workers.filter(w => w.department === 'finishing').length;
   const totalI = workers.filter(w => w.department === 'inspection').length;
-  const totalPressDay   = workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day').length;
-  const totalPressNight = workers.filter(w => w.department === 'press' && w.shift === 'night').length;
+  const totalPressDay   = workers.filter(w => w.department === 'press' && (w.shift === 'day' || w.shift === 'both' || !w.shift)).length;
+  const totalPressNight = workers.filter(w => w.department === 'press' && (w.shift === 'night' || w.shift === 'both')).length;
 
   const hc = {
     finishers:  Math.max(1, present.finishing),
@@ -338,8 +338,8 @@ function PressRoster({ workers, busyId, onToggle }: {
   busyId: string | null;
   onToggle: (id: string, next: boolean) => void;
 }) {
-  const dayList   = workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day');
-  const nightList = workers.filter(w => w.department === 'press' && w.shift === 'night');
+  const dayList   = workers.filter(w => w.department === 'press' && (w.shift === 'day' || w.shift === 'both' || !w.shift));
+  const nightList = workers.filter(w => w.department === 'press' && (w.shift === 'night' || w.shift === 'both'));
   const hereDay   = dayList.filter(w => w.present).length;
   const hereNight = nightList.filter(w => w.present).length;
 

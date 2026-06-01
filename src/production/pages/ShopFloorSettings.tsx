@@ -2,7 +2,7 @@
 // Workers: Finishing | Inspection | Press Operators (day/night shift).
 
 import { useEffect, useState } from 'react';
-import { Save, Users, Wrench, Factory, Plus, Trash2, X, Check, Sun, Moon, Edit2 } from 'lucide-react';
+import { Save, Users, Wrench, Factory, Plus, Trash2, X, Check, Sun, Moon, Edit2, Clock } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   updateShopFloorSettings, setWorkerPresent,
@@ -34,13 +34,20 @@ export function ShopFloorSettingsPage() {
     setSaving(true);
     try {
       await updateShopFloorSettings({
-        shift_started:      draft.shift_started,
-        shift_hours:        draft.shift_hours,
-        shift_hours_left:   draft.shift_hours_left,
-        overtime_max:       draft.overtime_max,
-        planned_finishers:  draft.planned_finishers,
-        planned_inspectors: draft.planned_inspectors,
-        emergency_active:   draft.emergency_active,
+        shift_started:       draft.shift_started,
+        shift_hours:         draft.shift_hours,
+        shift_hours_left:    draft.shift_hours_left,
+        overtime_max:        draft.overtime_max,
+        planned_finishers:   draft.planned_finishers,
+        planned_inspectors:  draft.planned_inspectors,
+        emergency_active:    draft.emergency_active,
+        active_shift:        draft.active_shift ?? 'day',
+        day_shift_hours:     draft.day_shift_hours ?? 8,
+        night_shift_hours:   draft.night_shift_hours ?? 8,
+        day_ot_max:          draft.day_ot_max ?? 2,
+        night_ot_max:        draft.night_ot_max ?? 2,
+        day_shift_start:     draft.day_shift_start ?? '08:00',
+        night_shift_start:   draft.night_shift_start ?? '20:00',
       });
       await refresh();
     } finally { setSaving(false); }
@@ -65,8 +72,9 @@ export function ShopFloorSettingsPage() {
   };
 
   // Press operators by shift
-  const pressDay   = workers.filter(w => w.department === 'press' && (w.shift ?? 'day') === 'day');
-  const pressNight = workers.filter(w => w.department === 'press' && w.shift === 'night');
+  // 'both' workers appear in both day and night groups
+  const pressDay   = workers.filter(w => w.department === 'press' && (w.shift === 'day' || w.shift === 'both' || !w.shift));
+  const pressNight = workers.filter(w => w.department === 'press' && (w.shift === 'night' || w.shift === 'both'));
 
   return (
     <div className="flex flex-col h-full">
@@ -189,39 +197,115 @@ export function ShopFloorSettingsPage() {
         <section>
           <SectionTitle icon={<Wrench size={11} />} title="Shift & LSD Defaults" />
           {!draft ? <Loading /> : (
-            <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Field label="Shift Started">
-                <select className={inp} value={draft.shift_started ? 'yes' : 'no'}
-                  onChange={e => setDraft({ ...draft, shift_started: e.target.value === 'yes' })}
-                  title="Shift started flag">
-                  <option value="no">No — pre-shift</option>
-                  <option value="yes">Yes — running</option>
-                </select>
-              </Field>
-              <Field label="Shift Hours (total)">
-                <input type="number" className={inp} min={1} max={24}
-                  value={draft.shift_hours}
-                  onChange={e => setDraft({ ...draft, shift_hours: Number(e.target.value) || 0 })}
-                  title="Total shift hours" />
-              </Field>
-              <Field label="OT Budget (hrs)">
-                <input type="number" className={inp} min={0} max={8}
-                  value={draft.overtime_max}
-                  onChange={e => setDraft({ ...draft, overtime_max: Number(e.target.value) || 0 })}
-                  title="OT budget hours" />
-              </Field>
-              <Field label="Planned Finishers (LSD calc)">
-                <input type="number" className={inp} min={1}
-                  value={draft.planned_finishers}
-                  onChange={e => setDraft({ ...draft, planned_finishers: Number(e.target.value) || 0 })}
-                  title="Planned finishers" />
-              </Field>
-              <Field label="Planned Inspectors (LSD calc)">
-                <input type="number" className={inp} min={1}
-                  value={draft.planned_inspectors}
-                  onChange={e => setDraft({ ...draft, planned_inspectors: Number(e.target.value) || 0 })}
-                  title="Planned inspectors" />
-              </Field>
+            <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
+              {/* Active shift selector */}
+              <div className="px-4 py-3 border-b border-[#F3F3F3] flex items-center gap-3">
+                <Clock size={13} className="text-[#333]" />
+                <span className="text-[11.5px] font-semibold text-[#111]">Active Shift</span>
+                <div className="flex gap-2 ml-2">
+                  {(['day', 'night'] as const).map(s => (
+                    <button key={s} type="button"
+                      onClick={() => setDraft({ ...draft, active_shift: s,
+                        shift_hours: s === 'day' ? (draft.day_shift_hours ?? 8) : (draft.night_shift_hours ?? 8),
+                        overtime_max: s === 'day' ? (draft.day_ot_max ?? 2) : (draft.night_ot_max ?? 2),
+                      })}
+                      className={`flex items-center gap-1.5 px-3 py-1 text-[11px] border rounded-[3px] transition-colors font-medium ${
+                        (draft.active_shift ?? 'day') === s
+                          ? s === 'day' ? 'bg-[#FFF3E0] border-[#E9730C] text-[#E9730C]' : 'bg-[#E8E8E8] border-[#555] text-[#333]'
+                          : 'bg-white border-[#E4E5E6] text-[#555] hover:bg-[#FAFAFA]'
+                      }`}>
+                      {s === 'day' ? <Sun size={11} /> : <Moon size={11} />}
+                      {s === 'day' ? 'Day Shift' : 'Night Shift'}
+                    </button>
+                  ))}
+                </div>
+                <span className="ml-auto text-[10.5px] text-[#555]">
+                  Shift left: <strong className="text-[#111]">{draft.shift_hours_left}h</strong>
+                  <input type="number" step={0.5} min={0} max={24} value={draft.shift_hours_left}
+                    onChange={e => setDraft({ ...draft, shift_hours_left: Number(e.target.value) || 0 })}
+                    className="ml-2 w-[50px] font-mono text-[11px] text-[#111] border border-[#E4E5E6] rounded-[2px] px-1 py-0.5 outline-none focus:border-[#0A6ED1] text-center bg-white"
+                    title="Shift hours left" />
+                  hrs
+                </span>
+              </div>
+
+              {/* Day / Night shift config side-by-side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#F3F3F3]">
+                {/* Day shift */}
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#E9730C] mb-1">
+                    <Sun size={11} /> Day Shift
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Start Time">
+                      <input type="time" className={inp} value={draft.day_shift_start ?? '08:00'}
+                        onChange={e => setDraft({ ...draft, day_shift_start: e.target.value })}
+                        title="Day shift start" />
+                    </Field>
+                    <Field label="Hours">
+                      <input type="number" className={inp} min={1} max={12}
+                        value={draft.day_shift_hours ?? 8}
+                        onChange={e => setDraft({ ...draft, day_shift_hours: Number(e.target.value) || 8 })}
+                        title="Day shift hours" />
+                    </Field>
+                    <Field label="OT Max (hrs)">
+                      <input type="number" className={inp} min={0} max={4} step={0.5}
+                        value={draft.day_ot_max ?? 2}
+                        onChange={e => setDraft({ ...draft, day_ot_max: Number(e.target.value) || 0 })}
+                        title="Day OT max" />
+                    </Field>
+                  </div>
+                </div>
+                {/* Night shift */}
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#555] mb-1">
+                    <Moon size={11} /> Night Shift
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Start Time">
+                      <input type="time" className={inp} value={draft.night_shift_start ?? '20:00'}
+                        onChange={e => setDraft({ ...draft, night_shift_start: e.target.value })}
+                        title="Night shift start" />
+                    </Field>
+                    <Field label="Hours">
+                      <input type="number" className={inp} min={1} max={12}
+                        value={draft.night_shift_hours ?? 8}
+                        onChange={e => setDraft({ ...draft, night_shift_hours: Number(e.target.value) || 8 })}
+                        title="Night shift hours" />
+                    </Field>
+                    <Field label="OT Max (hrs)">
+                      <input type="number" className={inp} min={0} max={4} step={0.5}
+                        value={draft.night_ot_max ?? 2}
+                        onChange={e => setDraft({ ...draft, night_ot_max: Number(e.target.value) || 0 })}
+                        title="Night OT max" />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              {/* LSD config */}
+              <div className="border-t border-[#F3F3F3] p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Field label="Shift Started">
+                  <select className={inp} value={draft.shift_started ? 'yes' : 'no'}
+                    onChange={e => setDraft({ ...draft, shift_started: e.target.value === 'yes' })}
+                    title="Shift started flag">
+                    <option value="no">No — pre-shift</option>
+                    <option value="yes">Yes — running</option>
+                  </select>
+                </Field>
+                <Field label="Planned Finishers (LSD calc)">
+                  <input type="number" className={inp} min={1}
+                    value={draft.planned_finishers}
+                    onChange={e => setDraft({ ...draft, planned_finishers: Number(e.target.value) || 0 })}
+                    title="Planned finishers" />
+                </Field>
+                <Field label="Planned Inspectors (LSD calc)">
+                  <input type="number" className={inp} min={1}
+                    value={draft.planned_inspectors}
+                    onChange={e => setDraft({ ...draft, planned_inspectors: Number(e.target.value) || 0 })}
+                    title="Planned inspectors" />
+                </Field>
+              </div>
             </div>
           )}
         </section>
@@ -477,7 +561,9 @@ function WorkerModal({ mode, workers, presses, onClose, onSaved }: {
   const [name,    setName]    = useState(editW?.name ?? '');
   const [dept,    setDept]    = useState<'finishing' | 'inspection' | 'press'>(defaultDept);
   const [role,    setRole]    = useState(editW?.role ?? defaultRoles(defaultDept)[1]);
-  const [shift,   setShift]   = useState<'day' | 'night'>(editW?.shift === 'night' ? 'night' : 'day');
+  const [shift,   setShift]   = useState<'day' | 'night' | 'both'>(
+    editW?.shift === 'night' ? 'night' : editW?.shift === 'both' ? 'both' : 'day'
+  );
   const [pressId, setPressId] = useState(editW?.press_id ?? '');
   const [saving,  setSaving]  = useState(false);
 
@@ -490,7 +576,7 @@ function WorkerModal({ mode, workers, presses, onClose, onSaved }: {
       if (isEdit && editW) {
         await updateWorker(editW.id, {
           name: name.trim(), role, department: dept,
-          shift: dept === 'press' ? shift : null,
+          shift:    dept === 'press' ? shift as 'day' | 'night' | 'both' : null,
           press_id: dept === 'press' ? (pressId || null) : null,
         });
       } else {
@@ -500,7 +586,7 @@ function WorkerModal({ mode, workers, presses, onClose, onSaved }: {
         const newId = `${prefix}${(Math.max(0, ...nums) + 1).toString().padStart(2, '0')}`;
         await insertWorker({
           id: newId, name: name.trim(), role, department: dept, present: true,
-          shift: dept === 'press' ? shift : null,
+          shift:    dept === 'press' ? shift as 'day' | 'night' | 'both' : null,
           press_id: dept === 'press' ? (pressId || null) : null,
         });
       }
@@ -546,21 +632,23 @@ function WorkerModal({ mode, workers, presses, onClose, onSaved }: {
           {dept === 'press' && (
             <>
               <WField label="Shift">
-                <div className="flex gap-2">
-                  {(['day', 'night'] as const).map(s => (
-                    <button key={s} type="button"
-                      onClick={() => setShift(s)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[11px] border rounded-[3px] transition-colors ${
-                        shift === s
-                          ? s === 'day'
-                            ? 'bg-[#FFF3E0] border-[#E9730C] text-[#E9730C] font-medium'
-                            : 'bg-[#F0F0F0] border-[#555] text-[#333] font-medium'
-                          : 'bg-white border-[#E4E5E6] text-[#555] hover:bg-[#FAFAFA]'
-                      }`}>
-                      {s === 'day' ? <Sun size={11} /> : <Moon size={11} />}
-                      {s === 'day' ? 'Day Shift' : 'Night Shift'}
-                    </button>
-                  ))}
+                <div className="flex gap-1.5">
+                  {(['day', 'night', 'both'] as const).map(s => {
+                    const isActive = shift === s;
+                    const cls = isActive
+                      ? s === 'day'   ? 'bg-[#FFF3E0] border-[#E9730C] text-[#E9730C] font-medium'
+                      : s === 'night' ? 'bg-[#E8E8E8] border-[#555] text-[#333] font-medium'
+                                      : 'bg-[#E8F0FD] border-[#0A6ED1] text-[#0A6ED1] font-medium'
+                      : 'bg-white border-[#E4E5E6] text-[#555] hover:bg-[#FAFAFA]';
+                    return (
+                      <button key={s} type="button" onClick={() => setShift(s)}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] border rounded-[3px] transition-colors ${cls}`}>
+                        {s === 'day' && <><Sun size={10} /> Day</>}
+                        {s === 'night' && <><Moon size={10} /> Night</>}
+                        {s === 'both' && <>☀🌙 Both</>}
+                      </button>
+                    );
+                  })}
                 </div>
               </WField>
               <WField label="Assigned Press">

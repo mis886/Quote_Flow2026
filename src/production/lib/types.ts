@@ -87,7 +87,7 @@ export interface Worker {
   role: string;
   department: Department;
   present: boolean;
-  shift?: 'day' | 'night' | null;      // press operators: day or night shift
+  shift?: 'day' | 'night' | 'both' | null;  // press operators: day, night, or both shifts
   press_id?: string | null;             // press they operate (press dept only)
   updated_at?: string;
 }
@@ -179,6 +179,45 @@ export interface ShopFloorSettings {
   planned_finishers: number;
   planned_inspectors: number;
   emergency_active: boolean;
+  // Per-shift config (added 2026-06-01)
+  active_shift?: 'day' | 'night';
+  day_shift_hours?: number;
+  night_shift_hours?: number;
+  day_ot_max?: number;
+  night_ot_max?: number;
+  day_shift_start?: string;    // HH:MM
+  night_shift_start?: string;  // HH:MM
+}
+
+export interface PdiLog {
+  id: string;                  // PDI-YYYY-NNNNN
+  job_card_id: string;
+  pdi_date: string;            // ISO date
+  pdi_officer: string;
+  qty_checked: number;
+  passed: number;
+  failed: number;
+  hold: number;
+  remarks?: string | null;
+  entered_by?: string | null;
+  order_id?: string | null;
+  created_at?: string;
+}
+
+export interface ProdAttachment {
+  id?: number;
+  type: 'dpr' | 'pdi_doc' | 'other';
+  shift_date: string;           // ISO date
+  shift?: 'day' | 'night' | null;
+  job_card_id?: string | null;
+  log_entry_id?: string | null;
+  file_name: string;
+  file_path: string;
+  file_size?: number | null;
+  mime_type?: string | null;
+  uploaded_by?: string | null;
+  notes?: string | null;
+  created_at?: string;
 }
 
 // ── Beta: Append-only production records ─────────────────────────

@@ -37,6 +37,7 @@ import { JobCardBoard } from './production/pages/JobCardBoard';
 import { LogMolding } from './production/pages/LogMolding';
 import { LogFinishing } from './production/pages/LogFinishing';
 import { LogInspection } from './production/pages/LogInspection';
+import { LogPDI } from './production/pages/LogPDI';
 import { DispatchBoard } from './production/pages/DispatchBoard';
 import { CreateDispatch } from './production/pages/CreateDispatch';
 
@@ -111,6 +112,7 @@ export default function App() {
                   <Route path="log-molding" element={<LogMolding />} />
                   <Route path="log-finishing" element={<LogFinishing />} />
                   <Route path="log-inspection" element={<LogInspection />} />
+                  <Route path="log-pdi" element={<LogPDI />} />
                   <Route path="dispatch" element={<DispatchBoard />} />
                   <Route path="dispatch/new" element={<CreateDispatch />} />
                   <Route path="*" element={<div className="p-8 text-[13px] font-mono">Production module not found...</div>} />

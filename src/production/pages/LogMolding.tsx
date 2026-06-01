@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Save, Info, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { AttachmentUploader } from '../components/AttachmentUploader';
 import { useProductionData } from '../lib/useProductionData';
 import { listMoldingSessions, insertMoldingSession } from '../lib/db';
 import { nextMldId, calcWorkingMinutes } from '../lib/jcStats';
@@ -194,7 +195,27 @@ export function LogMolding() {
     }
   };
 
-  const eligibleJobs = jobs.filter(j => j.stage !== 'dispatched');
+  // Molded qty per job across all sessions (for hide-when-complete logic)
+  const moldedPerJob = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of allSessions) {
+      m.set(s.job_card_id, (m.get(s.job_card_id) || 0) + (s.qty_molded || 0));
+    }
+    return m;
+  }, [allSessions]);
+
+  const eligibleJobs = useMemo(() => jobs.filter(j => {
+    if (j.stage === 'dispatched') return false;
+    if (opType === 'Rework' || opType === 'Trial') {
+      // Rework / Trial can target any active job regardless of stage
+      return !['dispatched'].includes(j.stage);
+    }
+    // Production: only jobs currently in moulding/queued stage
+    if (!['queued', 'moulding'].includes(j.stage)) return false;
+    // Hide if planned qty is already met
+    if (j.qty && (moldedPerJob.get(j.id) || 0) >= j.qty) return false;
+    return true;
+  }), [jobs, opType, moldedPerJob]);
 
   return (
     <div className="flex flex-col h-full">
@@ -389,6 +410,16 @@ export function LogMolding() {
             <Field label="Remarks" className="mt-3">
               <textarea className={`${inp} resize-none h-[52px]`} value={remarks} onChange={e => setRemarks(e.target.value)} title="Remarks" />
             </Field>
+          </Card>
+
+          {/* DPR attachment — per shift */}
+          <Card title="DPR Attachment">
+            <AttachmentUploader
+              type="dpr"
+              shiftDate={date}
+              shift={shift === 'A' ? 'day' : shift === 'B' ? 'day' : 'night'}
+              label={`DPR — ${date} · Shift ${shift}`}
+            />
           </Card>
 
           <div className="text-[10.5px] text-[#555] border-t border-[#E4E5E6] pt-2">
