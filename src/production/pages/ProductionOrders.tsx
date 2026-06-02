@@ -10,13 +10,23 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, PageHeader, FilterBar,
 } from '../components/table';
 import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
-import { fmtDate, localDateStr } from '../../lib/utils';
+import { fmtDate, localDateStr, formatINR } from '../../lib/utils';
+
+type Urgency = 'all' | 'overdue' | 'soon' | 'later';
+
+// Order Value = Σ line totals + GST (mirrors the CRM Orders register calc).
+const orderValue = (o: CrmOrderLite): number =>
+  (o.items || []).reduce((s, i) => {
+    const tot = i.total ?? 0;
+    return s + tot + (tot * (i.gst || 0)) / 100;
+  }, 0);
 
 export function ProductionOrders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<CrmOrderLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [urgency, setUrgency] = useState<Urgency>('all');
 
   const load = () => {
     setLoading(true);
@@ -25,6 +35,15 @@ export function ProductionOrders() {
   useEffect(load, []);
 
   const today = localDateStr(new Date());
+  const soonCutoff = localDateStr(new Date(Date.now() + 7 * 86400000)); // ≤7 days
+
+  // Delivery-urgency bucket from the promised/delivery date.
+  const urgencyOf = (o: CrmOrderLite): Exclude<Urgency, 'all'> | 'undated' => {
+    if (!o.dlv_date) return 'undated';
+    if (o.dlv_date < today) return 'overdue';
+    if (o.dlv_date <= soonCutoff) return 'soon';
+    return 'later';
+  };
 
   // Sort by promised/delivery date (earliest first); undated last.
   const sorted = useMemo(() => {
@@ -38,15 +57,32 @@ export function ProductionOrders() {
     });
   }, [orders]);
 
+  // Counts per urgency bucket (computed before the urgency filter is applied).
+  const counts = useMemo(() => {
+    const c = { all: sorted.length, overdue: 0, soon: 0, later: 0 };
+    for (const o of sorted) {
+      const u = urgencyOf(o);
+      if (u === 'overdue' || u === 'soon' || u === 'later') c[u]++;
+    }
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted, today, soonCutoff]);
+
   const filtered = useMemo(() => {
-    if (!q) return sorted;
-    const t = q.toLowerCase();
-    return sorted.filter(o =>
-      (o.po_no || '').toLowerCase().includes(t) ||
-      (o.id || '').toLowerCase().includes(t) ||
-      (o.cust || '').toLowerCase().includes(t)
-    );
-  }, [sorted, q]);
+    return sorted.filter(o => {
+      if (urgency !== 'all' && urgencyOf(o) !== urgency) return false;
+      if (q) {
+        const t = q.toLowerCase();
+        return (
+          (o.po_no || '').toLowerCase().includes(t) ||
+          (o.id || '').toLowerCase().includes(t) ||
+          (o.cust || '').toLowerCase().includes(t)
+        );
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted, q, urgency, today, soonCutoff]);
 
   const createJob = (orderId: string) =>
     navigate(`/production/jobs/new?order=${encodeURIComponent(orderId)}`);
@@ -66,6 +102,13 @@ export function ProductionOrders() {
       />
 
       <FilterBar>
+        {/* Delivery-urgency filter tabs with counts */}
+        <div className="flex flex-wrap">
+          <UrgencyTab label="All"        count={counts.all}     active={urgency === 'all'}     onClick={() => setUrgency('all')} />
+          <UrgencyTab label="Overdue"    count={counts.overdue} active={urgency === 'overdue'} onClick={() => setUrgency(urgency === 'overdue' ? 'all' : 'overdue')} activeCls="bg-[#BB0000] text-white border-[#BB0000]" />
+          <UrgencyTab label="Due ≤7 days" count={counts.soon}   active={urgency === 'soon'}    onClick={() => setUrgency(urgency === 'soon' ? 'all' : 'soon')}    activeCls="bg-[#E9730C] text-white border-[#E9730C]" />
+          <UrgencyTab label="Later"      count={counts.later}   active={urgency === 'later'}   onClick={() => setUrgency(urgency === 'later' ? 'all' : 'later')} />
+        </div>
         <div className="flex items-center gap-1.5 bg-white border border-[#E4E5E6] rounded px-2 h-7 min-w-[240px] focus-within:border-[#0A6ED1] focus-within:ring-2 focus-within:ring-red-lt">
           <Search size={11} className="text-[#555] shrink-0" />
           <input
@@ -89,6 +132,7 @@ export function ProductionOrders() {
               <TH>Customer</TH>
               <TH>Lines</TH>
               <TH>Total Qty</TH>
+              <TH>Order Value</TH>
               <TH>PO Date</TH>
               <TH>Promised</TH>
               <TH>Action</TH>
@@ -96,9 +140,9 @@ export function ProductionOrders() {
           </THead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={7} text="Loading open orders…" />
+              <EmptyRow colSpan={8} text="Loading open orders…" />
             ) : filtered.length === 0 ? (
-              <EmptyRow colSpan={7} text="No open orders awaiting a production job." />
+              <EmptyRow colSpan={8} text="No open orders awaiting a production job." />
             ) : filtered.map(o => {
               const lines = (o.items || []).length;
               const totalQty = (o.items || []).reduce((s, i) => s + (i.qty || 0), 0);
@@ -111,6 +155,7 @@ export function ProductionOrders() {
                   <TD className="text-[12.5px]">{o.cust || '—'}</TD>
                   <TD className="font-mono text-[11.5px]">{lines}</TD>
                   <TD className="font-mono text-[11.5px]">{totalQty.toLocaleString()}</TD>
+                  <TD className="font-mono text-[11.5px] font-semibold">{formatINR(orderValue(o))}</TD>
                   <TD className="font-mono text-[11px] text-[#666]">{fmtDate(o.po_date)}</TD>
                   <TD className={`font-mono text-[11px] ${overdue ? 'text-[#BB0000] font-semibold' : 'text-[#666]'}`}>
                     {fmtDate(o.dlv_date)}{overdue ? ' ⚠' : ''}
@@ -136,5 +181,24 @@ export function ProductionOrders() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Segmented urgency filter tab with count (joined-border pill group).
+function UrgencyTab({ label, count, active, activeCls, onClick }: {
+  label: string; count: number; active: boolean; activeCls?: string; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-[11.5px] px-[13px] py-[5px] border border-r-0 last:border-r whitespace-nowrap transition-colors first:rounded-l-[3px] last:rounded-r-[3px] ${
+        active
+          ? (activeCls || 'bg-[#0A6ED1] text-white border-[#0A6ED1]')
+          : 'bg-white text-[#6A6D70] border-[#E4E5E6] hover:bg-[#F7F7F7] hover:text-[#32363A]'
+      }`}
+    >
+      {label} <span className="text-[10px] opacity-80">({count})</span>
+    </button>
   );
 }
