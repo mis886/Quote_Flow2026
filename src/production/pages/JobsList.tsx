@@ -11,6 +11,7 @@ import {
   StatusPill, toneForStage, toneForStatus,
 } from '../components/table';
 import { ImportFromOrdersModal } from '../components/ImportFromOrdersModal';
+import { productIdentity } from '../lib/productLabel';
 import { fmtDate } from '../../lib/utils';
 
 type StageTab = 'All' | 'Queued' | 'Moulding' | 'Finishing' | 'Inspection' | 'PDI' | 'Dispatch' | 'Dispatched';
@@ -43,6 +44,7 @@ export function JobsList() {
         const t = q.toLowerCase();
         if (!(
           j.id.toLowerCase().includes(t) ||
+          (j.family_code || '').toLowerCase().includes(t) ||
           (j.product_desc || '').toLowerCase().includes(t) ||
           (j.customer_name || '').toLowerCase().includes(t) ||
           (j.job_card_no || '').toLowerCase().includes(t) ||
@@ -180,8 +182,8 @@ export function JobsList() {
                     const prod = j.product_id ? products.find(p => p.id === j.product_id) : null;
                     return (
                       <>
-                        <div className="font-semibold text-[#111] text-[12.5px]">
-                          {prod ? prod.code : j.product_desc}
+                        <div className="font-semibold text-[#111] text-[12.5px] font-mono">
+                          {productIdentity(j)}
                         </div>
                         {prod && (
                           <div className="text-[10.5px] text-[#333]">{prod.name}</div>

@@ -15,6 +15,7 @@ import type { ProductionJob, Product } from '../lib/types';
 // ── Per-line draft ──────────────────────────────────────────────────────────
 interface DraftLine {
   product_id:    string;    // selected from product master (optional)
+  family_code:   string;    // Type_Model_MOC of the selected product
   product_desc:  string;
   qty:           string;
   mould_code:    string;
@@ -28,6 +29,7 @@ interface DraftLine {
 
 const blankLine = (): DraftLine => ({
   product_id:    '',
+  family_code:   '',
   product_desc:  '',
   qty:           '',
   mould_code:    '',
@@ -81,6 +83,7 @@ export function NewProductionJob() {
     setLines(ls => ls.map((l, i) => i !== lineIdx ? l : {
       ...l,
       product_id:    p.id,
+      family_code:   p.family_code || '',
       product_desc:  l.product_desc || p.name,   // don't override if already typed
       mould_code:    p.mould_code    ?? l.mould_code,
       cavities:      p.cavities      != null ? String(p.cavities)      : l.cavities,
@@ -168,6 +171,7 @@ export function NewProductionJob() {
           order_line_seq:   i + 1,
           customer_name:    customerName.trim(),
           product_id:       l.product_id || null,
+          family_code:      l.family_code.trim() || null,
           product_desc:     l.product_desc.trim(),
           qty:              Number(l.qty),
           qty_to_mould:     Number(l.qty),
@@ -330,7 +334,7 @@ export function NewProductionJob() {
                           title="Our product"
                           autoComplete="off"
                           onChange={e => {
-                            updateLine(i, { productSearch: e.target.value, product_id: '' });
+                            updateLine(i, { productSearch: e.target.value, product_id: '', family_code: '' });
                             setProductDropOpen(i);
                           }}
                           onFocus={() => setProductDropOpen(i)}

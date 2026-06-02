@@ -25,6 +25,7 @@ export interface ProductionJob {
   customer_id?: string | null;
   customer_name?: string | null;
   product_id?: string | null;      // link to "Our Product" master (prod_products.id)
+  family_code?: string | null;     // Type_Model_MOC identity snapshot (prod_products.family_code)
   product_desc: string;
   qty: number;
   qty_to_mould?: number | null;
@@ -134,7 +135,8 @@ export interface Compound {
 
 export interface Product {
   id: string;
-  code: string;
+  code: string;                    // unique per-variant product code
+  family_code?: string | null;     // Type_Model_MOC family, e.g. 'GCH_S121_NBR' (not unique)
   name: string;
   customer_id?: string | null;
   customer_name?: string | null;

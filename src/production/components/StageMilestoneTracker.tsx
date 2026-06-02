@@ -13,6 +13,7 @@ import {
   calcMilestones, stageRAG, currentStagePlan,
   type StageRAGDot,
 } from '../lib/otdImpact';
+import { productIdentity } from '../lib/productLabel';
 import type { ProductionJob, ShopFloorSettings, MoldingSession, FinishingSession, InspectionSession } from '../lib/types';
 
 const STAGE_SEQ = ['moulding', 'finishing', 'inspection', 'pdi'] as const;
@@ -129,7 +130,7 @@ export function StageMilestoneTracker({ jobs, settings, actuals }: Props) {
                 </TD>
                 <TD>
                   <div className="font-semibold text-[#111] text-[12.5px] truncate max-w-[160px]">
-                    {job.product_desc}
+                    {productIdentity(job)}
                   </div>
                   <div className="text-[10.5px] text-[#333] truncate max-w-[160px]">
                     {job.customer_name || '—'}

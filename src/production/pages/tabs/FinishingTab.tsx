@@ -7,6 +7,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
 import type { ProductionJob, Worker, ShopFloorSettings } from '../../lib/types';
+import { productIdentity } from '../../lib/productLabel';
 import { fmtDate } from '../../../lib/utils';
 import { setJobQtyDone } from '../../lib/actions';
 import { getJobImpact } from '../../lib/otdImpact';
@@ -126,7 +127,7 @@ function FinishingRow({
           {job.priority === 'emergency' && <span className="mr-1">🔴</span>}{job.id}
         </span>
       </TD>
-      <TD className="font-semibold text-[#111]">{job.product_desc}</TD>
+      <TD className="font-semibold text-[#111]">{productIdentity(job)}</TD>
       <TD className="text-[12px]">{job.customer_name || '—'}</TD>
       <TD className="font-mono text-[11px]">{job.qty.toLocaleString()}</TD>
       <TD>

@@ -185,6 +185,11 @@ export async function generateJobCardPDF(job: ProductionJob, download = true): P
     { label: 'Order Date',    value: fmtDate(job.order_start_date || job.created_at) },
   ], 14);
 
+  // Product identity — Type_Model_MOC (falls back to description for legacy jobs)
+  cellRow([
+    { label: 'Item (Type·Model·MOC)', value: job.family_code || job.product_desc || '—' },
+  ], 10);
+
   // Priority pill colour
   const isEmergency = job.priority === 'emergency';
   const moldingTAT = (() => {

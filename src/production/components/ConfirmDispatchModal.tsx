@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, Truck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { ProductionJob } from '../lib/types';
+import { productIdentity } from '../lib/productLabel';
 import { fmtDate } from '../../lib/utils';
 
 const COURIERS = ['Blue Dart', 'DTDC', 'Delhivery', 'FedEx', 'Own vehicle'];
@@ -53,7 +54,7 @@ export function ConfirmDispatchModal({ open, job, onClose, onConfirm }: Props) {
 
         <div className="p-4 space-y-3">
           <div className="text-[12.5px] text-[#111]">
-            {job.product_desc} · {job.qty.toLocaleString()} pcs · {job.customer_name || '—'}
+            {productIdentity(job)} · {job.qty.toLocaleString()} pcs · {job.customer_name || '—'}
           </div>
 
           <div>

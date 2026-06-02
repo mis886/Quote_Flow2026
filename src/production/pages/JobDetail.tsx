@@ -12,6 +12,7 @@ import {
   toneForStage, toneForStatus,
 } from '../components/table';
 import type { ProductionJob, JobStageEvent, Product } from '../lib/types';
+import { productIdentity } from '../lib/productLabel';
 import { fmtDate } from '../../lib/utils';
 
 const STAGE_SEQ = ['moulding', 'finishing', 'inspection', 'pdi', 'dispatch'] as const;
@@ -88,7 +89,7 @@ export function JobDetail() {
         module={`Production · ${job.id}`}
         title={<>Job Card</>}
         accent={job.id}
-        subtitle={`${job.customer_name || '—'} · ${product ? `${product.code} — ${product.name}` : job.product_desc} · ${job.qty.toLocaleString()} pcs`}
+        subtitle={`${job.customer_name || '—'} · ${productIdentity(job)}${product ? ` — ${product.name}` : ''} · ${job.qty.toLocaleString()} pcs`}
         actions={
           <>
             <Button variant="secondary" onClick={() => navigate('/production/jobs')} className="gap-1">

@@ -7,6 +7,7 @@ import { Save, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { listPdiLogs, insertPdiLog, listInspectionSessions } from '../lib/db';
 import { nextPdiId } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import { AttachmentUploader } from '../components/AttachmentUploader';
 import type { PdiLog, InspectionSession } from '../lib/types';
@@ -207,14 +208,14 @@ export function LogPDI() {
                 <select className={inp} value={jcId} onChange={e => setJcId(e.target.value)} title="Job card">
                   <option value="">— Select Job Card —</option>
                   {eligibleJobs.map(j => (
-                    <option key={j.id} value={j.id}>{j.id} · {j.product_desc} · {j.customer_name}</option>
+                    <option key={j.id} value={j.id}>{j.id} · {productIdentity(j)} · {j.customer_name}</option>
                   ))}
                 </select>
               </Field>
 
               {selectedJob && (
                 <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1]">
-                  <strong>{selectedJob.id}</strong> · {selectedJob.product_desc}
+                  <strong>{selectedJob.id}</strong> · {productIdentity(selectedJob)}
                   · Ordered: <strong>{selectedJob.qty} pcs</strong>
                   · Promised: <strong>{fmtDate(selectedJob.promised_date)}</strong>
                   · PDI checked so far: <strong>{prevPdiChecked} pcs</strong>

@@ -14,14 +14,21 @@ export function ProductsList() {
   const { products, compounds, presses, loading } = useProductionData();
   const [q, setQ] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
+  const [familyFilter, setFamilyFilter] = useState('');
 
   const grades = useMemo(() =>
     [...new Set(compounds.map(c => c.grade))].sort(),
     [compounds]
   );
 
+  const families = useMemo(() =>
+    [...new Set(products.map(p => p.family_code).filter(Boolean) as string[])].sort(),
+    [products]
+  );
+
   const filtered = useMemo(() => {
     return products.filter(p => {
+      if (familyFilter && p.family_code !== familyFilter) return false;
       if (gradeFilter) {
         const comp = compounds.find(c => c.id === p.compound_id);
         if (comp?.grade !== gradeFilter) return false;
@@ -30,6 +37,7 @@ export function ProductsList() {
         const t = q.toLowerCase();
         if (!(
           p.code.toLowerCase().includes(t) ||
+          (p.family_code || '').toLowerCase().includes(t) ||
           p.name.toLowerCase().includes(t) ||
           (p.customer_name || '').toLowerCase().includes(t) ||
           (p.mould_code || '').toLowerCase().includes(t) ||
@@ -38,7 +46,7 @@ export function ProductsList() {
       }
       return true;
     });
-  }, [products, compounds, q, gradeFilter]);
+  }, [products, compounds, q, gradeFilter, familyFilter]);
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
@@ -59,12 +67,22 @@ export function ProductsList() {
           <Search size={11} className="text-[#555] shrink-0" />
           <input
             type="text"
-            placeholder="Code, name, mould, customer…"
+            placeholder="Code, family, name, mould, customer…"
             value={q}
             onChange={e => setQ(e.target.value)}
             className="bg-transparent border-none outline-none font-sans text-xs text-[#111] w-full placeholder:text-[#555]"
           />
         </div>
+
+        <select
+          title="Filter by family (Type_Model_MOC)"
+          className="font-sans text-xs text-[#111] bg-white border border-[#E4E5E6] rounded py-1 pl-2 pr-6 cursor-pointer outline-none"
+          value={familyFilter}
+          onChange={e => setFamilyFilter(e.target.value)}
+        >
+          <option value="">All Families</option>
+          {families.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
 
         <select
           title="Filter by compound grade"
@@ -86,6 +104,7 @@ export function ProductsList() {
           <THead>
             <tr>
               <TH>Code</TH>
+              <TH>Family</TH>
               <TH>Product Name</TH>
               <TH>Customer</TH>
               <TH>Compound</TH>
@@ -99,9 +118,9 @@ export function ProductsList() {
           </THead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={10} text="Loading…" />
+              <EmptyRow colSpan={11} text="Loading…" />
             ) : filtered.length === 0 ? (
-              <EmptyRow colSpan={10} text="No products found." />
+              <EmptyRow colSpan={11} text="No products found." />
             ) : filtered.map(p => {
               const comp = compounds.find(c => c.id === p.compound_id);
               const mouldRate = p.cure_time_min && p.cavities
@@ -111,6 +130,9 @@ export function ProductsList() {
                 <TR key={p.id} onClick={() => navigate(`/production/products/${p.id}`)}>
                   <TD>
                     <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{p.code}</span>
+                  </TD>
+                  <TD className="font-mono text-[10.5px] text-[#666]">
+                    {p.family_code || '—'}
                   </TD>
                   <TD>
                     <div className="font-semibold text-[#111] text-[12.5px]">{p.name}</div>

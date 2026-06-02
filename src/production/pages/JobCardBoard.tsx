@@ -13,6 +13,7 @@ import {
 import {
   jcStats, deriveJCStatus, JC_STATUS_COLOR,
 } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader, FilterBar } from '../components/table';
 import { fmtDate } from '../../lib/utils';
 import type {
@@ -65,6 +66,7 @@ export function JobCardBoard() {
         const t = q.toLowerCase();
         return (
           e.job.id.toLowerCase().includes(t) ||
+          (e.job.family_code || '').toLowerCase().includes(t) ||
           (e.job.product_desc || '').toLowerCase().includes(t) ||
           (e.job.customer_name || '').toLowerCase().includes(t)
         );
@@ -153,7 +155,7 @@ export function JobCardBoard() {
                         <div className="text-[9.5px] text-[#888] font-mono">{job.mould_code}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2 font-semibold max-w-[180px] truncate">{job.product_desc}</td>
+                    <td className="px-3 py-2 font-semibold max-w-[180px] truncate">{productIdentity(job)}</td>
                     <td className="px-3 py-2 text-[#555] whitespace-nowrap">{job.customer_name || '—'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className={`text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] border ${c.chipCls}`}>

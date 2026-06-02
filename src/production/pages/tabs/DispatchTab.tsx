@@ -8,6 +8,7 @@ import {
 } from '../../components/table';
 import { fmtIST, fmtDate } from '../../../lib/utils';
 import type { ProductionJob } from '../../lib/types';
+import { productIdentity } from '../../lib/productLabel';
 import {
   canUndoDispatch, undoDispatch, UNDO_DISPATCH_WINDOW_MIN,
 } from '../../lib/actions';
@@ -75,7 +76,7 @@ export function DispatchTab({ jobs, onConfirmDispatch, onChanged }: Props) {
                     {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                   </span>
                 </TD>
-                <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
+                <TD className="font-semibold text-[#111]">{productIdentity(j)}</TD>
                 <TD className="text-[12px]">{j.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
                 <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>

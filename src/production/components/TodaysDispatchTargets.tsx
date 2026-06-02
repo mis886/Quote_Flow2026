@@ -9,6 +9,7 @@ import { Truck } from 'lucide-react';
 import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from './table';
+import { productIdentity } from '../lib/productLabel';
 import type { ProductionJob } from '../lib/types';
 import { fmtDate } from '../../lib/utils';
 
@@ -66,7 +67,7 @@ export function TodaysDispatchTargets({ jobs }: { jobs: ProductionJob[] }) {
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-[#111] text-[12.5px]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#111] text-[12.5px]">{productIdentity(j)}</TD>
               <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11.5px]">{j.qty.toLocaleString()}</TD>
               <TD className="font-mono text-[11px] text-[#666]">{fmtDate(j.promised_date)}</TD>

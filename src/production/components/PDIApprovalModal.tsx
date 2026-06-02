@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X, CheckCircle2 } from 'lucide-react';
 import type { ProductionJob } from '../lib/types';
+import { productIdentity } from '../lib/productLabel';
 
 interface Props {
   open: boolean;
@@ -38,7 +39,7 @@ export function PDIApprovalModal({ open, job, onClose, onConfirm }: Props) {
 
         <div className="p-4 space-y-3">
           <div className="text-[12.5px] text-[#111]">
-            Approving PDI will move <strong>{job.id}</strong> ({job.product_desc}) to <strong>Ready to Dispatch</strong>.
+            Approving PDI will move <strong>{job.id}</strong> ({productIdentity(job)}) to <strong>Ready to Dispatch</strong>.
           </div>
           <div>
             <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1">

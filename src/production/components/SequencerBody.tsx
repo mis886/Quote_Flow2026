@@ -8,6 +8,7 @@ import { Button } from '../../components/ui';
 import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill, toneForStatus,
 } from './table';
+import { productIdentity } from '../lib/productLabel';
 import { PressBoard } from './PressBoard';
 import { AssignPressModal } from './AssignPressModal';
 import { NCRModal } from './NCRModal';
@@ -199,7 +200,7 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                           {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                         </span>
                       </TD>
-                      <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
+                      <TD className="font-semibold text-[#111]">{productIdentity(j)}</TD>
                       <TD className="text-[12px] text-[#111]">{j.customer_name || '—'}</TD>
                       <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
                       <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>

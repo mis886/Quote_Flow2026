@@ -6,6 +6,7 @@ import {
   Table, THead, TH, TR, TD, EmptyRow, StatusPill,
 } from '../../components/table';
 import type { ProductionJob, Worker } from '../../lib/types';
+import { productIdentity } from '../../lib/productLabel';
 import { fmtDate } from '../../../lib/utils';
 
 interface Props {
@@ -56,7 +57,7 @@ export function InspectionTab({ jobs, workers, onPass, onFail, onRework }: Props
                   {j.priority === 'emergency' && <span className="mr-1">🔴</span>}{j.id}
                 </span>
               </TD>
-              <TD className="font-semibold text-[#111]">{j.product_desc}</TD>
+              <TD className="font-semibold text-[#111]">{productIdentity(j)}</TD>
               <TD className="text-[12px]">{j.customer_name || '—'}</TD>
               <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
               <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>

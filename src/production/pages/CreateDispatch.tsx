@@ -14,6 +14,7 @@ import {
 } from '../lib/db';
 import { AttachmentUploader } from '../components/AttachmentUploader';
 import { jcStats, nextDspId, nextDspItemId } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type {
   MoldingSession, FinishingSession, InspectionSession,
@@ -241,6 +242,7 @@ export function CreateDispatch() {
     if (!t) return readyJobs.slice(0, 15);
     return readyJobs.filter(j =>
       j.id.toLowerCase().includes(t) ||
+      (j.family_code || '').toLowerCase().includes(t) ||
       (j.product_desc || '').toLowerCase().includes(t) ||
       (j.customer_name || '').toLowerCase().includes(t)
     ).slice(0, 15);
@@ -443,7 +445,7 @@ export function CreateDispatch() {
                                 onMouseDown={() => selectJob(line.key, j.id)}
                                 className="w-full px-2.5 py-2 text-left hover:bg-[#E8F0FD] transition-colors border-b border-[#F3F3F3] last:border-0">
                                 <div className="text-[11px] font-bold text-[#0A6ED1] font-mono">{j.id}</div>
-                                <div className="text-[10.5px] text-[#333] truncate">{j.product_desc}</div>
+                                <div className="text-[10.5px] text-[#333] truncate">{productIdentity(j)}</div>
                                 <div className="text-[9.5px] text-[#888] flex gap-2">
                                   <span>{j.customer_name}</span>
                                   <span className="text-[#107E3E] font-medium">Ready: {readyMap[j.id]} pcs</span>
@@ -454,7 +456,7 @@ export function CreateDispatch() {
                         )}
                         {job && (
                           <div className="mt-0.5 text-[10px] text-[#555] flex gap-2">
-                            <span>{job.product_desc}</span>
+                            <span>{productIdentity(job)}</span>
                             {job.mould_code && <span className="text-[#888]">· Die: {job.mould_code}</span>}
                           </div>
                         )}

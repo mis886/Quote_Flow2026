@@ -11,6 +11,7 @@ import {
   listDispatches, updateDispatchStatus,
 } from '../lib/db';
 import { jcStats, deriveJCStatus } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import { fmtIST, fmtDate } from '../../lib/utils';
 import type {
@@ -107,7 +108,7 @@ export function DispatchBoard() {
                   <div className="flex items-start justify-between mb-1">
                     <div>
                       <div className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{job.id}</div>
-                      <div className="text-[11.5px] font-semibold text-[#111] mt-0.5">{job.product_desc}</div>
+                      <div className="text-[11.5px] font-semibold text-[#111] mt-0.5">{productIdentity(job)}</div>
                       <div className="text-[10.5px] text-[#555]">{job.customer_name}</div>
                     </div>
                     <div className="text-center ml-3">

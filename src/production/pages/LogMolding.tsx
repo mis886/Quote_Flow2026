@@ -10,6 +10,7 @@ import { CorrectionModal } from '../components/CorrectionModal';
 import { useProductionData } from '../lib/useProductionData';
 import { listMoldingSessions, insertMoldingSession, updateMoldingSession } from '../lib/db';
 import { nextMldId, calcWorkingMinutes } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type { MoldingSession } from '../lib/types';
 import { useAppStore } from '../../store';
@@ -294,7 +295,7 @@ export function LogMolding() {
                 <select className={inp} value={jcId} onChange={e => setJcId(e.target.value)} title="Job card">
                   <option value="">— Select Job Card —</option>
                   {eligibleJobs.map(j => (
-                    <option key={j.id} value={j.id}>{j.id} · {j.product_desc} · {j.customer_name}</option>
+                    <option key={j.id} value={j.id}>{j.id} · {productIdentity(j)} · {j.customer_name}</option>
                   ))}
                 </select>
               </Field>
@@ -320,7 +321,7 @@ export function LogMolding() {
               <div className="flex-1 text-[11px] text-[#0A6ED1]">
                 <span className="font-bold">{selectedJob.id}</span>
                 <span className="mx-1.5 text-[#0A6ED1]/60">·</span>
-                {selectedJob.product_desc}
+                {productIdentity(selectedJob)}
                 <span className="mx-1.5 text-[#0A6ED1]/60">·</span>
                 {selectedJob.customer_name}
                 <span className="mx-1.5 text-[#0A6ED1]/60">·</span>

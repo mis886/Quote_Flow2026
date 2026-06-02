@@ -11,6 +11,7 @@ import {
   listFinishingSessions,
 } from '../lib/db';
 import { nextInsId, validateInsSplit, calcWorkingMinutes } from '../lib/jcStats';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type { InspectionSession, FinishingSession } from '../lib/types';
 import { useAppStore } from '../../store';
@@ -251,14 +252,14 @@ export function LogInspection() {
                 <select className={inp} value={jcId} onChange={e => setJcId(e.target.value)} title="Job card">
                   <option value="">— Select Job Card —</option>
                   {eligibleJobs.map(j => (
-                    <option key={j.id} value={j.id}>{j.id} · {j.product_desc}</option>
+                    <option key={j.id} value={j.id}>{j.id} · {productIdentity(j)}</option>
                   ))}
                 </select>
               </Field>
 
               {selectedJob && (
                 <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1]">
-                  <strong>{selectedJob.id}</strong> · {selectedJob.product_desc} · Ordered: <strong>{selectedJob.qty} pcs</strong> · Previously passed: <strong>{prevPassed} pcs</strong>
+                  <strong>{selectedJob.id}</strong> · {productIdentity(selectedJob)} · Ordered: <strong>{selectedJob.qty} pcs</strong> · Previously passed: <strong>{prevPassed} pcs</strong>
                 </div>
               )}
 

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Search, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProductionData } from '../lib/useProductionData';
+import { productIdentity } from '../lib/productLabel';
 import { fmtIST } from '../../lib/utils';
 import {
   Table, THead, TH, TR, TD, EmptyRow, PageHeader, FilterBar, StatusPill,
@@ -28,6 +29,7 @@ export function NCRLog() {
         (n.job_id || '').toLowerCase().includes(t) ||
         (n.defect_code || '').toLowerCase().includes(t) ||
         (n.defect_desc || '').toLowerCase().includes(t) ||
+        (n.job?.family_code || '').toLowerCase().includes(t) ||
         (n.job?.product_desc || '').toLowerCase().includes(t) ||
         (n.job?.customer_name || '').toLowerCase().includes(t)
       )) return false;
@@ -109,7 +111,7 @@ export function NCRLog() {
                   {n.raised_at ? fmtIST(new Date(n.raised_at), 'dd MMM HH:mm') : '—'}
                 </TD>
                 <TD className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{n.job_id}</TD>
-                <TD className="text-[12.5px]">{n.job?.product_desc || '—'}</TD>
+                <TD className="text-[12.5px]">{productIdentity(n.job)}</TD>
                 <TD className="text-[12.5px]">{n.job?.customer_name || '—'}</TD>
                 <TD className="font-mono text-[11px]">{n.defect_code || '—'}</TD>
                 <TD className="text-[12px] text-[#444] max-w-[260px] truncate" title={n.defect_desc || ''}>

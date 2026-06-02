@@ -8,6 +8,7 @@ import { useProductionData } from '../lib/useProductionData';
 import { PressBoard } from '../components/PressBoard';
 import { AssignPressModal } from '../components/AssignPressModal';
 import { assignJobsToPress, markPressDone } from '../lib/actions';
+import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 
 export function PressBoardPage() {
@@ -110,7 +111,7 @@ export function PressBoardPage() {
                       <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
                         {j.priority === 'emergency' && '🔴 '}{j.id}
                       </span>
-                      <span className="text-[#444] truncate flex-1">{j.product_desc}</span>
+                      <span className="text-[#444] truncate flex-1">{productIdentity(j)}</span>
                       <span className="text-[#333] font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
                     </li>
                   ))}

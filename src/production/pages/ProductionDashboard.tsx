@@ -11,6 +11,7 @@ import { TodaysDispatchTargets } from '../components/TodaysDispatchTargets';
 import { OTDTrend } from '../components/OTDTrend';
 import { SequencerBody, type SequencerTab } from '../components/SequencerBody';
 import { assignJobsToPress, markPressDone } from '../lib/actions';
+import { productIdentity } from '../lib/productLabel';
 import {
   listMoldingSessions, listFinishingSessions, listInspectionSessions,
 } from '../lib/db';
@@ -124,7 +125,7 @@ export function ProductionDashboard() {
               <strong>🔴 EMERGENCY PO ACTIVE:</strong>{' '}
               {emergencyJobs.slice(0, 2).map(j => (
                 <span key={j.id} className="mr-3">
-                  <strong>{j.id}</strong> — {j.product_desc} · {j.customer_name}
+                  <strong>{j.id}</strong> — {productIdentity(j)} · {j.customer_name}
                 </span>
               ))}
               {emergencyJobs.length > 2 && (
@@ -314,7 +315,7 @@ function OperationTimeline({ events, recentEventsByJob, jobs, actuals, loading }
                       </Link>
                       {job && (
                         <>
-                          <span className="text-[11px] text-[#333] truncate max-w-[200px]">{job.product_desc}</span>
+                          <span className="text-[11px] text-[#333] truncate max-w-[200px]">{productIdentity(job)}</span>
                           <span className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded-full ${STAGE_COLOR[job.stage] || 'bg-[#F0F0F0] text-[#555]'}`}>
                             {STAGE_LABEL[job.stage] || job.stage}
                           </span>

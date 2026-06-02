@@ -2,6 +2,7 @@
 // Styled to match MRT ERP v2 (.pc / .pb / .dt / .pg spec).
 
 import { cn } from '../../lib/utils';
+import { productIdentity } from '../lib/productLabel';
 import type { Press, ProductionJob } from '../lib/types';
 
 interface Props {
@@ -72,7 +73,7 @@ export function PressBoard({ presses, jobs, onAssign, onMarkDone }: Props) {
                   {job.id}
                 </div>
                 <div className="text-[10px] text-[#333] leading-snug mb-[6px]">
-                  {job.product_desc}<br />{job.customer_name}
+                  {productIdentity(job)}<br />{job.customer_name}
                 </div>
               </>
             ) : (

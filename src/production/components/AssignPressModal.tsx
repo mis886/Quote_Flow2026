@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import type { Press, ProductionJob } from '../lib/types';
+import { productIdentity } from '../lib/productLabel';
 import { fmtDate } from '../../lib/utils';
 
 interface Props {
@@ -152,7 +153,7 @@ export function AssignPressModal({
                       <div className="text-[12px] font-semibold text-[#111] truncate">
                         {j.priority === 'emergency' && <span className="text-[#0A6ED1]">🔴 </span>}
                         {j.id}
-                        <span className="ml-1.5 font-normal text-[#333]">— {j.product_desc}</span>
+                        <span className="ml-1.5 font-normal text-[#333]">— {productIdentity(j)}</span>
                       </div>
                       <div className="text-[10.5px] text-[#333] mt-0.5">
                         {j.customer_name || '—'} · {j.qty.toLocaleString()} pcs ·

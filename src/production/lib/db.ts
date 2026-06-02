@@ -228,6 +228,43 @@ export async function deleteProduct(id: string) {
   if (error) throw error;
 }
 
+// Clone a product as a new variant within the same family (same family_code),
+// generating a unique `code` (appends -2, -3, … or -COPY) and copying its BOM.
+// Returns the new product.
+export async function duplicateProduct(id: string): Promise<Product> {
+  const src = await getProduct(id);
+  if (!src) throw new Error('Source product not found');
+
+  const all = await listProducts();
+  const existingCodes = new Set(all.map(p => p.code));
+  const baseCode = src.code.replace(/-\d+$/, '');   // strip any trailing -N
+  let newCode = '';
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${baseCode}-${n}`;
+    if (!existingCodes.has(candidate)) { newCode = candidate; break; }
+  }
+  if (!newCode) newCode = `${src.code}-COPY-${Date.now().toString(36)}`;
+
+  const newId = `P${Date.now().toString(36).toUpperCase()}`;
+  const { id: _id, created_at, updated_at, ...rest } = src;
+  const clone: Product = {
+    ...rest,
+    id:   newId,
+    code: newCode,
+    name: `${src.name} (copy)`,
+  };
+  const saved = await upsertProduct(clone as Partial<Product> & { id: string; code: string; name: string });
+
+  // Copy BOM rows
+  const bom = await listBOMForProduct(id);
+  for (const row of bom) {
+    const { id: _rowId, created_at: _c, product_id: _p, ...bomRest } = row;
+    await addBOMRow({ ...bomRest, product_id: newId } as Omit<BOMRow, 'id' | 'created_at'>);
+  }
+
+  return saved;
+}
+
 // ── BOM ────────────────────────────────────────────────────────────
 export async function listBOMForProduct(productId: string): Promise<BOMRow[]> {
   const { data, error } = await supabase

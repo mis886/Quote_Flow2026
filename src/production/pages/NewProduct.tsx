@@ -20,6 +20,7 @@ export function NewProduct() {
 
   // Form fields
   const [code, setCode]             = useState('');
+  const [familyCode, setFamilyCode] = useState('');
   const [name, setName]             = useState('');
   const [customerName, setCustomerName] = useState('');
   const [compoundId, setCompoundId] = useState('');
@@ -46,6 +47,7 @@ export function NewProduct() {
       getProduct(id).then(p => {
         if (!p) return;
         setCode(p.code); setName(p.name);
+        setFamilyCode(p.family_code || '');
         setCustomerName(p.customer_name || '');
         setCompoundId(p.compound_id || '');
         setMouldCode(p.mould_code || '');
@@ -80,6 +82,7 @@ export function NewProduct() {
       const prodId = id || `P${Date.now().toString(36).toUpperCase()}`;
       const saved = await upsertProduct({
         id: prodId, code: code.trim(), name: name.trim(),
+        family_code: familyCode.trim().toUpperCase() || null,
         customer_name: customerName.trim() || null,
         compound_id: compoundId || null,
         mould_code: mouldCode.trim() || null,
@@ -131,7 +134,11 @@ export function NewProduct() {
           {/* Identity */}
           <Card title="Identity">
             <Grid2>
-              <F label="Product Code *"><input className={inp} value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. PHE-M10-E70" title="Product code" /></F>
+              <F label="Product Code * (unique)"><input className={inp} value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. GCH_S121_NBR-2" title="Unique product code" /></F>
+              <F label="Type · Model · MOC (Family)">
+                <input className={inp} value={familyCode} onChange={e => setFamilyCode(e.target.value)} placeholder="e.g. GCH_S121_NBR" title="Type_Model_MOC family code" />
+                <Hint>Type _ Model _ MOC. Shared across all variants (die / compound / size).</Hint>
+              </F>
               <F label="Product Name *"><input className={inp} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. PHE Gasket M10 EPDM" title="Product name" /></F>
               <F label="Primary Customer"><input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" /></F>
               <F label="Drawing Reference"><input className={inp} value={drawRef} onChange={e => setDrawRef(e.target.value)} placeholder="DRW-PHE-M10-E70-R3" title="Drawing reference" /></F>

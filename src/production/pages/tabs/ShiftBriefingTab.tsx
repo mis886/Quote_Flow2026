@@ -8,6 +8,7 @@ import type { ProductionData } from '../../lib/useProductionData';
 import { getOTDImpactSummary, getJobImpact } from '../../lib/otdImpact';
 import { toggleWorkerPresence } from '../../lib/actions';
 import { updateShopFloorSettings } from '../../lib/db';
+import { productIdentity } from '../../lib/productLabel';
 import { fmtIST, fmtDate } from '../../../lib/utils';
 
 export function ShiftBriefingTab({ data }: { data: ProductionData }) {
@@ -206,7 +207,7 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
                         {job.id}
                       </span>
                     </td>
-                    <td className="px-[10px] py-[7px] font-semibold text-[#111] whitespace-nowrap">{job.product_desc}</td>
+                    <td className="px-[10px] py-[7px] font-semibold text-[#111] whitespace-nowrap">{productIdentity(job)}</td>
                     <td className="px-[10px] py-[7px] text-[#333] whitespace-nowrap">{job.customer_name || '—'}</td>
                     <td className="px-[10px] py-[7px] whitespace-nowrap">
                       <span className={[

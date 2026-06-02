@@ -3,11 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit2, Plus, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Package, Trash2, Copy } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { PageHeader, StatusPill } from '../components/table';
 import { supabase } from '../../lib/supabase';
-import { listBOMForProduct, deleteBOMRow, listPresses } from '../lib/db';
+import { listBOMForProduct, deleteBOMRow, listPresses, duplicateProduct } from '../lib/db';
 import { EditRatesModal } from '../components/EditRatesModal';
 import { AddBOMRowModal } from '../components/AddBOMRowModal';
 import type { Product, Compound, BOMRow, Press } from '../lib/types';
@@ -22,6 +22,20 @@ export function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [showRatesModal, setShowRatesModal] = useState(false);
   const [showBOMModal, setShowBOMModal] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+
+  const handleDuplicate = async () => {
+    if (!id) return;
+    setDuplicating(true);
+    try {
+      const copy = await duplicateProduct(id);
+      navigate(`/production/products/${copy.id}/edit`);
+    } catch (e: any) {
+      alert(e?.message || 'Duplicate failed.');
+    } finally {
+      setDuplicating(false);
+    }
+  };
 
   const load = async () => {
     if (!id) return;
@@ -95,11 +109,14 @@ export function ProductDetail() {
         module={`Production · Products · ${product.code}`}
         title={<>{product.code}</>}
         accent={product.revision || undefined}
-        subtitle={`${product.name} · ${product.customer_name || '—'} · ${product.draw_ref || ''}`}
+        subtitle={`${product.name} · ${product.family_code || '—'} · ${product.customer_name || '—'}`}
         actions={
           <>
             <Button variant="secondary" onClick={() => navigate('/production/products')} className="gap-1">
               <ArrowLeft size={12} /> Back
+            </Button>
+            <Button variant="secondary" onClick={handleDuplicate} disabled={duplicating} className="gap-1">
+              <Copy size={12} /> {duplicating ? 'Duplicating…' : 'Duplicate'}
             </Button>
             <Button variant="secondary" onClick={() => navigate(`/production/products/${id}/edit`)} className="gap-1">
               <Edit2 size={12} /> Edit
