@@ -158,6 +158,7 @@ export interface Product {
 
   // Full item-master spec (added 2026-06-02)
   item_category?: string | null;       // e.g. 'Gasket'
+  workshop_unit?: string | null;       // 'Unit 1' | 'Unit 2' — derived from item_category, overridable
   type_code?: string | null;           // TYPE, e.g. 'GCH'
   model_no?: string | null;            // Model No., e.g. 'S121'
   moc?: string | null;                 // MOC, e.g. 'NBR'
@@ -183,6 +184,17 @@ export interface Product {
   notes?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+// Editable dropdown ("enum") option master — backs Type/MOC/Item Category/Make/Colour.
+export type ProdOptionField = 'type' | 'moc' | 'item_category' | 'make' | 'colour_code';
+export interface ProdOption {
+  id: string;
+  field: ProdOptionField;
+  value: string;
+  meta?: { unit?: string } | null;   // item_category: workshop-unit mapping
+  sort?: number;
+  created_at?: string;
 }
 
 export interface BOMRow {

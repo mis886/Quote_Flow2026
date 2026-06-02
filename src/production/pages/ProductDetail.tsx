@@ -95,6 +95,7 @@ export function ProductDetail() {
   const PARAMS = [
     { emoji: '🏷', v: product.family_code || '—', l: 'Type · Model · MOC' },
     { emoji: '📦', v: product.item_category || '—', l: 'Item Category' },
+    { emoji: '🏗', v: product.workshop_unit || '—', l: 'Workshop Unit' },
     { emoji: '🏭', v: pressLabel, l: 'Compatible Presses' },
     { emoji: '🧱', v: product.mould_code || '—', l: 'Die No. / Mould' },
     { emoji: '🏷', v: product.make || '—', l: 'Make' },

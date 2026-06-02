@@ -34,6 +34,37 @@ export function AssignPressModal({
     setPickedJobIds(preselectJobId ? new Set([preselectJobId]) : new Set());
   }, [open, preselectPressId, preselectJobId]);
 
+  // Presses configured on a job's product (via Product Creation). When a job's
+  // product restricts presses, only those may be selected for it.
+  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+
+  // Across the currently-picked jobs, the selectable presses are the
+  // intersection of each restricted product's allowed presses. Jobs whose
+  // product imposes no restriction don't narrow the set.
+  const allowedPressIds = useMemo<Set<string> | null>(() => {
+    const allowedFor = (job: ProductionJob): string[] | null => {
+      const prod = job.product_id ? productById.get(job.product_id) : undefined;
+      const ids = prod?.press_ids;
+      return ids && ids.length ? ids : null;   // null = no restriction
+    };
+    let acc: Set<string> | null = null;
+    for (const j of jobs) {
+      if (!pickedJobIds.has(j.id)) continue;
+      const allowed = allowedFor(j);
+      if (!allowed) continue;
+      const set = new Set(allowed);
+      acc = acc ? new Set([...acc].filter(id => set.has(id))) : set;
+    }
+    return acc;
+  }, [jobs, pickedJobIds, productById]);
+
+  // If the currently-selected press is no longer allowed, clear it.
+  useEffect(() => {
+    if (pressId && allowedPressIds && !allowedPressIds.has(pressId)) setPressId('');
+  }, [allowedPressIds, pressId]);
+
+  // All hooks are declared above this guard so the hook order stays stable
+  // across open/closed renders (Rules of Hooks).
   if (!open) return null;
 
   const sortedJobs = jobs
@@ -43,36 +74,6 @@ export function AssignPressModal({
       if (b.priority === 'emergency' && a.priority !== 'emergency') return 1;
       return (a.lsd || a.promised_date || '').localeCompare(b.lsd || b.promised_date || '');
     });
-
-  // Presses configured on a job's product (via Product Creation). When a job's
-  // product restricts presses, only those may be selected for it.
-  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
-  const allowedPressIdsFor = (job: ProductionJob): string[] | null => {
-    const prod = job.product_id ? productById.get(job.product_id) : undefined;
-    const ids = prod?.press_ids;
-    return ids && ids.length ? ids : null;   // null = no restriction
-  };
-
-  // Across the currently-picked jobs, the selectable presses are the
-  // intersection of each restricted product's allowed presses. Jobs whose
-  // product imposes no restriction don't narrow the set.
-  const allowedPressIds = useMemo<Set<string> | null>(() => {
-    let acc: Set<string> | null = null;
-    for (const j of jobs) {
-      if (!pickedJobIds.has(j.id)) continue;
-      const allowed = allowedPressIdsFor(j);
-      if (!allowed) continue;
-      const set = new Set(allowed);
-      acc = acc ? new Set([...acc].filter(id => set.has(id))) : set;
-    }
-    return acc;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, pickedJobIds, productById]);
-
-  // If the currently-selected press is no longer allowed, clear it.
-  useEffect(() => {
-    if (pressId && allowedPressIds && !allowedPressIds.has(pressId)) setPressId('');
-  }, [allowedPressIds, pressId]);
 
   const toggleJob = (id: string) => {
     setPickedJobIds(prev => {

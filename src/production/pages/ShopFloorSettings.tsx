@@ -2,15 +2,16 @@
 // Workers: Finishing | Inspection | Press Operators (day/night shift).
 
 import { useEffect, useState } from 'react';
-import { Save, Users, Wrench, Factory, Plus, Trash2, X, Check, Sun, Moon, Edit2, Clock } from 'lucide-react';
+import { Save, Users, Wrench, Factory, Plus, Trash2, X, Check, Sun, Moon, Edit2, Clock, ListChecks } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   updateShopFloorSettings, setWorkerPresent,
   insertPress, updatePress, deletePress, insertWorker, updateWorker, deleteWorker,
+  insertOption, updateOption, deleteOption,
 } from '../lib/db';
 import { PageHeader } from '../components/table';
 import { fmtIST } from '../../lib/utils';
-import type { Press, ShopFloorSettings, Worker } from '../lib/types';
+import type { Press, ProdOption, ProdOptionField, ShopFloorSettings, Worker } from '../lib/types';
 
 const ROLES_FINISHING  = ['Senior Finisher', 'Finisher', 'Trainee Finisher'];
 const ROLES_INSPECTION = ['Sr. Inspector', 'Inspector', 'Trainee Inspector'];
@@ -19,7 +20,7 @@ const ROLES_PRESS      = ['Sr. Press Operator', 'Press Operator', 'Trainee Press
 type ModalMode = 'add-finishing' | 'add-inspection' | 'add-press' | { edit: Worker };
 
 export function ShopFloorSettingsPage() {
-  const { settings, workers, presses, refresh, loading } = useProductionData();
+  const { settings, workers, presses, options, refresh, loading } = useProductionData();
   const [draft, setDraft]           = useState<ShopFloorSettings | null>(null);
   const [saving, setSaving]         = useState(false);
   const [busyWorker, setBusyWorker] = useState<string | null>(null);
@@ -404,6 +405,12 @@ export function ShopFloorSettingsPage() {
               );
             })}
           </div>
+        </section>
+
+        {/* ── Master Lists (editable dropdown options) ───────── */}
+        <section>
+          <SectionTitle icon={<ListChecks size={11} />} title="Master Lists — Product Dropdowns" />
+          <MasterListsSection options={options} unitChoices={['Unit 1', 'Unit 2']} onChanged={refresh} />
         </section>
       </div>
 
@@ -796,6 +803,143 @@ function PressEditModal({ press, presses, onClose, onSaved }: {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Master Lists (editable dropdown options) ─────────────────────────────────
+
+const OPTION_FIELDS: { field: ProdOptionField; label: string; hasUnit?: boolean }[] = [
+  { field: 'type',          label: 'Type' },
+  { field: 'moc',           label: 'MOC' },
+  { field: 'item_category', label: 'Item Category', hasUnit: true },
+  { field: 'make',          label: 'Make' },
+  { field: 'colour_code',   label: 'Colour Code' },
+];
+
+function MasterListsSection({ options, unitChoices, onChanged }: {
+  options: ProdOption[];
+  unitChoices: string[];
+  onChanged: () => Promise<void> | void;
+}) {
+  const [active, setActive] = useState<ProdOptionField>('item_category');
+  const [newValue, setNewValue] = useState('');
+  const [newUnit, setNewUnit]   = useState(unitChoices[0] || '');
+  const [busy, setBusy] = useState(false);
+  const [delTarget, setDelTarget] = useState<ProdOption | null>(null);
+
+  const cfg = OPTION_FIELDS.find(f => f.field === active)!;
+  const rows = options.filter(o => o.field === active);
+
+  const add = async () => {
+    const v = newValue.trim();
+    if (!v) return;
+    setBusy(true);
+    try {
+      await insertOption({ field: active, value: v, meta: cfg.hasUnit ? { unit: newUnit } : null });
+      setNewValue('');
+      await onChanged();
+    } catch (e: any) {
+      alert(e?.code === '23505' ? `"${v}" already exists in ${cfg.label}.` : (e?.message || 'Add failed.'));
+    } finally { setBusy(false); }
+  };
+
+  const remap = async (o: ProdOption, unit: string) => {
+    await updateOption(o.id, { meta: { unit } });
+    await onChanged();
+  };
+
+  return (
+    <div className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
+      {/* Field tabs */}
+      <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-[#E4E5E6] bg-[#FAFAFA]">
+        {OPTION_FIELDS.map(f => (
+          <button key={f.field} type="button" onClick={() => setActive(f.field)}
+            className={`px-2.5 py-1 text-[11px] rounded-[3px] border transition-colors ${
+              active === f.field
+                ? 'bg-[#E8F0FD] border-[#0A6ED1] text-[#0A6ED1] font-medium'
+                : 'bg-white border-[#E4E5E6] text-[#555] hover:bg-[#F5F6F7]'
+            }`}>
+            {f.label}
+            <span className="ml-1.5 text-[10px] text-[#888]">{options.filter(o => o.field === f.field).length}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Add row */}
+      <div className="flex items-end gap-2 px-3 py-2.5 border-b border-[#F3F3F3] flex-wrap">
+        <div className="flex-1 min-w-[180px]">
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">New {cfg.label}</label>
+          <input className={winp} value={newValue} onChange={e => setNewValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder={`Add a ${cfg.label.toLowerCase()}…`} title={`New ${cfg.label}`} />
+        </div>
+        {cfg.hasUnit && (
+          <div className="w-[130px]">
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Workshop Unit</label>
+            <select className={winp} value={newUnit} onChange={e => setNewUnit(e.target.value)} title="Workshop unit">
+              {unitChoices.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+        )}
+        <button type="button" onClick={add} disabled={!newValue.trim() || busy}
+          className="inline-flex items-center gap-1 px-[11px] py-[7px] text-[11px] font-medium bg-[#0A6ED1] text-white rounded-[3px] hover:bg-[#085EA8] disabled:opacity-40">
+          <Plus size={12} /> Add
+        </button>
+      </div>
+
+      {/* Value list */}
+      <div className="divide-y divide-[#F3F3F3] max-h-[320px] overflow-y-auto">
+        {rows.length === 0 && (
+          <div className="px-4 py-6 text-center text-[11px] text-[#555] italic">No {cfg.label.toLowerCase()} values yet.</div>
+        )}
+        {rows.map(o => (
+          <div key={o.id} className="flex items-center gap-3 px-4 py-2">
+            <span className="text-[12px] text-[#111] flex-1 truncate">{o.value}</span>
+            {cfg.hasUnit && (
+              <select
+                className="font-sans text-[11px] text-[#111] bg-white border border-[#E4E5E6] rounded-[3px] px-2 py-1 outline-none focus:border-[#0A6ED1]"
+                value={o.meta?.unit || ''}
+                onChange={e => remap(o, e.target.value)}
+                title="Workshop unit for this category"
+              >
+                <option value="">— No unit —</option>
+                {unitChoices.map(u => <option key={u} value={u}>{u}</option>)}
+                {o.meta?.unit && !unitChoices.includes(o.meta.unit) && <option value={o.meta.unit}>{o.meta.unit}</option>}
+              </select>
+            )}
+            <button type="button" onClick={() => setDelTarget(o)} title="Remove"
+              className="text-[#555] hover:text-[#BB0000] p-1 transition-colors"><Trash2 size={12} /></button>
+          </div>
+        ))}
+      </div>
+
+      {/* Delete confirmation */}
+      {delTarget && (
+        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={() => setDelTarget(null)}>
+          <div className="bg-white rounded-[4px] w-full max-w-[360px] shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
+              <div className="text-[13px] font-semibold text-[#111]">Remove Option</div>
+              <button type="button" title="Close" aria-label="Close" onClick={() => setDelTarget(null)} className="text-[#555] hover:text-[#111]"><X size={16} /></button>
+            </div>
+            <div className="px-4 py-4 text-[12px] text-[#333]">
+              Remove <strong className="text-[#111]">{delTarget.value}</strong> from {cfg.label}?
+              Existing products keep their value; it just won't appear in the dropdown.
+            </div>
+            <div className="px-4 py-3 border-t border-[#E4E5E6] flex justify-end gap-2">
+              <button type="button" onClick={() => setDelTarget(null)}
+                className="px-[11px] py-[5px] text-[11px] font-medium border border-[#E4E5E6] rounded-[3px] text-[#333] bg-white hover:bg-[#F5F6F7]">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={async () => { try { await deleteOption(delTarget.id); await onChanged(); } catch (e: any) { alert(e?.message || 'Delete failed.'); } setDelTarget(null); }}
+                className="px-[11px] py-[5px] text-[11px] font-medium bg-[#BB0000] text-white rounded-[3px] hover:bg-[#8E0000]">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

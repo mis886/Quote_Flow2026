@@ -9,6 +9,7 @@ import type {
   JobStage, Compound, Product, BOMRow,
   MoldingSession, FinishingSession, InspectionSession,
   Dispatch, DispatchItem, ProdAttachment, PdiLog,
+  ProdOption, ProdOptionField,
 } from './types';
 
 // ── Presses ────────────────────────────────────────────────────────
@@ -166,6 +167,55 @@ export async function updateShopFloorSettings(patch: Partial<ShopFloorSettings>)
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', 'config');
   if (error) throw error;
+}
+
+// ── Options (editable dropdown master) ─────────────────────────────
+export async function listOptions(): Promise<ProdOption[]> {
+  const { data, error } = await supabase
+    .from('prod_options')
+    .select('*')
+    .order('field')
+    .order('sort')
+    .order('value');
+  if (error) { console.error('listOptions', error); return []; }
+  return (data as ProdOption[]) || [];
+}
+
+export async function insertOption(o: Partial<ProdOption> & { field: ProdOptionField; value: string }): Promise<ProdOption> {
+  const row = { id: o.id || `opt-${Date.now().toString(36)}`, ...o };
+  const { data, error } = await supabase
+    .from('prod_options')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ProdOption;
+}
+
+export async function updateOption(id: string, patch: Partial<ProdOption>) {
+  const { error } = await supabase.from('prod_options').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteOption(id: string) {
+  const { error } = await supabase.from('prod_options').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Inline "add new" from a dropdown: insert unless a value already exists for the
+// field (case-insensitive). Returns the row, or null if it already existed.
+export async function upsertOptionValue(
+  field: ProdOptionField, value: string, meta?: { unit?: string } | null,
+): Promise<ProdOption | null> {
+  const v = value.trim();
+  if (!v) return null;
+  try {
+    return await insertOption({ field, value: v, meta: meta ?? null });
+  } catch (e: any) {
+    // 23505 = unique_violation (field + lower(value) already present) → fine.
+    if (e?.code === '23505') return null;
+    throw e;
+  }
 }
 
 // ── Compounds ──────────────────────────────────────────────────────

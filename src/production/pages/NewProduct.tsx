@@ -5,8 +5,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, ChevronDown, X, Check } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { PageHeader } from '../components/table';
-import { upsertProduct, listCompounds, listPresses, listProducts, nextFamilyCode, getProduct } from '../lib/db';
-import type { Compound, Press } from '../lib/types';
+import { ComboSelect } from '../components/ComboSelect';
+import { upsertProduct, listCompounds, listPresses, listProducts, listOptions, upsertOptionValue, nextFamilyCode, getProduct } from '../lib/db';
+import type { Compound, Press, ProdOption, ProdOptionField } from '../lib/types';
 
 export function NewProduct() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export function NewProduct() {
 
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [presses, setPresses] = useState<Press[]>([]);
+  const [options, setOptions] = useState<ProdOption[]>([]);
   const [pressMenuOpen, setPressMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +29,8 @@ export function NewProduct() {
   const [moc, setMoc]               = useState('');   // MOC, e.g. NBR
   const [name, setName]             = useState('');
   const [itemCategory, setItemCategory] = useState('');
+  const [workshopUnit, setWorkshopUnit] = useState('');   // derived from category, overridable
+  const [unitTouched, setUnitTouched]   = useState(false); // user changed unit manually
   const [make, setMake]             = useState('');
   const [customerName, setCustomerName] = useState('');
   const [compoundId, setCompoundId] = useState('');
@@ -64,9 +68,30 @@ export function NewProduct() {
   // Live-composed family code from Type_Model_MOC
   const familyCode = [typeCode, modelNo, moc].map(s => s.trim()).filter(Boolean).join('_').toUpperCase();
 
+  // ── Editable-dropdown option helpers ───────────────────────────────────────
+  const optValues = (field: ProdOptionField) =>
+    options.filter(o => o.field === field).map(o => o.value);
+  // Workshop unit mapped to a given item category (from option meta).
+  const unitForCategory = (cat: string): string =>
+    options.find(o => o.field === 'item_category' && o.value === cat)?.meta?.unit || '';
+  // Distinct workshop units present in the category mapping (for the override select).
+  const unitChoices = Array.from(
+    new Set(options.filter(o => o.field === 'item_category').map(o => o.meta?.unit).filter(Boolean) as string[]),
+  ).sort();
+  // Persist a typed-in option value, then refresh the local list.
+  const addOption = (field: ProdOptionField, value: string, meta?: { unit?: string } | null) => {
+    upsertOptionValue(field, value, meta).then(() => listOptions().then(setOptions));
+  };
+  // Selecting a category auto-sets the unit unless the user overrode it.
+  const onPickCategory = (cat: string) => {
+    setItemCategory(cat);
+    if (!unitTouched) setWorkshopUnit(unitForCategory(cat));
+  };
+
   useEffect(() => {
     listCompounds().then(setCompounds);
     listPresses().then(setPresses);
+    listOptions().then(setOptions);
     if (isEdit && id) {
       getProduct(id).then(p => {
         if (!p) return;
@@ -78,6 +103,8 @@ export function NewProduct() {
         setMoc(p.moc           || famParts[2] || '');
         setCode(p.code); setName(p.name);
         setItemCategory(p.item_category || '');
+        setWorkshopUnit(p.workshop_unit || '');
+        setUnitTouched(!!p.workshop_unit);
         setMake(p.make || '');
         setCustomerName(p.customer_name || '');
         setCompoundId(p.compound_id || '');
@@ -145,6 +172,7 @@ export function NewProduct() {
         family_code: familyCode || null,
         type_code: txt(typeCode), model_no: txt(modelNo), moc: txt(moc),
         item_category: txt(itemCategory),
+        workshop_unit: txt(workshopUnit),
         make: txt(make),
         customer_name: txt(customerName),
         compound_id: compoundId || null,
@@ -213,9 +241,9 @@ export function NewProduct() {
           {/* Identity */}
           <Card title="Identity">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              <F label="Type *"><input className={inp} value={typeCode} onChange={e => setTypeCode(e.target.value)} placeholder="e.g. GCH" title="Type" /></F>
+              <F label="Type *"><ComboSelect value={typeCode} onChange={setTypeCode} options={optValues('type')} onAddNew={v => addOption('type', v)} placeholder="e.g. GCH" title="Type" /></F>
               <F label="Model No. *"><input className={inp} value={modelNo} onChange={e => setModelNo(e.target.value)} placeholder="e.g. S121" title="Model number" /></F>
-              <F label="MOC *"><input className={inp} value={moc} onChange={e => setMoc(e.target.value)} placeholder="e.g. NBR" title="MOC" /></F>
+              <F label="MOC *"><ComboSelect value={moc} onChange={setMoc} options={optValues('moc')} onAddNew={v => addOption('moc', v)} placeholder="e.g. NBR" title="MOC" /></F>
             </div>
             <div className="mt-3 bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[12px] text-[#666] flex flex-wrap gap-x-6 gap-y-1">
               <span>Family (Type_Model_MOC): <strong className="text-[#0A6ED1] font-mono">{familyCode || '—'}</strong></span>
@@ -228,12 +256,34 @@ export function NewProduct() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
               <F label="Product Name *"><input className={inp} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. PHE Gasket M10 EPDM" title="Product name" /></F>
-              <F label="Item Category"><input className={inp} value={itemCategory} onChange={e => setItemCategory(e.target.value)} placeholder="e.g. Gasket" title="Item category" /></F>
-              <F label="Make"><input className={inp} value={make} onChange={e => setMake(e.target.value)} placeholder="e.g. Sondex" title="Make" /></F>
+              <F label="Item Category">
+                <ComboSelect
+                  value={itemCategory}
+                  onChange={onPickCategory}
+                  options={optValues('item_category')}
+                  onAddNew={v => addOption('item_category', v)}
+                  metaFor={c => unitForCategory(c) || undefined}
+                  placeholder="e.g. Gasket"
+                  title="Item category"
+                />
+              </F>
+              <F label="Workshop Unit">
+                <select
+                  className={inp}
+                  value={workshopUnit}
+                  onChange={e => { setWorkshopUnit(e.target.value); setUnitTouched(true); }}
+                  title="Workshop unit (auto-set from category, overridable)"
+                >
+                  <option value="">{itemCategory ? '— Auto from category —' : '— Select —'}</option>
+                  {unitChoices.map(u => <option key={u} value={u}>{u}</option>)}
+                  {workshopUnit && !unitChoices.includes(workshopUnit) && <option value={workshopUnit}>{workshopUnit}</option>}
+                </select>
+              </F>
+              <F label="Make"><ComboSelect value={make} onChange={setMake} options={optValues('make')} onAddNew={v => addOption('make', v)} placeholder="e.g. Sondex" title="Make" /></F>
               <F label="Primary Customer"><input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" /></F>
               <F label="Drawing Reference"><input className={inp} value={drawRef} onChange={e => setDrawRef(e.target.value)} placeholder="DRW-…" title="Drawing reference" /></F>
               <F label="Revision"><input className={inp} value={revision} onChange={e => setRevision(e.target.value)} placeholder="R1" title="Revision" /></F>
-              <F label="Colour Code"><input className={inp} value={colourCode} onChange={e => setColourCode(e.target.value)} placeholder="e.g. Black" title="Colour code" /></F>
+              <F label="Colour Code"><ComboSelect value={colourCode} onChange={setColourCode} options={optValues('colour_code')} onAddNew={v => addOption('colour_code', v)} placeholder="e.g. Black" title="Colour code" /></F>
               <F label="Unit Cost (₹)"><input type="number" step="0.01" className={inp} value={unitCost} onChange={e => setUnitCost(e.target.value)} placeholder="0.00" title="Unit cost" /></F>
             </div>
           </Card>
