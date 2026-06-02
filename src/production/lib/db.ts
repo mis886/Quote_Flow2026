@@ -228,22 +228,29 @@ export async function deleteProduct(id: string) {
   if (error) throw error;
 }
 
+// Next free unique product code for a family base, e.g. given 'GCH_S121_NBR'
+// returns 'GCH_S121_NBR-1', then '-2', … skipping codes already taken.
+export function nextFamilyCode(familyBase: string, existingCodes: Iterable<string>): string {
+  const base = (familyBase || 'PRD').trim().toUpperCase().replace(/-\d+$/, '');
+  const taken = new Set(existingCodes);
+  for (let n = 1; n < 100000; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${base}-${Date.now().toString(36).toUpperCase()}`;
+}
+
 // Clone a product as a new variant within the same family (same family_code),
-// generating a unique `code` (appends -2, -3, … or -COPY) and copying its BOM.
+// generating a unique `code` (next free FAMILY-N suffix) and copying its BOM.
 // Returns the new product.
 export async function duplicateProduct(id: string): Promise<Product> {
   const src = await getProduct(id);
   if (!src) throw new Error('Source product not found');
 
   const all = await listProducts();
-  const existingCodes = new Set(all.map(p => p.code));
-  const baseCode = src.code.replace(/-\d+$/, '');   // strip any trailing -N
-  let newCode = '';
-  for (let n = 2; n < 1000; n++) {
-    const candidate = `${baseCode}-${n}`;
-    if (!existingCodes.has(candidate)) { newCode = candidate; break; }
-  }
-  if (!newCode) newCode = `${src.code}-COPY-${Date.now().toString(36)}`;
+  const existingCodes = all.map(p => p.code);
+  const base = (src.family_code || src.code).replace(/-\d+$/, '');
+  const newCode = nextFamilyCode(base, existingCodes);
 
   const newId = `P${Date.now().toString(36).toUpperCase()}`;
   const { id: _id, created_at, updated_at, ...rest } = src;

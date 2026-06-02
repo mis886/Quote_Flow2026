@@ -141,20 +141,43 @@ export interface Product {
   customer_id?: string | null;
   customer_name?: string | null;
   compound_id?: string | null;
-  mould_code?: string | null;
+  mould_code?: string | null;       // Die No
   cavities?: number | null;
   tonnage?: number | null;
-  press_ids?: string[] | null;     // compatible presses (prod_presses.id[])
+  press_ids?: string[] | null;     // compatible presses (prod_presses.id[]) — Press No
   cure_temp_c?: number | null;
   cure_time_min?: number | null;
   shot_weight_g?: number | null;
   setup_time_hrs?: number | null;
-  finish_rate?: number | null;
-  insp_rate?: number | null;
+  finish_rate?: number | null;      // per-hour finishing
+  insp_rate?: number | null;        // per-hour inspection
   pdi_time_hrs?: number | null;
   draw_ref?: string | null;
   revision?: string | null;
   unit_cost?: number | null;
+
+  // Full item-master spec (added 2026-06-02)
+  item_category?: string | null;       // e.g. 'Gasket'
+  type_code?: string | null;           // TYPE, e.g. 'GCH'
+  model_no?: string | null;            // Model No., e.g. 'S121'
+  moc?: string | null;                 // MOC, e.g. 'NBR'
+  make?: string | null;                // e.g. 'Sondex'
+  shrinkage?: string | null;
+  compound_no?: string | null;         // e.g. '1154'
+  dori_size_required?: string | null;  // e.g. '8.0 & 8.5mm'
+  dori_size_used?: string | null;
+  tikli_size?: string | null;          // e.g. '6.6 & 7.0'
+  cycle_time_min?: number | null;
+  oven_time_hrs?: number | null;
+  oven_temp_c?: number | null;
+  blank_weight_g?: number | null;
+  finished_weight_g?: number | null;
+  pcs_hr_1side?: number | null;
+  pcs_hr_2side?: number | null;
+  mold_rate?: number | null;           // per-hour molding (explicit)
+  colour_code?: string | null;
+  maintenance_after_qty?: number | null;
+
   is_active?: boolean;
   notes?: string | null;
   created_at?: string;

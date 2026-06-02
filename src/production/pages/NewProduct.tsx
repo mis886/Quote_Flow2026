@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, ChevronDown, X, Check } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { PageHeader } from '../components/table';
-import { upsertProduct, listCompounds, listPresses, getProduct } from '../lib/db';
+import { upsertProduct, listCompounds, listPresses, listProducts, nextFamilyCode, getProduct } from '../lib/db';
 import type { Compound, Press } from '../lib/types';
 
 export function NewProduct() {
@@ -19,26 +19,50 @@ export function NewProduct() {
   const [saving, setSaving] = useState(false);
 
   // Form fields
-  const [code, setCode]             = useState('');
-  const [familyCode, setFamilyCode] = useState('');
+  // Identity: Type + Model + MOC compose the family code (GCH_S121_NBR);
+  // the unique per-variant `code` (FAMILY-N) is auto-generated on save.
+  const [code, setCode]             = useState('');   // existing unique code (edit mode)
+  const [typeCode, setTypeCode]     = useState('');   // TYPE, e.g. GCH
+  const [modelNo, setModelNo]       = useState('');   // Model No., e.g. S121
+  const [moc, setMoc]               = useState('');   // MOC, e.g. NBR
   const [name, setName]             = useState('');
+  const [itemCategory, setItemCategory] = useState('');
+  const [make, setMake]             = useState('');
   const [customerName, setCustomerName] = useState('');
   const [compoundId, setCompoundId] = useState('');
-  const [mouldCode, setMouldCode]   = useState('');
+  const [compoundNo, setCompoundNo] = useState('');
+  const [shrinkage, setShrinkage]   = useState('');
+  const [mouldCode, setMouldCode]   = useState('');   // Die No
   const [cavities, setCavities]     = useState('');
   const [tonnage, setTonnage]       = useState('');       // legacy, preserved on save
   const [pressIds, setPressIds]     = useState<string[]>([]);
+  const [doriRequired, setDoriRequired] = useState('');
+  const [doriUsed, setDoriUsed]     = useState('');
+  const [tikliSize, setTikliSize]   = useState('');
   const [cureTempC, setCureTempC]   = useState('');
   const [cureTimeMin, setCureTimeMin] = useState('');
+  const [cycleTimeMin, setCycleTimeMin] = useState('');
+  const [ovenTimeHrs, setOvenTimeHrs] = useState('');
+  const [ovenTempC, setOvenTempC]   = useState('');
+  const [blankWeightG, setBlankWeightG] = useState('');
+  const [finishedWeightG, setFinishedWeightG] = useState('');
   const [shotWeightG, setShotWeightG] = useState('');
+  const [pcsHr1, setPcsHr1]         = useState('');
+  const [pcsHr2, setPcsHr2]         = useState('');
+  const [moldRate, setMoldRate]     = useState('');
   const [setupTimeHrs, setSetupTimeHrs] = useState('0.5');
   const [finishRate, setFinishRate] = useState('');
   const [inspRate, setInspRate]     = useState('');
   const [pdiTimeHrs, setPdiTimeHrs] = useState('0.25');
+  const [colourCode, setColourCode] = useState('');
+  const [maintenanceAfterQty, setMaintenanceAfterQty] = useState('');
   const [drawRef, setDrawRef]       = useState('');
   const [revision, setRevision]     = useState('R1');
   const [unitCost, setUnitCost]     = useState('');
   const [notes, setNotes]           = useState('');
+
+  // Live-composed family code from Type_Model_MOC
+  const familyCode = [typeCode, modelNo, moc].map(s => s.trim()).filter(Boolean).join('_').toUpperCase();
 
   useEffect(() => {
     listCompounds().then(setCompounds);
@@ -46,23 +70,45 @@ export function NewProduct() {
     if (isEdit && id) {
       getProduct(id).then(p => {
         if (!p) return;
+        const num = (v: number | null | undefined) => (v != null ? String(v) : '');
+        // Type/Model/MOC: prefer stored columns; else split the family_code.
+        const famParts = (p.family_code || '').split('_');
+        setTypeCode(p.type_code || famParts[0] || '');
+        setModelNo(p.model_no  || famParts[1] || '');
+        setMoc(p.moc           || famParts[2] || '');
         setCode(p.code); setName(p.name);
-        setFamilyCode(p.family_code || '');
+        setItemCategory(p.item_category || '');
+        setMake(p.make || '');
         setCustomerName(p.customer_name || '');
         setCompoundId(p.compound_id || '');
+        setCompoundNo(p.compound_no || '');
+        setShrinkage(p.shrinkage || '');
         setMouldCode(p.mould_code || '');
-        setCavities(p.cavities != null ? String(p.cavities) : '');
-        setTonnage(p.tonnage != null ? String(p.tonnage) : '');
+        setCavities(num(p.cavities));
+        setTonnage(num(p.tonnage));
         setPressIds(Array.isArray(p.press_ids) ? p.press_ids : []);
-        setCureTempC(p.cure_temp_c != null ? String(p.cure_temp_c) : '');
-        setCureTimeMin(p.cure_time_min != null ? String(p.cure_time_min) : '');
-        setShotWeightG(p.shot_weight_g != null ? String(p.shot_weight_g) : '');
+        setDoriRequired(p.dori_size_required || '');
+        setDoriUsed(p.dori_size_used || '');
+        setTikliSize(p.tikli_size || '');
+        setCureTempC(num(p.cure_temp_c));
+        setCureTimeMin(num(p.cure_time_min));
+        setCycleTimeMin(num(p.cycle_time_min));
+        setOvenTimeHrs(num(p.oven_time_hrs));
+        setOvenTempC(num(p.oven_temp_c));
+        setBlankWeightG(num(p.blank_weight_g));
+        setFinishedWeightG(num(p.finished_weight_g));
+        setShotWeightG(num(p.shot_weight_g));
+        setPcsHr1(num(p.pcs_hr_1side));
+        setPcsHr2(num(p.pcs_hr_2side));
+        setMoldRate(num(p.mold_rate));
         setSetupTimeHrs(p.setup_time_hrs != null ? String(p.setup_time_hrs) : '0.5');
-        setFinishRate(p.finish_rate != null ? String(p.finish_rate) : '');
-        setInspRate(p.insp_rate != null ? String(p.insp_rate) : '');
+        setFinishRate(num(p.finish_rate));
+        setInspRate(num(p.insp_rate));
         setPdiTimeHrs(p.pdi_time_hrs != null ? String(p.pdi_time_hrs) : '0.25');
+        setColourCode(p.colour_code || '');
+        setMaintenanceAfterQty(num(p.maintenance_after_qty));
         setDrawRef(p.draw_ref || ''); setRevision(p.revision || 'R1');
-        setUnitCost(p.unit_cost != null ? String(p.unit_cost) : '');
+        setUnitCost(num(p.unit_cost));
         setNotes(p.notes || '');
       });
     }
@@ -73,33 +119,65 @@ export function NewProduct() {
     : null;
 
   const save = async () => {
-    if (!code.trim() || !name.trim()) {
-      alert('Code and Name are required.');
+    if (!typeCode.trim() || !modelNo.trim() || !moc.trim()) {
+      alert('Type, Model No. and MOC are required (they build the product code).');
+      return;
+    }
+    if (!name.trim()) {
+      alert('Product Name is required.');
       return;
     }
     setSaving(true);
     try {
       const prodId = id || `P${Date.now().toString(36).toUpperCase()}`;
+      // Auto-generate a unique code from the family for NEW products; keep the
+      // existing code when editing.
+      let finalCode = code.trim();
+      if (!isEdit) {
+        const all = await listProducts();
+        finalCode = nextFamilyCode(familyCode, all.map(p => p.code));
+      }
+      const numI = (s: string) => (s.trim() ? parseInt(s) : null);
+      const numF = (s: string) => (s.trim() ? parseFloat(s) : null);
+      const txt  = (s: string) => (s.trim() || null);
       const saved = await upsertProduct({
-        id: prodId, code: code.trim(), name: name.trim(),
-        family_code: familyCode.trim().toUpperCase() || null,
-        customer_name: customerName.trim() || null,
+        id: prodId, code: finalCode, name: name.trim(),
+        family_code: familyCode || null,
+        type_code: txt(typeCode), model_no: txt(modelNo), moc: txt(moc),
+        item_category: txt(itemCategory),
+        make: txt(make),
+        customer_name: txt(customerName),
         compound_id: compoundId || null,
-        mould_code: mouldCode.trim() || null,
-        cavities: cavities ? parseInt(cavities) : null,
-        tonnage: tonnage ? parseInt(tonnage) : null,
+        compound_no: txt(compoundNo),
+        shrinkage: txt(shrinkage),
+        mould_code: txt(mouldCode),
+        cavities: numI(cavities),
+        tonnage: numI(tonnage),
         press_ids: pressIds,
-        cure_temp_c: cureTempC ? parseInt(cureTempC) : null,
-        cure_time_min: cureTimeMin ? parseInt(cureTimeMin) : null,
-        shot_weight_g: shotWeightG ? parseInt(shotWeightG) : null,
+        dori_size_required: txt(doriRequired),
+        dori_size_used: txt(doriUsed),
+        tikli_size: txt(tikliSize),
+        cure_temp_c: numI(cureTempC),
+        cure_time_min: numI(cureTimeMin),
+        cycle_time_min: numF(cycleTimeMin),
+        oven_time_hrs: numF(ovenTimeHrs),
+        oven_temp_c: numI(ovenTempC),
+        blank_weight_g: numF(blankWeightG),
+        finished_weight_g: numF(finishedWeightG),
+        shot_weight_g: numI(shotWeightG),
+        pcs_hr_1side: numF(pcsHr1),
+        pcs_hr_2side: numF(pcsHr2),
+        mold_rate: numF(moldRate),
         setup_time_hrs: parseFloat(setupTimeHrs) || 0.5,
-        finish_rate: finishRate ? parseFloat(finishRate) : null,
-        insp_rate: inspRate ? parseFloat(inspRate) : null,
+        finish_rate: numF(finishRate),
+        insp_rate: numF(inspRate),
         pdi_time_hrs: parseFloat(pdiTimeHrs) || 0.25,
-        draw_ref: drawRef.trim() || null,
+        colour_code: txt(colourCode),
+        maintenance_after_qty: numI(maintenanceAfterQty),
+        draw_ref: txt(drawRef),
         revision: revision.trim() || 'R1',
-        unit_cost: unitCost ? parseFloat(unitCost) : null,
-        notes: notes.trim() || null,
+        unit_cost: numF(unitCost),
+        notes: txt(notes),
         is_active: true,
       });
       navigate(`/production/products/${saved.id}`);
@@ -133,38 +211,56 @@ export function NewProduct() {
         <div className="max-w-[780px] space-y-5">
           {/* Identity */}
           <Card title="Identity">
-            <Grid2>
-              <F label="Product Code * (unique)"><input className={inp} value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. GCH_S121_NBR-2" title="Unique product code" /></F>
-              <F label="Type · Model · MOC (Family)">
-                <input className={inp} value={familyCode} onChange={e => setFamilyCode(e.target.value)} placeholder="e.g. GCH_S121_NBR" title="Type_Model_MOC family code" />
-                <Hint>Type _ Model _ MOC. Shared across all variants (die / compound / size).</Hint>
-              </F>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <F label="Type *"><input className={inp} value={typeCode} onChange={e => setTypeCode(e.target.value)} placeholder="e.g. GCH" title="Type" /></F>
+              <F label="Model No. *"><input className={inp} value={modelNo} onChange={e => setModelNo(e.target.value)} placeholder="e.g. S121" title="Model number" /></F>
+              <F label="MOC *"><input className={inp} value={moc} onChange={e => setMoc(e.target.value)} placeholder="e.g. NBR" title="MOC" /></F>
+            </div>
+            <div className="mt-3 bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[12px] text-[#666] flex flex-wrap gap-x-6 gap-y-1">
+              <span>Family (Type_Model_MOC): <strong className="text-[#0A6ED1] font-mono">{familyCode || '—'}</strong></span>
+              <span>
+                Product Code:{' '}
+                {isEdit
+                  ? <strong className="text-[#111] font-mono">{code}</strong>
+                  : <strong className="text-[#107E3E] font-mono">{familyCode ? `${familyCode}-N (auto)` : '—'}</strong>}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
               <F label="Product Name *"><input className={inp} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. PHE Gasket M10 EPDM" title="Product name" /></F>
+              <F label="Item Category"><input className={inp} value={itemCategory} onChange={e => setItemCategory(e.target.value)} placeholder="e.g. Gasket" title="Item category" /></F>
+              <F label="Make"><input className={inp} value={make} onChange={e => setMake(e.target.value)} placeholder="e.g. Sondex" title="Make" /></F>
               <F label="Primary Customer"><input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" /></F>
-              <F label="Drawing Reference"><input className={inp} value={drawRef} onChange={e => setDrawRef(e.target.value)} placeholder="DRW-PHE-M10-E70-R3" title="Drawing reference" /></F>
+              <F label="Drawing Reference"><input className={inp} value={drawRef} onChange={e => setDrawRef(e.target.value)} placeholder="DRW-…" title="Drawing reference" /></F>
               <F label="Revision"><input className={inp} value={revision} onChange={e => setRevision(e.target.value)} placeholder="R1" title="Revision" /></F>
+              <F label="Colour Code"><input className={inp} value={colourCode} onChange={e => setColourCode(e.target.value)} placeholder="e.g. Black" title="Colour code" /></F>
               <F label="Unit Cost (₹)"><input type="number" step="0.01" className={inp} value={unitCost} onChange={e => setUnitCost(e.target.value)} placeholder="0.00" title="Unit cost" /></F>
-            </Grid2>
+            </div>
           </Card>
 
           {/* Compound */}
           <Card title="Compound & Material">
-            <F label="Compound">
-              <select className={inp} value={compoundId} onChange={e => setCompoundId(e.target.value)} title="Compound">
-                <option value="">— None selected —</option>
-                {compounds.map(c => (
-                  <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
-                ))}
-              </select>
-            </F>
+            <Grid2>
+              <F label="Compound (master)">
+                <select className={inp} value={compoundId} onChange={e => setCompoundId(e.target.value)} title="Compound">
+                  <option value="">— None selected —</option>
+                  {compounds.map(c => (
+                    <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
+                  ))}
+                </select>
+              </F>
+              <F label="Compound No."><input className={inp} value={compoundNo} onChange={e => setCompoundNo(e.target.value)} placeholder="e.g. 1154" title="Compound number" /></F>
+              <F label="Shrinkage"><input className={inp} value={shrinkage} onChange={e => setShrinkage(e.target.value)} placeholder="e.g. 1.5%" title="Shrinkage" /></F>
+              <F label="Dori Size Required"><input className={inp} value={doriRequired} onChange={e => setDoriRequired(e.target.value)} placeholder="e.g. 8.0 & 8.5mm" title="Dori size required" /></F>
+              <F label="Dori Size Used (past)"><input className={inp} value={doriUsed} onChange={e => setDoriUsed(e.target.value)} placeholder="e.g. 8.0mm" title="Dori size used in past" /></F>
+              <F label="Tikli Size"><input className={inp} value={tikliSize} onChange={e => setTikliSize(e.target.value)} placeholder="e.g. 6.6 & 7.0" title="Tikli size" /></F>
+            </Grid2>
           </Card>
 
           {/* Mould & Press */}
           <Card title="Mould & Press">
             <Grid2>
-              <F label="Mould Code"><input className={inp} value={mouldCode} onChange={e => setMouldCode(e.target.value)} placeholder="M-018" title="Mould code" /></F>
+              <F label="Die No. / Mould Code"><input className={inp} value={mouldCode} onChange={e => setMouldCode(e.target.value)} placeholder="e.g. 569" title="Die number / mould code" /></F>
               <F label="Cavities"><input type="number" className={inp} value={cavities} onChange={e => setCavities(e.target.value)} placeholder="2" title="Cavities" /></F>
-              <F label="Shot Weight (g)"><input type="number" className={inp} value={shotWeightG} onChange={e => setShotWeightG(e.target.value)} placeholder="85" title="Shot weight" /></F>
             </Grid2>
             <div className="mt-3">
               <PressMultiSelect
@@ -177,12 +273,15 @@ export function NewProduct() {
             </div>
           </Card>
 
-          {/* Cure */}
-          <Card title="Cure Parameters">
-            <Grid2>
-              <F label="Cure Temperature (°C)"><input type="number" className={inp} value={cureTempC} onChange={e => setCureTempC(e.target.value)} placeholder="165" title="Cure temp" /></F>
-              <F label="Cure Time (min)"><input type="number" className={inp} value={cureTimeMin} onChange={e => setCureTimeMin(e.target.value)} placeholder="18" title="Cure time" /></F>
-            </Grid2>
+          {/* Cure & Oven */}
+          <Card title="Cure & Oven Parameters">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <F label="Cure Temperature (°C)"><input type="number" className={inp} value={cureTempC} onChange={e => setCureTempC(e.target.value)} placeholder="175" title="Cure temp" /></F>
+              <F label="Cure Time (min)"><input type="number" className={inp} value={cureTimeMin} onChange={e => setCureTimeMin(e.target.value)} placeholder="180" title="Cure time" /></F>
+              <F label="Cycle Time (min)"><input type="number" step="0.1" className={inp} value={cycleTimeMin} onChange={e => setCycleTimeMin(e.target.value)} placeholder="3" title="Cycle time" /></F>
+              <F label="Oven Time (hrs)"><input type="number" step="0.1" className={inp} value={ovenTimeHrs} onChange={e => setOvenTimeHrs(e.target.value)} placeholder="4" title="Oven time hours" /></F>
+              <F label="Oven Temp (°C)"><input type="number" className={inp} value={ovenTempC} onChange={e => setOvenTempC(e.target.value)} placeholder="150" title="Oven temp" /></F>
+            </div>
             {mouldRate && (
               <div className="mt-2 bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[12px] text-[#666]">
                 Moulding rate (auto): <strong className="text-[#0A6ED1]">{mouldRate} pcs/hr</strong>
@@ -191,19 +290,27 @@ export function NewProduct() {
             )}
           </Card>
 
+          {/* Weights */}
+          <Card title="Weights">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <F label="Blank Weight (g)"><input type="number" step="0.001" className={inp} value={blankWeightG} onChange={e => setBlankWeightG(e.target.value)} placeholder="0.480" title="Blank weight" /></F>
+              <F label="Finished Pc Weight (g)"><input type="number" step="0.001" className={inp} value={finishedWeightG} onChange={e => setFinishedWeightG(e.target.value)} placeholder="560" title="Finished piece weight" /></F>
+              <F label="Shot Weight (g)"><input type="number" className={inp} value={shotWeightG} onChange={e => setShotWeightG(e.target.value)} placeholder="85" title="Shot weight" /></F>
+            </div>
+          </Card>
+
           {/* Production rates */}
           <Card title="Production Rates (TAT / LSD Basis)">
-            <Grid2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <F label="Pcs/Hour — 1-side op"><input type="number" step="0.5" className={inp} value={pcsHr1} onChange={e => setPcsHr1(e.target.value)} placeholder="" title="Pcs per hour 1-side operation" /></F>
+              <F label="Pcs/Hour — 2-side op"><input type="number" step="0.5" className={inp} value={pcsHr2} onChange={e => setPcsHr2(e.target.value)} placeholder="" title="Pcs per hour 2-side operation" /></F>
+              <F label="Per-hour Molding"><input type="number" step="0.5" className={inp} value={moldRate} onChange={e => setMoldRate(e.target.value)} placeholder="9" title="Per hour molding" /></F>
+              <F label="Finishing Rate (pcs/person/hr)"><input type="number" step="0.5" className={inp} value={finishRate} onChange={e => setFinishRate(e.target.value)} placeholder="5" title="Finishing rate" /></F>
+              <F label="Inspection Rate (pcs/inspector/hr)"><input type="number" step="1" className={inp} value={inspRate} onChange={e => setInspRate(e.target.value)} placeholder="39" title="Inspection rate" /></F>
               <F label="Setup Time (hrs/job)"><input type="number" step="0.25" className={inp} value={setupTimeHrs} onChange={e => setSetupTimeHrs(e.target.value)} placeholder="0.5" title="Setup time" /></F>
-              <F label="Finishing Rate (pcs/person/hr)">
-                <input type="number" step="0.5" className={inp} value={finishRate} onChange={e => setFinishRate(e.target.value)} placeholder="9" title="Finishing rate" />
-                <Hint>From PMS sheet</Hint>
-              </F>
-              <F label="Inspection Rate (pcs/inspector/hr)">
-                <input type="number" step="1" className={inp} value={inspRate} onChange={e => setInspRate(e.target.value)} placeholder="39" title="Inspection rate" />
-              </F>
               <F label="PDI Time (hrs/job)"><input type="number" step="0.25" className={inp} value={pdiTimeHrs} onChange={e => setPdiTimeHrs(e.target.value)} placeholder="0.25" title="PDI time" /></F>
-            </Grid2>
+              <F label="Maintenance After (qty)"><input type="number" className={inp} value={maintenanceAfterQty} onChange={e => setMaintenanceAfterQty(e.target.value)} placeholder="e.g. 50000" title="Maintenance after quantity" /></F>
+            </div>
           </Card>
 
           {/* Notes */}
@@ -244,10 +351,6 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
     </div>
   );
 }
-function Hint({ children }: { children: React.ReactNode }) {
-  return <div className="text-[10px] text-[#333] mt-1">{children}</div>;
-}
-
 // Multi-select of compatible presses (by name). Stores prod_presses.id values.
 function PressMultiSelect({ presses, selected, onChange, open, setOpen }: {
   presses: Press[];

@@ -91,15 +91,29 @@ export function ProductDetail() {
     ? pressNames.join(', ')
     : product.tonnage ? `${product.tonnage}T` : '—';
 
+  const dash = (v: any) => (v != null && v !== '' ? String(v) : '—');
   const PARAMS = [
+    { emoji: '🏷', v: product.family_code || '—', l: 'Type · Model · MOC' },
+    { emoji: '📦', v: product.item_category || '—', l: 'Item Category' },
     { emoji: '🏭', v: pressLabel, l: 'Compatible Presses' },
+    { emoji: '🧱', v: product.mould_code || '—', l: 'Die No. / Mould' },
+    { emoji: '🏷', v: product.make || '—', l: 'Make' },
+    { emoji: '🧪', v: product.compound_no || '—', l: 'Compound No.' },
+    { emoji: '🧵', v: product.dori_size_required || '—', l: 'Dori Size (req.)' },
+    { emoji: '🔘', v: product.tikli_size || '—', l: 'Tikli Size' },
     { emoji: '🔥', v: product.cure_temp_c ? `${product.cure_temp_c}°C` : '—', l: 'Cure Temperature' },
     { emoji: '⏱',  v: product.cure_time_min ? `${product.cure_time_min} min` : '—', l: 'Cure Time' },
-    { emoji: '🧱', v: product.mould_code || '—', l: 'Mould Code' },
+    { emoji: '🔁', v: product.cycle_time_min != null ? `${product.cycle_time_min} min` : '—', l: 'Cycle Time' },
+    { emoji: '♨', v: product.oven_temp_c ? `${product.oven_temp_c}°C` : '—', l: 'Oven Temp' },
+    { emoji: '🕯', v: product.oven_time_hrs != null ? `${product.oven_time_hrs} hr` : '—', l: 'Oven Time' },
     { emoji: '⬛', v: product.cavities != null ? String(product.cavities) : '—', l: 'Cavities' },
-    { emoji: '⚙',  v: mouldRate ? `${mouldRate.toFixed(1)} pcs/hr` : '—', l: 'Moulding Rate (calc.)' },
+    { emoji: '⚖', v: dash(product.blank_weight_g), l: 'Blank Weight (g)' },
+    { emoji: '⚖', v: dash(product.finished_weight_g), l: 'Finished Wt (g)' },
+    { emoji: '⚙',  v: product.mold_rate ? `${product.mold_rate} pcs/hr` : (mouldRate ? `${mouldRate.toFixed(1)} pcs/hr` : '—'), l: 'Moulding Rate' },
     { emoji: '✂',  v: product.finish_rate ? `${product.finish_rate} pcs/person/hr` : '—', l: 'Finishing Rate' },
     { emoji: '🔍', v: product.insp_rate ? `${product.insp_rate} pcs/insp/hr` : '—', l: 'Inspection Rate' },
+    { emoji: '🎨', v: product.colour_code || '—', l: 'Colour Code' },
+    { emoji: '🛠', v: dash(product.maintenance_after_qty), l: 'Maintenance After (qty)' },
     { emoji: '💰', v: product.unit_cost ? `₹${product.unit_cost.toFixed(2)}` : '—', l: 'Unit Cost (Est.)' },
   ];
 
