@@ -11,7 +11,7 @@ import {
   PageHeader, Table, THead, TH, TR, TD, EmptyRow, StatusPill,
   toneForStage, toneForStatus,
 } from '../components/table';
-import type { ProductionJob, JobStageEvent } from '../lib/types';
+import type { ProductionJob, JobStageEvent, Product } from '../lib/types';
 import { fmtDate } from '../../lib/utils';
 
 const STAGE_SEQ = ['moulding', 'finishing', 'inspection', 'pdi', 'dispatch'] as const;
@@ -24,6 +24,7 @@ export function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [job, setJob] = useState<ProductionJob | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [events, setEvents] = useState<JobStageEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
@@ -53,6 +54,13 @@ export function JobDetail() {
       if (!alive) return;
       if (j.data) setJob(j.data as ProductionJob);
       if (evs.data) setEvents(evs.data as JobStageEvent[]);
+      const pid = (j.data as ProductionJob | null)?.product_id;
+      if (pid) {
+        const { data: p } = await supabase.from('prod_products').select('*').eq('id', pid).single();
+        if (alive) setProduct((p as Product) || null);
+      } else if (alive) {
+        setProduct(null);
+      }
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -80,7 +88,7 @@ export function JobDetail() {
         module={`Production · ${job.id}`}
         title={<>Job Card</>}
         accent={job.id}
-        subtitle={`${job.customer_name || '—'} · ${job.product_desc} · ${job.qty.toLocaleString()} pcs`}
+        subtitle={`${job.customer_name || '—'} · ${product ? `${product.code} — ${product.name}` : job.product_desc} · ${job.qty.toLocaleString()} pcs`}
         actions={
           <>
             <Button variant="secondary" onClick={() => navigate('/production/jobs')} className="gap-1">

@@ -25,6 +25,7 @@ import { ProductionDashboard } from './production/pages/ProductionDashboard';
 import { NewProductionJob } from './production/pages/NewProductionJob';
 import { Sequencer } from './production/pages/Sequencer';
 import { JobsList } from './production/pages/JobsList';
+import { ProductionOrders } from './production/pages/ProductionOrders';
 import { JobDetail } from './production/pages/JobDetail';
 import { NCRLog } from './production/pages/NCRLog';
 import { ShopFloorSettingsPage } from './production/pages/ShopFloorSettings';
@@ -97,6 +98,7 @@ export default function App() {
                   <Route path="sequencer" element={<Sequencer />} />
                   <Route path="sequencer/:tab" element={<Sequencer />} />
                   <Route path="presses" element={<PressBoardPage />} />
+                  <Route path="orders" element={<ProductionOrders />} />
                   <Route path="jobs" element={<JobsList />} />
                   <Route path="jobs/new" element={<NewProductionJob />} />
                   <Route path="jobs/:id" element={<JobDetail />} />

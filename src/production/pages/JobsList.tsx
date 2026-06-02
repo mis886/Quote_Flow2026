@@ -28,7 +28,7 @@ const STAGE_MAP: Record<StageTab, string | null> = {
 
 export function JobsList() {
   const navigate = useNavigate();
-  const { jobs, loading, refresh } = useProductionData();
+  const { jobs, products, loading, refresh } = useProductionData();
   const [tab, setTab] = useState<StageTab>('All');
   const [q, setQ] = useState('');
   const [pri, setPri] = useState('');
@@ -150,7 +150,7 @@ export function JobsList() {
             <tr>
               <TH>Job ID</TH>
               <TH>Job Card #</TH>
-              <TH>Product</TH>
+              <TH>Our Product</TH>
               <TH>Customer</TH>
               <TH>Qty</TH>
               <TH>LSD</TH>
@@ -176,7 +176,19 @@ export function JobsList() {
                   {j.job_card_no || <span className="text-[#555]">—</span>}
                 </TD>
                 <TD>
-                  <div className="font-semibold text-[#111] text-[12.5px]">{j.product_desc}</div>
+                  {(() => {
+                    const prod = j.product_id ? products.find(p => p.id === j.product_id) : null;
+                    return (
+                      <>
+                        <div className="font-semibold text-[#111] text-[12.5px]">
+                          {prod ? prod.code : j.product_desc}
+                        </div>
+                        {prod && (
+                          <div className="text-[10.5px] text-[#333]">{prod.name}</div>
+                        )}
+                      </>
+                    );
+                  })()}
                   {j.mould_code && <div className="text-[10.5px] text-[#333]">Mould {j.mould_code}{j.cavities ? ` · ${j.cavities} cav` : ''}</div>}
                 </TD>
                 <TD className="text-[12.5px]">{j.customer_name || '—'}</TD>

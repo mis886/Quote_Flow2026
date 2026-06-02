@@ -24,6 +24,7 @@ export interface ProductionJob {
   order_line_seq?: number | null;
   customer_id?: string | null;
   customer_name?: string | null;
+  product_id?: string | null;      // link to "Our Product" master (prod_products.id)
   product_desc: string;
   qty: number;
   qty_to_mould?: number | null;
@@ -141,6 +142,7 @@ export interface Product {
   mould_code?: string | null;
   cavities?: number | null;
   tonnage?: number | null;
+  press_ids?: string[] | null;     // compatible presses (prod_presses.id[])
   cure_temp_c?: number | null;
   cure_time_min?: number | null;
   shot_weight_g?: number | null;

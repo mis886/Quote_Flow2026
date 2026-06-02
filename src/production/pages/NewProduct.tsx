@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, ChevronDown, X, Check } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { PageHeader } from '../components/table';
-import { upsertProduct, listCompounds, getProduct } from '../lib/db';
-import type { Compound } from '../lib/types';
+import { upsertProduct, listCompounds, listPresses, getProduct } from '../lib/db';
+import type { Compound, Press } from '../lib/types';
 
 export function NewProduct() {
   const navigate = useNavigate();
@@ -14,6 +14,8 @@ export function NewProduct() {
   const isEdit = !!id;
 
   const [compounds, setCompounds] = useState<Compound[]>([]);
+  const [presses, setPresses] = useState<Press[]>([]);
+  const [pressMenuOpen, setPressMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Form fields
@@ -23,7 +25,8 @@ export function NewProduct() {
   const [compoundId, setCompoundId] = useState('');
   const [mouldCode, setMouldCode]   = useState('');
   const [cavities, setCavities]     = useState('');
-  const [tonnage, setTonnage]       = useState('');
+  const [tonnage, setTonnage]       = useState('');       // legacy, preserved on save
+  const [pressIds, setPressIds]     = useState<string[]>([]);
   const [cureTempC, setCureTempC]   = useState('');
   const [cureTimeMin, setCureTimeMin] = useState('');
   const [shotWeightG, setShotWeightG] = useState('');
@@ -38,6 +41,7 @@ export function NewProduct() {
 
   useEffect(() => {
     listCompounds().then(setCompounds);
+    listPresses().then(setPresses);
     if (isEdit && id) {
       getProduct(id).then(p => {
         if (!p) return;
@@ -47,6 +51,7 @@ export function NewProduct() {
         setMouldCode(p.mould_code || '');
         setCavities(p.cavities != null ? String(p.cavities) : '');
         setTonnage(p.tonnage != null ? String(p.tonnage) : '');
+        setPressIds(Array.isArray(p.press_ids) ? p.press_ids : []);
         setCureTempC(p.cure_temp_c != null ? String(p.cure_temp_c) : '');
         setCureTimeMin(p.cure_time_min != null ? String(p.cure_time_min) : '');
         setShotWeightG(p.shot_weight_g != null ? String(p.shot_weight_g) : '');
@@ -80,6 +85,7 @@ export function NewProduct() {
         mould_code: mouldCode.trim() || null,
         cavities: cavities ? parseInt(cavities) : null,
         tonnage: tonnage ? parseInt(tonnage) : null,
+        press_ids: pressIds,
         cure_temp_c: cureTempC ? parseInt(cureTempC) : null,
         cure_time_min: cureTimeMin ? parseInt(cureTimeMin) : null,
         shot_weight_g: shotWeightG ? parseInt(shotWeightG) : null,
@@ -151,9 +157,17 @@ export function NewProduct() {
             <Grid2>
               <F label="Mould Code"><input className={inp} value={mouldCode} onChange={e => setMouldCode(e.target.value)} placeholder="M-018" title="Mould code" /></F>
               <F label="Cavities"><input type="number" className={inp} value={cavities} onChange={e => setCavities(e.target.value)} placeholder="2" title="Cavities" /></F>
-              <F label="Press Tonnage (T)"><input type="number" className={inp} value={tonnage} onChange={e => setTonnage(e.target.value)} placeholder="100" title="Tonnage" /></F>
               <F label="Shot Weight (g)"><input type="number" className={inp} value={shotWeightG} onChange={e => setShotWeightG(e.target.value)} placeholder="85" title="Shot weight" /></F>
             </Grid2>
+            <div className="mt-3">
+              <PressMultiSelect
+                presses={presses}
+                selected={pressIds}
+                onChange={setPressIds}
+                open={pressMenuOpen}
+                setOpen={setPressMenuOpen}
+              />
+            </div>
           </Card>
 
           {/* Cure */}
@@ -225,4 +239,78 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 }
 function Hint({ children }: { children: React.ReactNode }) {
   return <div className="text-[10px] text-[#333] mt-1">{children}</div>;
+}
+
+// Multi-select of compatible presses (by name). Stores prod_presses.id values.
+function PressMultiSelect({ presses, selected, onChange, open, setOpen }: {
+  presses: Press[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+}) {
+  const byId = new Map(presses.map(p => [p.id, p]));
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+
+  return (
+    <F label="Compatible Presses">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          title="Select compatible presses"
+          className={`${inp} flex items-center gap-1.5 flex-wrap min-h-[34px] text-left`}
+        >
+          {selected.length === 0 ? (
+            <span className="text-[#888]">— Select presses —</span>
+          ) : (
+            selected.map(id => {
+              const p = byId.get(id);
+              return (
+                <span key={id} className="inline-flex items-center gap-1 bg-[#E8F0FD] text-[#0A6ED1] text-[11px] font-medium px-1.5 py-0.5 rounded-[2px]">
+                  {p ? p.name : id}
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    title="Remove press"
+                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); toggle(id); }}
+                    className="hover:text-[#BB0000] cursor-pointer"
+                  >
+                    <X size={10} />
+                  </span>
+                </span>
+              );
+            })
+          )}
+          <ChevronDown size={13} className="ml-auto text-[#888] shrink-0" />
+        </button>
+
+        {open && (
+          <div className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-[#E4E5E6] rounded-[3px] shadow-lg max-h-[220px] overflow-y-auto">
+            {presses.length === 0 ? (
+              <div className="px-3 py-2.5 text-[11px] text-[#888] italic">No presses configured. Add presses under Shop Floor.</div>
+            ) : presses.map(p => {
+              const checked = selected.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); toggle(p.id); }}
+                  className={`w-full px-2.5 py-2 text-left flex items-center gap-2 hover:bg-[#E8F0FD] transition-colors border-b border-[#F3F3F3] last:border-0 ${checked ? 'bg-[#F0F7FF]' : ''}`}
+                >
+                  <span className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${checked ? 'bg-[#0A6ED1] border-[#0A6ED1]' : 'border-[#CCC] bg-white'}`}>
+                    {checked && <Check size={10} className="text-white" />}
+                  </span>
+                  <span className="text-[12px] font-semibold text-[#111]">{p.name}</span>
+                  <span className="text-[11px] text-[#666] font-mono">{p.tonnage}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </F>
+  );
 }

@@ -11,7 +11,7 @@ import { useProductionData } from '../lib/useProductionData';
 
 export function ProductsList() {
   const navigate = useNavigate();
-  const { products, compounds, loading } = useProductionData();
+  const { products, compounds, presses, loading } = useProductionData();
   const [q, setQ] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
 
@@ -130,7 +130,9 @@ export function ProductsList() {
                     {p.cavities && <span className="text-[#333] text-[10px]"> ({p.cavities} cav)</span>}
                   </TD>
                   <TD className="font-mono text-[11px] text-[#666]">
-                    {p.tonnage ? `${p.tonnage}T` : '—'}
+                    {p.press_ids && p.press_ids.length
+                      ? p.press_ids.map(pid => presses.find(pr => pr.id === pid)?.name || pid).join(', ')
+                      : p.tonnage ? `${p.tonnage}T` : '—'}
                   </TD>
                   <TD className="font-mono text-[11px] text-[#666]">
                     {p.cure_temp_c ? `${p.cure_temp_c}°C` : '—'}

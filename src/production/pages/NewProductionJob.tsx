@@ -3,7 +3,7 @@
 // "Our Product" searchable dropdown prefills Die, Cavities, Cure, Temp, Compound per line.
 
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Download, Save, AlertTriangle, Search, CheckCircle2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { insertJob, logStageEvent, nextJobId } from '../lib/db';
@@ -42,6 +42,8 @@ const blankLine = (): DraftLine => ({
 // ── Component ───────────────────────────────────────────────────────────────
 export function NewProductionJob() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetOrderId = searchParams.get('order');
   const { jobs, products, compounds, refresh, loading } = useProductionData();
 
   const [customerName,     setCustomerName]     = useState('');
@@ -123,6 +125,18 @@ export function NewProductionJob() {
     setImportedOrderId(null); setCustomerName(''); setOrderRef(''); setLines([blankLine()]);
   };
 
+  // Auto-import when arriving from the Orders page (?order=<id>), once orders load.
+  const autoImportedRef = useRef(false);
+  useEffect(() => {
+    if (autoImportedRef.current) return;
+    if (loadingOrders || !presetOrderId) return;
+    if (openOrders.some(o => o.id === presetOrderId)) {
+      autoImportedRef.current = true;
+      importFromOrder(presetOrderId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingOrders, presetOrderId, openOrders]);
+
   // ── Line helpers ───────────────────────────────────────────────────────────
   const updateLine = (i: number, patch: Partial<DraftLine>) =>
     setLines(ls => ls.map((l, idx) => idx === i ? { ...l, ...patch } : l));
@@ -153,6 +167,7 @@ export function NewProductionJob() {
           order_id:         importedOrderId || orderRef || null,
           order_line_seq:   i + 1,
           customer_name:    customerName.trim(),
+          product_id:       l.product_id || null,
           product_desc:     l.product_desc.trim(),
           qty:              Number(l.qty),
           qty_to_mould:     Number(l.qty),
@@ -353,8 +368,8 @@ export function NewProductionJob() {
                     )}
                   </Field>
 
-                  {/* Product Description */}
-                  <Field label="Product Description *">
+                  {/* Our Product Description */}
+                  <Field label="Our Product Description *">
                     <input className={inp} value={l.product_desc}
                       onChange={e => updateLine(i, { product_desc: e.target.value })}
                       placeholder="e.g. PHE Gasket M10 EPDM 500×500mm"

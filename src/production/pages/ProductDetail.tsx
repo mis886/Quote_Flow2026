@@ -7,10 +7,10 @@ import { ArrowLeft, Edit2, Plus, Package, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { PageHeader, StatusPill } from '../components/table';
 import { supabase } from '../../lib/supabase';
-import { listBOMForProduct, deleteBOMRow } from '../lib/db';
+import { listBOMForProduct, deleteBOMRow, listPresses } from '../lib/db';
 import { EditRatesModal } from '../components/EditRatesModal';
 import { AddBOMRowModal } from '../components/AddBOMRowModal';
-import type { Product, Compound, BOMRow } from '../lib/types';
+import type { Product, Compound, BOMRow, Press } from '../lib/types';
 
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +18,7 @@ export function ProductDetail() {
   const [product, setProduct] = useState<Product | null>(null);
   const [compound, setCompound] = useState<Compound | null>(null);
   const [bom, setBom] = useState<BOMRow[]>([]);
+  const [presses, setPresses] = useState<Press[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRatesModal, setShowRatesModal] = useState(false);
   const [showBOMModal, setShowBOMModal] = useState(false);
@@ -25,13 +26,15 @@ export function ProductDetail() {
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const [pRes, bomRes] = await Promise.all([
+    const [pRes, bomRes, pressRes] = await Promise.all([
       supabase.from('prod_products').select('*').eq('id', id).single(),
       listBOMForProduct(id),
+      listPresses(),
     ]);
     const p = pRes.data as Product | null;
     setProduct(p);
     setBom(bomRes);
+    setPresses(pressRes);
     if (p?.compound_id) {
       const { data: c } = await supabase
         .from('prod_compounds').select('*').eq('id', p.compound_id).single();
@@ -68,8 +71,14 @@ export function ProductDetail() {
   const compoundRow = bom.find(r => r.is_compound);
   const raws = bom.filter(r => !r.is_compound);
 
+  const pressNames = (product.press_ids || [])
+    .map(pid => presses.find(p => p.id === pid)?.name || pid);
+  const pressLabel = pressNames.length
+    ? pressNames.join(', ')
+    : product.tonnage ? `${product.tonnage}T` : '—';
+
   const PARAMS = [
-    { emoji: '🏭', v: product.tonnage ? `${product.tonnage}T` : '—', l: 'Press Tonnage' },
+    { emoji: '🏭', v: pressLabel, l: 'Compatible Presses' },
     { emoji: '🔥', v: product.cure_temp_c ? `${product.cure_temp_c}°C` : '—', l: 'Cure Temperature' },
     { emoji: '⏱',  v: product.cure_time_min ? `${product.cure_time_min} min` : '—', l: 'Cure Time' },
     { emoji: '🧱', v: product.mould_code || '—', l: 'Mould Code' },

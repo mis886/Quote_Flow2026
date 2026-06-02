@@ -6,7 +6,7 @@ import { Save, Users, Wrench, Factory, Plus, Trash2, X, Check, Sun, Moon, Edit2,
 import { useProductionData } from '../lib/useProductionData';
 import {
   updateShopFloorSettings, setWorkerPresent,
-  updatePress, insertWorker, updateWorker, deleteWorker,
+  insertPress, updatePress, deletePress, insertWorker, updateWorker, deleteWorker,
 } from '../lib/db';
 import { PageHeader } from '../components/table';
 import { fmtIST } from '../../lib/utils';
@@ -25,7 +25,8 @@ export function ShopFloorSettingsPage() {
   const [busyWorker, setBusyWorker] = useState<string | null>(null);
   const [workerModal, setWorkerModal] = useState<ModalMode | null>(null);
   const [delConfirm, setDelConfirm]   = useState<Worker | null>(null);
-  const [pressModal, setPressModal]   = useState<Press | null>(null);  // edit press
+  const [pressModal, setPressModal]   = useState<Press | 'add' | null>(null);  // edit or add press
+  const [pressDelConfirm, setPressDelConfirm] = useState<Press | null>(null);
 
   useEffect(() => { if (settings) setDraft(settings); }, [settings]);
 
@@ -312,8 +313,17 @@ export function ShopFloorSettingsPage() {
 
         {/* ── Press master ─────────────────────────────────── */}
         <section>
-          <SectionTitle icon={<Factory size={11} />} title="Press Master" />
+          <div className="flex items-center justify-between mb-2">
+            <SectionTitle icon={<Factory size={11} />} title="Press Master" />
+            <button type="button" onClick={() => setPressModal('add')}
+              className="inline-flex items-center gap-1 text-[10px] text-[#0A6ED1] border border-[#0A6ED1] rounded-[3px] px-2 py-0.5 hover:bg-[#E8F0FD] transition-colors">
+              <Plus size={10} /> Add Press
+            </button>
+          </div>
           <div className="bg-white border border-[#E4E5E6] rounded-[3px] divide-y divide-[#F3F3F3]">
+            {presses.length === 0 && (
+              <div className="px-4 py-6 text-center text-[11px] text-[#555] italic">No presses added yet.</div>
+            )}
             {presses.map(p => {
               const assignedOps = workers.filter(w => w.department === 'press' && w.press_id === p.id && w.present);
               const dayOps   = assignedOps.filter(w => (w.shift ?? 'day') === 'day');
@@ -368,6 +378,15 @@ export function ShopFloorSettingsPage() {
                       className="inline-flex items-center gap-1 px-2 py-1 text-[10.5px] border border-[#E4E5E6] text-[#555] rounded-[3px] hover:bg-[#F5F6F7] transition-colors">
                       <Edit2 size={10} /> Edit
                     </button>
+                    <button type="button"
+                      disabled={p.status === 'running' || p.status === 'setup' || assignedOps.length > 0}
+                      onClick={() => setPressDelConfirm(p)}
+                      title={p.status === 'running' || p.status === 'setup'
+                        ? 'Press is busy — finish first'
+                        : assignedOps.length > 0 ? 'Unassign operators first' : 'Remove press'}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[10.5px] border border-[#E4E5E6] text-[#555] rounded-[3px] hover:bg-[#FFF5F5] hover:text-[#BB0000] hover:border-[#BB0000]/40 disabled:opacity-30 transition-colors">
+                      <Trash2 size={10} />
+                    </button>
                     <button
                       type="button"
                       disabled={p.status === 'running' || p.status === 'setup'}
@@ -399,13 +418,45 @@ export function ShopFloorSettingsPage() {
         />
       )}
 
-      {/* ── Edit Press Modal ───────────────────────────────── */}
+      {/* ── Add / Edit Press Modal ─────────────────────────── */}
       {pressModal && (
         <PressEditModal
-          press={pressModal}
+          press={pressModal === 'add' ? null : pressModal}
+          presses={presses}
           onClose={() => setPressModal(null)}
           onSaved={async () => { await refresh(); setPressModal(null); }}
         />
+      )}
+
+      {/* ── Delete Press confirmation ──────────────────────── */}
+      {pressDelConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[4px] w-full max-w-[360px] shadow-xl">
+            <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
+              <div className="text-[13px] font-semibold text-[#111]">Remove Press</div>
+              <button type="button" title="Close" aria-label="Close" onClick={() => setPressDelConfirm(null)} className="text-[#555] hover:text-[#111]"><X size={16} /></button>
+            </div>
+            <div className="px-4 py-4 text-[12px] text-[#333]">
+              Remove <strong className="text-[#111]">{pressDelConfirm.name}</strong> ({pressDelConfirm.tonnage}T) from the press master?
+              This cannot be undone.
+            </div>
+            <div className="px-4 py-3 border-t border-[#E4E5E6] flex justify-end gap-2">
+              <button type="button" onClick={() => setPressDelConfirm(null)}
+                className="px-[11px] py-[5px] text-[11px] font-medium border border-[#E4E5E6] rounded-[3px] text-[#333] bg-white hover:bg-[#F5F6F7]">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={async () => {
+                  try { await deletePress(pressDelConfirm.id); await refresh(); }
+                  catch (e: any) { alert(e?.message || 'Delete failed.'); }
+                  setPressDelConfirm(null);
+                }}
+                className="px-[11px] py-[5px] text-[11px] font-medium bg-[#BB0000] text-white rounded-[3px] hover:bg-[#8E0000]">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Delete confirmation ────────────────────────────── */}
@@ -677,20 +728,28 @@ function WorkerModal({ mode, workers, presses, onClose, onSaved }: {
 
 // ── Press Edit Modal ─────────────────────────────────────────────────────────
 
-function PressEditModal({ press, onClose, onSaved }: {
-  press: Press;
+function PressEditModal({ press, presses, onClose, onSaved }: {
+  press: Press | null;            // null = add new press
+  presses: Press[];
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
-  const [name,    setName]    = useState(press.name);
-  const [tonnage, setTonnage] = useState(press.tonnage);
+  const isEdit = press !== null;
+  const [name,    setName]    = useState(press?.name ?? '');
+  const [tonnage, setTonnage] = useState(press?.tonnage ?? '');
   const [saving,  setSaving]  = useState(false);
 
   const save = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !tonnage.trim()) return;
     setSaving(true);
     try {
-      await updatePress(press.id, { name: name.trim(), tonnage: tonnage.trim() });
+      if (isEdit && press) {
+        await updatePress(press.id, { name: name.trim(), tonnage: tonnage.trim() });
+      } else {
+        const nums = presses.map(p => parseInt(p.id.replace(/^P/i, ''), 10) || 0);
+        const newId = `P${Math.max(0, ...nums) + 1}`;
+        await insertPress({ id: newId, name: name.trim(), tonnage: tonnage.trim(), status: 'idle' });
+      }
       await onSaved();
     } catch (e: any) {
       alert(e?.message || 'Save failed.');
@@ -701,34 +760,39 @@ function PressEditModal({ press, onClose, onSaved }: {
     <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-[4px] w-full max-w-[380px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-[#E4E5E6] flex items-center justify-between">
-          <div className="text-[13px] font-semibold text-[#111]">Edit Press — {press.id}</div>
+          <div className="text-[13px] font-semibold text-[#111]">
+            {isEdit ? `Edit Press — ${press!.id}` : 'Add Press'}
+          </div>
           <button type="button" title="Close" aria-label="Close" onClick={onClose} className="text-[#555] hover:text-[#111]"><X size={16} /></button>
         </div>
         <div className="p-4 space-y-3">
-          <WField label="Press Name">
+          <WField label="Press Name *">
             <input className={winp} value={name} autoFocus
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && save()}
-              placeholder="e.g. Press 1" title="Press name" />
+              placeholder="e.g. Press 5" title="Press name" />
           </WField>
-          <WField label="Tonnage">
+          <WField label="Tonnage *">
             <input className={winp} value={tonnage}
               onChange={e => setTonnage(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && save()}
               placeholder="e.g. 100T" title="Tonnage" />
           </WField>
-          <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[11px] text-[#555]">
-            Status: <strong className="text-[#111]">{press.status}</strong>
-            {press.active_job_id && <> · Active job: <strong className="text-[#0A6ED1]">{press.active_job_id}</strong></>}
-          </div>
+          {isEdit && (
+            <div className="bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[11px] text-[#555]">
+              Status: <strong className="text-[#111]">{press!.status}</strong>
+              {press!.active_job_id && <> · Active job: <strong className="text-[#0A6ED1]">{press!.active_job_id}</strong></>}
+            </div>
+          )}
         </div>
         <div className="px-4 py-3 border-t border-[#E4E5E6] flex justify-end gap-2">
           <button type="button" onClick={onClose}
             className="px-[11px] py-[5px] text-[11px] font-medium border border-[#E4E5E6] rounded-[3px] text-[#333] bg-white hover:bg-[#F5F6F7]">
             Cancel
           </button>
-          <button type="button" onClick={save} disabled={!name.trim() || saving}
+          <button type="button" onClick={save} disabled={!name.trim() || !tonnage.trim() || saving}
             className="inline-flex items-center gap-1 px-[11px] py-[5px] text-[11px] font-medium bg-[#0A6ED1] text-white rounded-[3px] hover:bg-[#085EA8] disabled:opacity-40">
-            <Check size={12} /> {saving ? 'Saving…' : 'Save Changes'}
+            <Check size={12} /> {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Press'}
           </button>
         </div>
       </div>

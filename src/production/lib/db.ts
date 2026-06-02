@@ -21,10 +21,28 @@ export async function listPresses(): Promise<Press[]> {
   return data || [];
 }
 
+export async function insertPress(p: Partial<Press>): Promise<Press> {
+  const { data, error } = await supabase
+    .from('prod_presses')
+    .insert(p)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Press;
+}
+
 export async function updatePress(id: string, patch: Partial<Press>) {
   const { error } = await supabase
     .from('prod_presses')
     .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deletePress(id: string) {
+  const { error } = await supabase
+    .from('prod_presses')
+    .delete()
     .eq('id', id);
   if (error) throw error;
 }

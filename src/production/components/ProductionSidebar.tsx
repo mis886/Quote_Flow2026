@@ -1,16 +1,17 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Workflow, Factory, FileText, AlertTriangle,
+  LayoutDashboard, Workflow, Factory, AlertTriangle,
   Settings as Cog, ArrowLeftRight, Package, FlaskConical,
   LayoutGrid, Hammer, Scissors, Microscope, Truck, ShieldCheck,
+  FileInput,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const SHOP_ITEMS = [
   { to: '/production',            icon: LayoutDashboard, label: 'Dashboard',      exact: true },
+  { to: '/production/orders',     icon: FileInput,       label: 'Orders' },
   { to: '/production/sequencer',  icon: Workflow,        label: 'Sequencer' },
   { to: '/production/presses',    icon: Factory,         label: 'Press Board' },
-  { to: '/production/jobs',       icon: FileText,        label: 'Job Cards' },
   { to: '/production/ncr',        icon: AlertTriangle,   label: 'NCR Log' },
   { to: '/production/settings',   icon: Cog,             label: 'Shop Floor' },
 ];
