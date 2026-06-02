@@ -98,33 +98,32 @@ export function JobCardBoard() {
       />
 
       <FilterBar>
+        {/* Segmented status filter tabs with counts (All + each status) */}
+        <div className="flex flex-wrap">
+          <FilterTab
+            label="All"
+            count={enriched.length}
+            active={stageF === ''}
+            onClick={() => setStageF('')}
+          />
+          {ALL_STATUSES.map(s => (
+            <FilterTab
+              key={s}
+              label={s}
+              count={counts[s] || 0}
+              active={stageF === s}
+              activeCls={JC_STATUS_COLOR[s].activeChipCls}
+              onClick={() => setStageF(stageF === s ? '' : s)}
+            />
+          ))}
+        </div>
         <div className="flex items-center gap-1.5 bg-[#F7F7F7] border border-[#E4E5E6] rounded-[3px] px-2 py-1">
           <Search size={12} className="text-[#555]" />
           <input className="bg-transparent text-[12px] outline-none text-[#111] w-[180px]"
             placeholder="Search job, product, customer…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
-        <select title="Filter by status"
-          className="text-[11px] border border-[#E4E5E6] rounded-[3px] px-2 py-1 bg-white text-[#333] outline-none focus:border-[#0A6ED1]"
-          value={stageF} onChange={e => setStageF(e.target.value as JCDerivedStatus | '')}>
-          <option value="">All Statuses</option>
-          {ALL_STATUSES.map(s => <option key={s} value={s}>{s} ({counts[s] || 0})</option>)}
-        </select>
         <div className="ml-auto text-[10px] text-[#555]">{filtered.length} job{filtered.length !== 1 ? 's' : ''}</div>
       </FilterBar>
-
-      {/* Status summary chips */}
-      <div className="px-4 py-2 flex flex-wrap gap-1.5 bg-white border-b border-[#E4E5E6]">
-        {ALL_STATUSES.filter(s => counts[s]).map(s => {
-          const c = JC_STATUS_COLOR[s];
-          return (
-            <button key={s} type="button"
-              onClick={() => setStageF(stageF === s ? '' : s)}
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors ${stageF === s ? c.activeChipCls : c.chipCls}`}>
-              {s} · {counts[s]}
-            </button>
-          );
-        })}
-      </div>
 
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
@@ -202,6 +201,26 @@ export function JobCardBoard() {
         )}
       </div>
     </div>
+  );
+}
+
+// Segmented filter tab with count, styled like the Orders board tabs.
+// Borders are joined (no right-border except the last) for a pill-group look.
+function FilterTab({ label, count, active, activeCls, onClick }: {
+  label: string; count: number; active: boolean; activeCls?: string; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-[11.5px] px-[13px] py-[6px] border border-r-0 last:border-r whitespace-nowrap transition-colors first:rounded-l-[3px] last:rounded-r-[3px] ${
+        active
+          ? (activeCls || 'bg-[#0A6ED1] text-white border-[#0A6ED1]')
+          : 'bg-white text-[#6A6D70] border-[#E4E5E6] hover:bg-[#F7F7F7] hover:text-[#32363A]'
+      }`}
+    >
+      {label} <span className="text-[10px] opacity-80">({count})</span>
+    </button>
   );
 }
 
