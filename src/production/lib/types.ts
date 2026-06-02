@@ -172,9 +172,10 @@ export interface Product {
   oven_temp_c?: number | null;
   blank_weight_g?: number | null;
   finished_weight_g?: number | null;
-  pcs_hr_1side?: number | null;
-  pcs_hr_2side?: number | null;
-  mold_rate?: number | null;           // per-hour molding (explicit)
+  pcs_hr_1side?: number | null;        // legacy, preserved on save
+  pcs_hr_2side?: number | null;        // legacy, preserved on save
+  two_side_op?: boolean | null;        // press runs 2-side op → doubles moulding rate
+  mold_rate?: number | null;           // auto moulding rate = (60/cure)×cav×(2-side?2:1)
   colour_code?: string | null;
   maintenance_after_qty?: number | null;
 

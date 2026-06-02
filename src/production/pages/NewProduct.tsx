@@ -47,9 +47,9 @@ export function NewProduct() {
   const [blankWeightG, setBlankWeightG] = useState('');
   const [finishedWeightG, setFinishedWeightG] = useState('');
   const [shotWeightG, setShotWeightG] = useState('');
-  const [pcsHr1, setPcsHr1]         = useState('');
-  const [pcsHr2, setPcsHr2]         = useState('');
-  const [moldRate, setMoldRate]     = useState('');
+  const [pcsHr1, setPcsHr1]         = useState('');   // legacy, preserved on save
+  const [pcsHr2, setPcsHr2]         = useState('');   // legacy, preserved on save
+  const [twoSideOp, setTwoSideOp]   = useState(false); // press runs 2-side op
   const [setupTimeHrs, setSetupTimeHrs] = useState('0.5');
   const [finishRate, setFinishRate] = useState('');
   const [inspRate, setInspRate]     = useState('');
@@ -100,7 +100,7 @@ export function NewProduct() {
         setShotWeightG(num(p.shot_weight_g));
         setPcsHr1(num(p.pcs_hr_1side));
         setPcsHr2(num(p.pcs_hr_2side));
-        setMoldRate(num(p.mold_rate));
+        setTwoSideOp(!!p.two_side_op);
         setSetupTimeHrs(p.setup_time_hrs != null ? String(p.setup_time_hrs) : '0.5');
         setFinishRate(num(p.finish_rate));
         setInspRate(num(p.insp_rate));
@@ -115,7 +115,7 @@ export function NewProduct() {
   }, [isEdit, id]);
 
   const mouldRate = cureTimeMin && cavities
-    ? ((60 / parseFloat(cureTimeMin)) * parseFloat(cavities)).toFixed(1)
+    ? ((60 / parseFloat(cureTimeMin)) * parseFloat(cavities) * (twoSideOp ? 2 : 1)).toFixed(1)
     : null;
 
   const save = async () => {
@@ -167,7 +167,8 @@ export function NewProduct() {
         shot_weight_g: numI(shotWeightG),
         pcs_hr_1side: numF(pcsHr1),
         pcs_hr_2side: numF(pcsHr2),
-        mold_rate: numF(moldRate),
+        two_side_op: twoSideOp,
+        mold_rate: mouldRate != null ? parseFloat(mouldRate) : null,
         setup_time_hrs: parseFloat(setupTimeHrs) || 0.5,
         finish_rate: numF(finishRate),
         insp_rate: numF(inspRate),
@@ -208,10 +209,10 @@ export function NewProduct() {
       />
 
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
-        <div className="max-w-[780px] space-y-5">
+        <div className="w-full space-y-5">
           {/* Identity */}
           <Card title="Identity">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <F label="Type *"><input className={inp} value={typeCode} onChange={e => setTypeCode(e.target.value)} placeholder="e.g. GCH" title="Type" /></F>
               <F label="Model No. *"><input className={inp} value={modelNo} onChange={e => setModelNo(e.target.value)} placeholder="e.g. S121" title="Model number" /></F>
               <F label="MOC *"><input className={inp} value={moc} onChange={e => setMoc(e.target.value)} placeholder="e.g. NBR" title="MOC" /></F>
@@ -225,7 +226,7 @@ export function NewProduct() {
                   : <strong className="text-[#107E3E] font-mono">{familyCode ? `${familyCode}-N (auto)` : '—'}</strong>}
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
               <F label="Product Name *"><input className={inp} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. PHE Gasket M10 EPDM" title="Product name" /></F>
               <F label="Item Category"><input className={inp} value={itemCategory} onChange={e => setItemCategory(e.target.value)} placeholder="e.g. Gasket" title="Item category" /></F>
               <F label="Make"><input className={inp} value={make} onChange={e => setMake(e.target.value)} placeholder="e.g. Sondex" title="Make" /></F>
@@ -275,24 +276,28 @@ export function NewProduct() {
 
           {/* Cure & Oven */}
           <Card title="Cure & Oven Parameters">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               <F label="Cure Temperature (°C)"><input type="number" className={inp} value={cureTempC} onChange={e => setCureTempC(e.target.value)} placeholder="175" title="Cure temp" /></F>
               <F label="Cure Time (min)"><input type="number" className={inp} value={cureTimeMin} onChange={e => setCureTimeMin(e.target.value)} placeholder="180" title="Cure time" /></F>
               <F label="Cycle Time (min)"><input type="number" step="0.1" className={inp} value={cycleTimeMin} onChange={e => setCycleTimeMin(e.target.value)} placeholder="3" title="Cycle time" /></F>
               <F label="Oven Time (hrs)"><input type="number" step="0.1" className={inp} value={ovenTimeHrs} onChange={e => setOvenTimeHrs(e.target.value)} placeholder="4" title="Oven time hours" /></F>
               <F label="Oven Temp (°C)"><input type="number" className={inp} value={ovenTempC} onChange={e => setOvenTempC(e.target.value)} placeholder="150" title="Oven temp" /></F>
             </div>
+            <label className="mt-3 flex items-center gap-2 cursor-pointer select-none w-fit" title="Some presses run a 2-side operation, doubling output per cycle">
+              <input type="checkbox" className="accent-[#0A6ED1] w-3.5 h-3.5" checked={twoSideOp} onChange={e => setTwoSideOp(e.target.checked)} />
+              <span className="text-[12px] text-[#333]">2-side operation <span className="text-[#888]">(doubles moulding rate — default off = 1-side)</span></span>
+            </label>
             {mouldRate && (
               <div className="mt-2 bg-[#FAFAFA] border border-[#E4E5E6] rounded-[3px] px-3 py-2 text-[12px] text-[#666]">
-                Moulding rate (auto): <strong className="text-[#0A6ED1]">{mouldRate} pcs/hr</strong>
-                <span className="text-[#555] ml-1">(60 ÷ {cureTimeMin}) × {cavities} cav</span>
+                Moulding rate (auto{twoSideOp ? ', 2-side op' : ''}): <strong className="text-[#0A6ED1]">{mouldRate} pcs/hr</strong>
+                <span className="text-[#555] ml-1">(60 ÷ {cureTimeMin}) × {cavities} cav{twoSideOp ? ' × 2' : ''}</span>
               </div>
             )}
           </Card>
 
           {/* Weights */}
           <Card title="Weights">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               <F label="Blank Weight (g)"><input type="number" step="0.001" className={inp} value={blankWeightG} onChange={e => setBlankWeightG(e.target.value)} placeholder="0.480" title="Blank weight" /></F>
               <F label="Finished Pc Weight (g)"><input type="number" step="0.001" className={inp} value={finishedWeightG} onChange={e => setFinishedWeightG(e.target.value)} placeholder="560" title="Finished piece weight" /></F>
               <F label="Shot Weight (g)"><input type="number" className={inp} value={shotWeightG} onChange={e => setShotWeightG(e.target.value)} placeholder="85" title="Shot weight" /></F>
@@ -301,10 +306,7 @@ export function NewProduct() {
 
           {/* Production rates */}
           <Card title="Production Rates (TAT / LSD Basis)">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <F label="Pcs/Hour — 1-side op"><input type="number" step="0.5" className={inp} value={pcsHr1} onChange={e => setPcsHr1(e.target.value)} placeholder="" title="Pcs per hour 1-side operation" /></F>
-              <F label="Pcs/Hour — 2-side op"><input type="number" step="0.5" className={inp} value={pcsHr2} onChange={e => setPcsHr2(e.target.value)} placeholder="" title="Pcs per hour 2-side operation" /></F>
-              <F label="Per-hour Molding"><input type="number" step="0.5" className={inp} value={moldRate} onChange={e => setMoldRate(e.target.value)} placeholder="9" title="Per hour molding" /></F>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               <F label="Finishing Rate (pcs/person/hr)"><input type="number" step="0.5" className={inp} value={finishRate} onChange={e => setFinishRate(e.target.value)} placeholder="5" title="Finishing rate" /></F>
               <F label="Inspection Rate (pcs/inspector/hr)"><input type="number" step="1" className={inp} value={inspRate} onChange={e => setInspRate(e.target.value)} placeholder="39" title="Inspection rate" /></F>
               <F label="Setup Time (hrs/job)"><input type="number" step="0.25" className={inp} value={setupTimeHrs} onChange={e => setSetupTimeHrs(e.target.value)} placeholder="0.5" title="Setup time" /></F>
@@ -341,7 +343,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 function Grid2({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>;
+  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{children}</div>;
 }
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (

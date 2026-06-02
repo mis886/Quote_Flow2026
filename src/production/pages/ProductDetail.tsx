@@ -70,7 +70,7 @@ export function ProductDetail() {
   );
 
   const mouldRate = product.cure_time_min && product.cavities
-    ? ((60 / product.cure_time_min) * product.cavities)
+    ? ((60 / product.cure_time_min) * product.cavities * (product.two_side_op ? 2 : 1))
     : null;
 
   const PLANNED_F = 6; const PLANNED_I = 3; // from shop_floor_settings default
@@ -109,7 +109,7 @@ export function ProductDetail() {
     { emoji: '⬛', v: product.cavities != null ? String(product.cavities) : '—', l: 'Cavities' },
     { emoji: '⚖', v: dash(product.blank_weight_g), l: 'Blank Weight (g)' },
     { emoji: '⚖', v: dash(product.finished_weight_g), l: 'Finished Wt (g)' },
-    { emoji: '⚙',  v: product.mold_rate ? `${product.mold_rate} pcs/hr` : (mouldRate ? `${mouldRate.toFixed(1)} pcs/hr` : '—'), l: 'Moulding Rate' },
+    { emoji: '⚙',  v: product.mold_rate ? `${product.mold_rate} pcs/hr` : (mouldRate ? `${mouldRate.toFixed(1)} pcs/hr` : '—'), l: `Moulding Rate${product.two_side_op ? ' (2-side)' : ''}` },
     { emoji: '✂',  v: product.finish_rate ? `${product.finish_rate} pcs/person/hr` : '—', l: 'Finishing Rate' },
     { emoji: '🔍', v: product.insp_rate ? `${product.insp_rate} pcs/insp/hr` : '—', l: 'Inspection Rate' },
     { emoji: '🎨', v: product.colour_code || '—', l: 'Colour Code' },
@@ -155,7 +155,7 @@ export function ProductDetail() {
           <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-[#333] mb-2">
             Product Parameters
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {PARAMS.map((x, i) => (
               <div key={i} className="bg-white border border-[#E4E5E6] rounded-[3px] px-3 py-2.5">
                 <div className="text-[18px] leading-none mb-1">{x.emoji}</div>

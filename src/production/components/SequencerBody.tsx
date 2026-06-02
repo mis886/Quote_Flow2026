@@ -47,7 +47,7 @@ interface Props {
 }
 
 export function SequencerBody({ data, activeTab, onTabChange, showActions = true }: Props) {
-  const { presses, jobs, workers, loading, refresh } = data;
+  const { presses, jobs, workers, products, loading, refresh } = data;
   const navigate = useNavigate();
 
   const [assigning, setAssigning] = useState<{ pressId: string | null; jobId: string | null } | null>(null);
@@ -284,6 +284,7 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
         onClose={() => setAssigning(null)}
         jobs={queuedNoPress}
         presses={presses}
+        products={products}
         preselectPressId={assigning?.pressId || null}
         preselectJobId={assigning?.jobId || null}
         onConfirm={handleConfirmAssign}

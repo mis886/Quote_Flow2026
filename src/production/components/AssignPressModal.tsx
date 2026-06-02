@@ -3,9 +3,9 @@
 // queued jobs to load onto it. First job becomes the press's active_job
 // (shown on the press card); the rest queue behind it on the same press.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Check } from 'lucide-react';
-import type { Press, ProductionJob } from '../lib/types';
+import type { Press, Product, ProductionJob } from '../lib/types';
 import { productIdentity } from '../lib/productLabel';
 import { fmtDate } from '../../lib/utils';
 
@@ -14,13 +14,14 @@ interface Props {
   onClose: () => void;
   jobs: ProductionJob[];          // candidate jobs (moulding stage, no press)
   presses: Press[];               // all presses (idle = available)
+  products?: Product[];           // product master — restricts presses to product.press_ids
   preselectPressId?: string | null;
   preselectJobId?: string | null;
   onConfirm: (jobIds: string[], pressId: string) => Promise<void> | void;
 }
 
 export function AssignPressModal({
-  open, onClose, jobs, presses, preselectPressId, preselectJobId, onConfirm,
+  open, onClose, jobs, presses, products = [], preselectPressId, preselectJobId, onConfirm,
 }: Props) {
   const [pressId, setPressId] = useState<string>(preselectPressId ?? '');
   const [pickedJobIds, setPickedJobIds] = useState<Set<string>>(new Set());
@@ -42,6 +43,36 @@ export function AssignPressModal({
       if (b.priority === 'emergency' && a.priority !== 'emergency') return 1;
       return (a.lsd || a.promised_date || '').localeCompare(b.lsd || b.promised_date || '');
     });
+
+  // Presses configured on a job's product (via Product Creation). When a job's
+  // product restricts presses, only those may be selected for it.
+  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+  const allowedPressIdsFor = (job: ProductionJob): string[] | null => {
+    const prod = job.product_id ? productById.get(job.product_id) : undefined;
+    const ids = prod?.press_ids;
+    return ids && ids.length ? ids : null;   // null = no restriction
+  };
+
+  // Across the currently-picked jobs, the selectable presses are the
+  // intersection of each restricted product's allowed presses. Jobs whose
+  // product imposes no restriction don't narrow the set.
+  const allowedPressIds = useMemo<Set<string> | null>(() => {
+    let acc: Set<string> | null = null;
+    for (const j of jobs) {
+      if (!pickedJobIds.has(j.id)) continue;
+      const allowed = allowedPressIdsFor(j);
+      if (!allowed) continue;
+      const set = new Set(allowed);
+      acc = acc ? new Set([...acc].filter(id => set.has(id))) : set;
+    }
+    return acc;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, pickedJobIds, productById]);
+
+  // If the currently-selected press is no longer allowed, clear it.
+  useEffect(() => {
+    if (pressId && allowedPressIds && !allowedPressIds.has(pressId)) setPressId('');
+  }, [allowedPressIds, pressId]);
 
   const toggleJob = (id: string) => {
     setPickedJobIds(prev => {
@@ -92,25 +123,32 @@ export function AssignPressModal({
             <label className="block text-[10.5px] font-mono font-bold tracking-wider uppercase text-[#333] mb-1.5">
               Select Press <span className="text-[#0A6ED1]">*</span>
             </label>
+            {allowedPressIds && (
+              <div className="mb-1.5 text-[10px] text-[#555]">
+                Restricted to presses configured on the selected product(s).
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {presses.map(p => {
+                const notAllowed = !!allowedPressIds && !allowedPressIds.has(p.id);
                 const busyPress = p.status !== 'idle';
+                const disabled = busyPress || notAllowed;
                 const selected = pressId === p.id;
                 return (
                   <button
                     key={p.id}
                     type="button"
-                    disabled={busyPress}
+                    disabled={disabled}
                     onClick={() => setPressId(p.id)}
                     className={`text-left border rounded-[3px] px-2.5 py-2 transition-colors ${
                       selected
                         ? 'border-[#0A6ED1] bg-[#E8F0FD]/30'
                         : 'border-[#CCC] hover:border-[#0A6ED1]/50'
-                    } ${busyPress ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     <div className="text-[12px] font-semibold text-[#111]">{p.name} · {p.tonnage}</div>
-                    <div className={`text-[10px] ${busyPress ? 'text-[#0A6ED1]' : 'text-green-700'}`}>
-                      {busyPress ? `✗ ${p.status}` : '✓ Available'}
+                    <div className={`text-[10px] ${notAllowed ? 'text-[#555]' : busyPress ? 'text-[#0A6ED1]' : 'text-green-700'}`}>
+                      {notAllowed ? '— Not for this product' : busyPress ? `✗ ${p.status}` : '✓ Available'}
                     </div>
                   </button>
                 );

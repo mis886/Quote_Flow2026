@@ -12,7 +12,7 @@ import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 
 export function PressBoardPage() {
-  const { presses, jobs, settings, refresh, loading } = useProductionData();
+  const { presses, jobs, products, settings, refresh, loading } = useProductionData();
   const [assigning, setAssigning] = useState<{ pressId: string | null } | null>(null);
 
   const queuedByPress = useMemo(() => {
@@ -127,6 +127,7 @@ export function PressBoardPage() {
         onClose={() => setAssigning(null)}
         jobs={queuedNoPress}
         presses={presses}
+        products={products}
         preselectPressId={assigning?.pressId || null}
         onConfirm={onConfirmAssign}
       />

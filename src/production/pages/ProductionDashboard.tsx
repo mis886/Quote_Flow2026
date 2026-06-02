@@ -36,7 +36,7 @@ const STAGE_COLOR: Record<string, string> = {
 
 export function ProductionDashboard() {
   const data = useProductionData();
-  const { presses, jobs, settings, loading, refresh } = data;
+  const { presses, jobs, products, settings, loading, refresh } = data;
   const [assigning, setAssigning] = useState<{ pressId: string | null } | null>(null);
   const [seqTab, setSeqTab] = useState<SequencerTab>('mould');
 
@@ -248,6 +248,7 @@ export function ProductionDashboard() {
         onClose={() => setAssigning(null)}
         jobs={queuedNoPress}
         presses={presses}
+        products={products}
         preselectPressId={assigning?.pressId || null}
         onConfirm={handleConfirmAssign}
       />
