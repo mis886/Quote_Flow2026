@@ -1,13 +1,16 @@
 // Full Press Board — large cards, plus list of queued jobs per press.
 
 import { useState, useMemo } from 'react';
-import { Plus, Workflow } from 'lucide-react';
+import { Plus, Workflow, ChevronUp, ChevronDown, ArrowUpToLine, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import { useProductionData } from '../lib/useProductionData';
 import { PressBoard } from '../components/PressBoard';
 import { AssignPressModal } from '../components/AssignPressModal';
-import { assignJobsToPress, markPressDone } from '../lib/actions';
+import {
+  assignJobsToPress, markPressDone, pressQueueJobs,
+  moveQueueJob, moveQueueJobToFront, preemptActiveJob,
+} from '../lib/actions';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 
@@ -17,12 +20,7 @@ export function PressBoardPage() {
 
   const queuedByPress = useMemo(() => {
     const map: Record<string, typeof jobs> = {};
-    for (const p of presses) map[p.id] = [];
-    for (const j of jobs) {
-      if (j.press_id && j.stage === 'moulding' && j.status === 'queued') {
-        (map[j.press_id] ||= []).push(j);
-      }
-    }
+    for (const p of presses) map[p.id] = pressQueueJobs(jobs, p.id);
     return map;
   }, [presses, jobs]);
 
@@ -34,6 +32,21 @@ export function PressBoardPage() {
   };
   const onMarkDone = async (pressId: string) => {
     await markPressDone(pressId);
+    await refresh();
+  };
+
+  // Queue reordering
+  const onMove = async (jobId: string, dir: 'up' | 'down') => {
+    await moveQueueJob(jobId, dir);
+    await refresh();
+  };
+  const onMoveToFront = async (jobId: string) => {
+    await moveQueueJobToFront(jobId);
+    await refresh();
+  };
+  const onPreempt = async (jobId: string, pressName: string) => {
+    if (!confirm(`Preempt the job currently running on ${pressName}?\n\nThe running job will be paused (sent back to the front of the queue) and this emergency loaded immediately. Only do this if interrupting the current cure is justified.`)) return;
+    await preemptActiveJob(jobId);
     await refresh();
   };
 
@@ -97,6 +110,7 @@ export function PressBoardPage() {
           {presses.map(p => {
             const queue = queuedByPress[p.id] || [];
             if (queue.length === 0) return null;
+            const pressBusy = p.status !== 'idle' && !!p.active_job_id;
             return (
               <div key={p.id} className="bg-white border border-[#E4E5E6] rounded-[3px]">
                 <div className="px-3 py-2 border-b border-[#E4E5E6] flex items-center gap-2">
@@ -106,15 +120,40 @@ export function PressBoardPage() {
                   <span className="font-mono text-[10px] text-[#333]">{queue.length} waiting</span>
                 </div>
                 <ul className="divide-y divide-[#F3F3F3]">
-                  {queue.map(j => (
-                    <li key={j.id} className="px-3 py-2 text-[12px] flex items-center gap-2">
-                      <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
-                        {j.priority === 'emergency' && '🔴 '}{j.id}
-                      </span>
-                      <span className="text-[#444] truncate flex-1">{productIdentity(j)}</span>
-                      <span className="text-[#333] font-mono text-[10.5px]">{j.qty.toLocaleString()} pcs</span>
-                    </li>
-                  ))}
+                  {queue.map((j, idx) => {
+                    const isEmergency = j.priority === 'emergency';
+                    return (
+                      <li key={j.id} className={`px-3 py-2 text-[12px] flex items-center gap-2 ${isEmergency ? 'bg-[#FFF6F6]' : ''}`}>
+                        <span className="font-mono text-[10px] text-[#999] w-4 shrink-0 text-right">{idx + 1}</span>
+                        <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1] shrink-0">
+                          {isEmergency && '🔴 '}{j.id}
+                        </span>
+                        <span className="text-[#444] truncate flex-1">{productIdentity(j)}</span>
+                        <span className="text-[#333] font-mono text-[10.5px] shrink-0">{j.qty.toLocaleString()} pcs</span>
+                        {/* Reorder controls */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <QBtn title="Move up" disabled={idx === 0} onClick={() => onMove(j.id, 'up')}>
+                            <ChevronUp size={13} />
+                          </QBtn>
+                          <QBtn title="Move down" disabled={idx === queue.length - 1} onClick={() => onMove(j.id, 'down')}>
+                            <ChevronDown size={13} />
+                          </QBtn>
+                          <QBtn title="Move to front of queue" disabled={idx === 0} onClick={() => onMoveToFront(j.id)}>
+                            <ArrowUpToLine size={12} />
+                          </QBtn>
+                          {pressBusy && (
+                            <QBtn
+                              title="Preempt: pause the running job and load this one now"
+                              tone="danger"
+                              onClick={() => onPreempt(j.id, p.name)}
+                            >
+                              <Zap size={12} />
+                            </QBtn>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );
@@ -132,5 +171,30 @@ export function PressBoardPage() {
         onConfirm={onConfirmAssign}
       />
     </div>
+  );
+}
+
+// Small icon button used for queue reordering / preempt actions.
+function QBtn({ children, title, onClick, disabled, tone = 'default' }: {
+  children: React.ReactNode;
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'default' | 'danger';
+}) {
+  const toneCls = tone === 'danger'
+    ? 'text-[#BB0000] hover:bg-[#FFEBEE] hover:text-[#8E0000]'
+    : 'text-[#666] hover:bg-[#E8F0FD] hover:text-[#0A6ED1]';
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`p-0.5 rounded-[3px] transition-colors disabled:opacity-25 disabled:pointer-events-none ${toneCls}`}
+    >
+      {children}
+    </button>
   );
 }

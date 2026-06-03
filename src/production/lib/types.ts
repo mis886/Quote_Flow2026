@@ -49,6 +49,7 @@ export interface ProductionJob {
   compound_code?: string | null;
   tikli_size?: string | null;
   press_id?: string | null;
+  queue_seq?: number | null;       // position within the press queue (lower = next)
 
   inspector?: string | null;
   inspection_result?: 'pending' | 'passed' | 'ncr' | null;
