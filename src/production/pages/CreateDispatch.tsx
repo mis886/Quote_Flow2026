@@ -14,7 +14,7 @@ import {
 } from '../lib/db';
 import { AttachmentUploader } from '../components/AttachmentUploader';
 import { ComboBox } from '../components/ComboBox';
-import { jcStats, nextDspId, nextDspItemId } from '../lib/jcStats';
+import { jcStats, reversedDispatchIdSet, nextDspId, nextDspItemId } from '../lib/jcStats';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type {
@@ -124,14 +124,15 @@ export function CreateDispatch() {
     );
   }, [allDisps, unitId, invoiceSeq, fy]);
 
+  const reversedIds = useMemo(() => reversedDispatchIdSet(allDisps), [allDisps]);
   const readyMap = useMemo(() => {
     const map: Record<string, number> = {};
     for (const j of jobs) {
-      const s = jcStats(j.id, molding, finishing, inspection, dispItems);
+      const s = jcStats(j.id, molding, finishing, inspection, dispItems, reversedIds);
       if (s.readyQty > 0) map[j.id] = s.readyQty;
     }
     return map;
-  }, [jobs, molding, finishing, inspection, dispItems]);
+  }, [jobs, molding, finishing, inspection, dispItems, reversedIds]);
 
   const readyJobs = useMemo(() => jobs.filter(j => (readyMap[j.id] || 0) > 0), [jobs, readyMap]);
 

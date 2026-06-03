@@ -349,7 +349,7 @@ export interface InspectionSession {
   correction_note?: string | null;
 }
 
-export type DispatchStatus = 'Dispatched' | 'In Transit' | 'Delivered' | 'Returned';
+export type DispatchStatus = 'Dispatched' | 'In Transit' | 'Delivered' | 'Returned' | 'Reversed';
 
 export interface Dispatch {
   id: string;                     // DSP-YYYY-NNNNN
@@ -374,6 +374,13 @@ export interface Dispatch {
   remarks?: string | null;
   entered_by?: string | null;
   received_by_crm?: boolean;
+  // Correction / reversal audit
+  corrected_at?: string | null;
+  corrected_by?: string | null;
+  correction_note?: string | null;
+  reversed_at?: string | null;
+  reversed_by?: string | null;
+  reversal_note?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -394,6 +401,23 @@ export interface DispatchItem {
   dispatch_date?: string | null;
   invoice_no?: string | null;
   entered_by?: string | null;
+  corrected_at?: string | null;
+  correction_note?: string | null;
+  created_at?: string;
+}
+
+// ── Finished-goods (surplus) stock ledger ────────────────────────
+export type FgMovement = 'surplus_in' | 'order_consume' | 'adjust';
+export interface FgStockRow {
+  id: string;
+  family_code: string;        // Type_Model_MOC — the match key
+  product_id?: string | null;
+  job_card_id?: string | null;
+  ref_job_id?: string | null;
+  qty: number;                // signed: + in, - out
+  movement: FgMovement;
+  note?: string | null;
+  created_by?: string | null;
   created_at?: string;
 }
 

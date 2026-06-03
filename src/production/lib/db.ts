@@ -10,6 +10,7 @@ import type {
   MoldingSession, FinishingSession, InspectionSession,
   Dispatch, DispatchItem, ProdAttachment, PdiLog,
   ProdOption, ProdOptionField,
+  FgStockRow,
 } from './types';
 
 // ── Presses ────────────────────────────────────────────────────────
@@ -481,6 +482,64 @@ export async function insertDispatchItem(row: DispatchItem): Promise<DispatchIte
   const { data, error } = await supabase.from('prod_dispatch_items').insert(row).select().single();
   if (error) throw error;
   return data as DispatchItem;
+}
+
+// Correct a dispatch header (qty/courier/invoice/etc.) — audited.
+export async function updateDispatch(
+  id: string,
+  patch: Partial<Dispatch>,
+  correctedBy?: string | null,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_dispatches').update({
+    ...patch,
+    corrected_at: new Date().toISOString(),
+    corrected_by: correctedBy ?? null,
+    correction_note: correctionNote ?? null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id);
+  if (error) throw error;
+}
+
+// Correct a single dispatch line item (qty) — audited.
+export async function updateDispatchItem(
+  id: string,
+  patch: Partial<DispatchItem>,
+  correctionNote?: string | null,
+) {
+  const { error } = await supabase.from('prod_dispatch_items').update({
+    ...patch,
+    corrected_at: new Date().toISOString(),
+    correction_note: correctionNote ?? null,
+  }).eq('id', id);
+  if (error) throw error;
+}
+
+// Reverse a dispatch: its items stop counting as dispatched (qty returns to the
+// ready pool). The record is kept for audit, status → 'Reversed'.
+export async function reverseDispatch(id: string, reversedBy?: string | null, note?: string | null) {
+  const { error } = await supabase.from('prod_dispatches').update({
+    status: 'Reversed',
+    reversed_at: new Date().toISOString(),
+    reversed_by: reversedBy ?? null,
+    reversal_note: note ?? null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id);
+  if (error) throw error;
+}
+
+// ── Finished-goods stock ledger ─────────────────────────────────────
+export async function listFgStock(): Promise<FgStockRow[]> {
+  const { data, error } = await supabase
+    .from('prod_fg_stock').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('listFgStock', error); return []; }
+  return data || [];
+}
+
+export async function insertFgMovement(row: FgStockRow): Promise<FgStockRow> {
+  const { data, error } = await supabase.from('prod_fg_stock').insert(row).select().single();
+  if (error) throw error;
+  return data as FgStockRow;
 }
 
 export async function updateInspectionSession(

@@ -8,16 +8,16 @@ import { Search, RefreshCw, Hammer, Scissors, Microscope, Truck, ShieldCheck } f
 import { useProductionData } from '../lib/useProductionData';
 import {
   listMoldingSessions, listFinishingSessions,
-  listInspectionSessions, listDispatchItems,
+  listInspectionSessions, listDispatchItems, listDispatches,
 } from '../lib/db';
 import {
-  jcStats, deriveJCStatus, JC_STATUS_COLOR,
+  jcStats, deriveJCStatus, reversedDispatchIdSet, JC_STATUS_COLOR,
 } from '../lib/jcStats';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader, FilterBar, Table, THead, TH, TR, TD, EmptyRow } from '../components/table';
 import { fmtDate } from '../../lib/utils';
 import type {
-  MoldingSession, FinishingSession, InspectionSession, DispatchItem,
+  MoldingSession, FinishingSession, InspectionSession, DispatchItem, Dispatch,
   JCDerivedStatus,
 } from '../lib/types';
 
@@ -34,17 +34,18 @@ export function JobCardBoard() {
   const [finishing,  setFinishing]  = useState<FinishingSession[]>([]);
   const [inspection, setInspection] = useState<InspectionSession[]>([]);
   const [dispItems,  setDispItems]  = useState<DispatchItem[]>([]);
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
   const [childLoading, setChildLoading] = useState(true);
   const [q,     setQ]     = useState('');
   const [stageF, setStageF] = useState<JCDerivedStatus | ''>('');
 
   const load = async () => {
     setChildLoading(true);
-    const [m, f, i, d] = await Promise.all([
+    const [m, f, i, d, ds] = await Promise.all([
       listMoldingSessions(), listFinishingSessions(),
-      listInspectionSessions(), listDispatchItems(),
+      listInspectionSessions(), listDispatchItems(), listDispatches(),
     ]);
-    setMolding(m); setFinishing(f); setInspection(i); setDispItems(d);
+    setMolding(m); setFinishing(f); setInspection(i); setDispItems(d); setDispatches(ds);
     setChildLoading(false);
   };
 
@@ -52,12 +53,13 @@ export function JobCardBoard() {
 
   const enriched = useMemo(() => {
     if (childLoading) return [];
+    const reversedIds = reversedDispatchIdSet(dispatches);
     return jobs.map(j => {
-      const stats  = jcStats(j.id, molding, finishing, inspection, dispItems);
+      const stats  = jcStats(j.id, molding, finishing, inspection, dispItems, reversedIds);
       const status = deriveJCStatus(j, stats, molding, finishing, inspection);
       return { job: j, stats, status };
     });
-  }, [jobs, molding, finishing, inspection, dispItems, childLoading]);
+  }, [jobs, molding, finishing, inspection, dispItems, dispatches, childLoading]);
 
   const filtered = useMemo(() => {
     return enriched.filter(e => {

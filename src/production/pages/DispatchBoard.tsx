@@ -3,27 +3,31 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Package, ChevronDown, ChevronRight, Plus, Pencil, Undo2, Boxes } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listMoldingSessions, listFinishingSessions,
   listInspectionSessions, listDispatchItems,
   listDispatches, updateDispatchStatus,
+  updateDispatch, updateDispatchItem, reverseDispatch, insertFgMovement,
 } from '../lib/db';
-import { jcStats, deriveJCStatus } from '../lib/jcStats';
+import { jcStats, reversedDispatchIdSet } from '../lib/jcStats';
 import { productIdentity } from '../lib/productLabel';
-import { PageHeader } from '../components/table';
+import { CorrectionModal } from '../components/CorrectionModal';
+import { PageHeader, Table, THead, TH, TR, TD, EmptyRow } from '../components/table';
 import { fmtIST, fmtDate } from '../../lib/utils';
+import { useAppStore } from '../../store';
 import type {
   MoldingSession, FinishingSession, InspectionSession, DispatchItem,
-  Dispatch,
+  Dispatch, FgStockRow,
 } from '../lib/types';
 
 const DISPATCH_STATUSES = ['Dispatched', 'In Transit', 'Delivered', 'Returned'] as const;
 
 export function DispatchBoard() {
   const navigate = useNavigate();
-  const { jobs } = useProductionData();
+  const { jobs, fgStock, refresh: refreshShared } = useProductionData();
+  const { user } = useAppStore();
 
   const [molding,    setMolding]    = useState<MoldingSession[]>([]);
   const [finishing,  setFinishing]  = useState<FinishingSession[]>([]);
@@ -33,6 +37,8 @@ export function DispatchBoard() {
   const [loading,    setLoading]    = useState(true);
   const [expanded,   setExpanded]   = useState<Set<string>>(new Set());
   const [collapsedCust, setCollapsedCust] = useState<Set<string>>(new Set());
+  const [correcting, setCorrecting] = useState<Dispatch | null>(null);
+  const [corrFields, setCorrFields] = useState<{ qty: string; courier: string; tracking: string; invoiceSeq: string; mode: string }>({ qty: '', courier: '', tracking: '', invoiceSeq: '', mode: '' });
 
   const load = async () => {
     setLoading(true);
@@ -47,13 +53,25 @@ export function DispatchBoard() {
 
   useEffect(() => { load(); }, []);
 
+  // Items of reversed dispatches don't count as dispatched (qty returns to pool).
+  const reversedIds = useMemo(() => reversedDispatchIdSet(dispatches), [dispatches]);
+  const stats = (jcId: string) => jcStats(jcId, molding, finishing, inspection, dispItems, reversedIds);
+
+  // FG (surplus) stock balance per family code.
+  const fgByFamily = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of fgStock) m.set(r.family_code, (m.get(r.family_code) || 0) + (r.qty || 0));
+    return [...m.entries()].filter(([, q]) => q !== 0).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [fgStock]);
+
   // Ready-to-dispatch pool, grouped Customer → PO → job cards.
   const readyPool = useMemo(() => {
     return jobs
-      .map(j => ({ job: j, stats: jcStats(j.id, molding, finishing, inspection, dispItems) }))
+      .map(j => ({ job: j, stats: stats(j.id) }))
       .filter(({ stats }) => stats.readyQty > 0)
       .sort((a, b) => (a.job.promised_date || '').localeCompare(b.job.promised_date || ''));
-  }, [jobs, molding, finishing, inspection, dispItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, molding, finishing, inspection, dispItems, reversedIds]);
 
   const readyGroups = useMemo(() => {
     const byCust = new Map<string, {
@@ -75,12 +93,15 @@ export function DispatchBoard() {
     return [...byCust.values()].sort((a, b) => a.customer.localeCompare(b.customer));
   }, [readyPool]);
 
-  // Already-dispatched qty per job (for the "remaining in order" column).
+  // Already-dispatched qty per job (excludes reversed dispatches).
   const dispatchedByJob = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const di of dispItems) m[di.job_card_id] = (m[di.job_card_id] || 0) + (di.qty_dispatched || 0);
+    for (const di of dispItems) {
+      if (di.dispatch_id && reversedIds.has(di.dispatch_id)) continue;
+      m[di.job_card_id] = (m[di.job_card_id] || 0) + (di.qty_dispatched || 0);
+    }
     return m;
-  }, [dispItems]);
+  }, [dispItems, reversedIds]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -112,6 +133,70 @@ export function DispatchBoard() {
     if (customer && !customer.startsWith('—')) q.set('customer', customer);
     if (po && !po.startsWith('—')) q.set('po', po);
     navigate(`/production/dispatch/new${q.toString() ? `?${q}` : ''}`);
+  };
+
+  // ── Dispatch correction ──
+  const startCorrection = (d: Dispatch) => {
+    setCorrecting(d);
+    setCorrFields({
+      qty: String(d.total_qty_dispatched ?? ''),
+      courier: d.courier_name || '',
+      tracking: d.tracking_number || '',
+      invoiceSeq: d.invoice_seq || '',
+      mode: d.mode || '',
+    });
+  };
+  const saveCorrection = async (note: string) => {
+    if (!correcting) return;
+    const items = getItemsForDispatch(correcting.id);
+    const newTotal = corrFields.qty.trim() ? parseInt(corrFields.qty, 10) : (correcting.total_qty_dispatched ?? 0);
+    // If there's exactly one line item, keep its qty in sync with the header total.
+    if (items.length === 1 && newTotal !== (correcting.total_qty_dispatched ?? 0)) {
+      await updateDispatchItem(items[0].id, { qty_dispatched: newTotal }, note);
+    }
+    const seqPad = corrFields.invoiceSeq.trim() ? corrFields.invoiceSeq.padStart(4, '0') : correcting.invoice_seq;
+    const invoiceNo = (correcting.financial_year && correcting.tax_type && seqPad)
+      ? `${correcting.financial_year}/${correcting.tax_type}/${seqPad}`
+      : correcting.invoice_no;
+    await updateDispatch(correcting.id, {
+      total_qty_dispatched: newTotal,
+      courier_name:    corrFields.courier.trim() || null,
+      tracking_number: corrFields.tracking.trim() || null,
+      mode:            corrFields.mode.trim() || null,
+      invoice_seq:     seqPad,
+      invoice_no:      invoiceNo,
+    }, user?.email, note);
+    setCorrecting(null);
+    await load();
+  };
+
+  // ── Reverse a dispatch (qty returns to ready pool) ──
+  const handleReverse = async (d: Dispatch) => {
+    const note = window.prompt(`Reverse dispatch ${d.id} (${d.invoice_no})?\nDispatched qty will return to the ready pool.\n\nReason:`);
+    if (note === null) return;
+    if (!note.trim()) { alert('A reason is required to reverse a dispatch.'); return; }
+    await reverseDispatch(d.id, user?.email, note.trim());
+    await load();
+  };
+
+  // ── Post a job's surplus (ready beyond what its order needs) to FG stock ──
+  const postSurplus = async (job: typeof jobs[number], surplus: number) => {
+    if (surplus <= 0) return;
+    const family = job.family_code || job.product_id || '';
+    if (!family) { alert('This job has no family code / product — cannot post to FG stock.'); return; }
+    if (!window.confirm(`Post ${surplus} surplus pcs of ${family} to finished-goods stock?\nThese were produced beyond order ${job.id}'s quantity and will be available for future orders of the same family.`)) return;
+    const row: FgStockRow = {
+      id: `FG-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      family_code: family,
+      product_id: job.product_id || null,
+      job_card_id: job.id,
+      qty: surplus,
+      movement: 'surplus_in',
+      note: `Surplus from ${job.id} (over-produced beyond order qty)`,
+      created_by: user?.email || null,
+    };
+    await insertFgMovement(row);
+    await Promise.all([load(), refreshShared()]);
   };
 
   return (
@@ -186,13 +271,16 @@ export function DispatchBoard() {
                                   <th className="text-right pb-1 pr-3 font-semibold">Ordered</th>
                                   <th className="text-right pb-1 pr-3 font-semibold">Dispatched</th>
                                   <th className="text-right pb-1 pr-3 font-semibold text-[#107E3E]">Ready</th>
-                                  <th className="text-right pb-1 font-semibold">Remaining</th>
+                                  <th className="text-right pb-1 pr-3 font-semibold">Remaining</th>
+                                  <th className="text-right pb-1 font-semibold">Surplus</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {po.rows.map(({ job, stats }) => {
                                   const already   = dispatchedByJob[job.id] || 0;
                                   const remaining = job.qty ? Math.max(0, job.qty - already) : null;
+                                  // Surplus = ready beyond what the order still needs (over-production).
+                                  const surplus   = remaining != null ? Math.max(0, stats.readyQty - remaining) : 0;
                                   const overdue   = job.promised_date && job.promised_date < new Date().toISOString().slice(0, 10);
                                   return (
                                     <tr key={job.id} className="border-t border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer"
@@ -207,7 +295,16 @@ export function DispatchBoard() {
                                       <td className="py-1 pr-3 text-right font-mono text-[#555]">{(job.qty || 0).toLocaleString()}</td>
                                       <td className="py-1 pr-3 text-right font-mono text-[#555]">{stats.dispatched.toLocaleString()}</td>
                                       <td className="py-1 pr-3 text-right font-mono font-semibold text-[#107E3E]">{stats.readyQty.toLocaleString()}</td>
-                                      <td className="py-1 text-right font-mono text-[#111]">{remaining != null ? remaining.toLocaleString() : '—'}</td>
+                                      <td className="py-1 pr-3 text-right font-mono text-[#111]">{remaining != null ? remaining.toLocaleString() : '—'}</td>
+                                      <td className="py-1 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                                        {surplus > 0 ? (
+                                          <button type="button" onClick={() => postSurplus(job, surplus)}
+                                            title="Move over-produced units into finished-goods stock"
+                                            className="inline-flex items-center gap-1 text-[10px] font-medium text-[#E9730C] border border-[#FFE0B2] bg-[#FFF8EC] rounded-[3px] px-1.5 py-0.5 hover:bg-[#FFE0B2] transition-colors">
+                                            <Boxes size={10} /> +{surplus} → stock
+                                          </button>
+                                        ) : <span className="font-mono text-[#9E9E9E]">—</span>}
+                                      </td>
                                     </tr>
                                   );
                                 })}
@@ -221,6 +318,34 @@ export function DispatchBoard() {
                 );
               })}
             </div>
+          )}
+        </section>
+
+        {/* ── Finished-Goods (surplus) Stock ── */}
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <Boxes size={13} className="text-[#E9730C]" />
+            <span className="text-[12px] font-semibold text-[#111]">Finished-Goods Stock</span>
+            <span className="text-[10px] text-[#555]">surplus held by family code · usable on future orders</span>
+          </div>
+          {fgByFamily.length === 0 ? (
+            <div className="bg-white border border-[#E4E5E6] rounded-[3px] p-4 text-center text-[11.5px] text-[#555] italic">
+              No surplus finished-goods stock. Over-produced units posted from the ready pool appear here.
+            </div>
+          ) : (
+            <Table>
+              <THead>
+                <tr><TH>Family (Type·Model·MOC)</TH><TH className="text-right">On-hand (pcs)</TH></tr>
+              </THead>
+              <tbody>
+                {fgByFamily.map(([family, qty]) => (
+                  <TR key={family}>
+                    <TD className="font-mono text-[11px] text-[#0A6ED1] font-semibold">{family}</TD>
+                    <TD className="text-right font-mono font-semibold text-[#107E3E]">{qty.toLocaleString()}</TD>
+                  </TR>
+                ))}
+              </tbody>
+            </Table>
           )}
         </section>
 
@@ -238,7 +363,7 @@ export function DispatchBoard() {
               <table className="w-full border-collapse text-[12px]">
                 <thead className="bg-[#FAFAFA]">
                   <tr>
-                    {['', 'DSP ID', 'Invoice No', 'Date', 'Customer', 'Total Qty', 'Mode', 'Courier / Tracking', 'Status', 'Value'].map(h => (
+                    {['', 'DSP ID', 'Invoice No', 'Date', 'Customer', 'Total Qty', 'Mode', 'Courier / Tracking', 'Status', 'Value', 'Actions'].map(h => (
                       <th key={h} className="text-[10px] font-semibold text-[#555] uppercase px-3 py-2 text-left whitespace-nowrap border-b border-[#E4E5E6]">{h}</th>
                     ))}
                   </tr>
@@ -247,18 +372,24 @@ export function DispatchBoard() {
                   {dispatches.map(d => {
                     const isOpen = expanded.has(d.id);
                     const items  = getItemsForDispatch(d.id);
-                    const statusColor = d.status === 'Delivered' ? 'text-[#107E3E]' :
+                    const reversed = d.status === 'Reversed';
+                    const statusColor = reversed                 ? 'text-[#9E9E9E]' :
+                                        d.status === 'Delivered' ? 'text-[#107E3E]' :
                                         d.status === 'Returned'  ? 'text-[#BB0000]' :
                                         d.status === 'In Transit'? 'text-[#0A6ED1]' : 'text-[#E9730C]';
                     return (
                       <>
-                        <tr key={d.id} className="border-b border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer"
+                        <tr key={d.id} className={`border-b border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer ${reversed ? 'opacity-55' : ''}`}
                           onClick={() => toggleExpand(d.id)}>
                           <td className="px-3 py-2">
                             {isOpen ? <ChevronDown size={12} className="text-[#555]" /> : <ChevronRight size={12} className="text-[#555]" />}
                           </td>
                           <td className="px-3 py-2 font-mono text-[10.5px] font-bold text-[#0A6ED1]">{d.id}</td>
-                          <td className="px-3 py-2 font-semibold text-[#111]">{d.invoice_no}</td>
+                          <td className="px-3 py-2 font-semibold text-[#111]">
+                            <span className={reversed ? 'line-through' : ''}>{d.invoice_no}</span>
+                            {reversed && <span className="ml-1.5 text-[9px] bg-[#FFEBEE] text-[#BB0000] px-1.5 py-0.5 rounded font-medium align-middle">REVERSED</span>}
+                            {d.corrected_at && !reversed && <span className="ml-1.5 text-[9px] bg-[#FFF3E0] text-[#E9730C] px-1.5 py-0.5 rounded font-medium align-middle">corrected</span>}
+                          </td>
                           <td className="px-3 py-2 text-[#555] whitespace-nowrap">{d.dispatch_date}</td>
                           <td className="px-3 py-2 font-medium text-[#111]">{d.customer_name}</td>
                           <td className="px-3 py-2 font-mono text-[11px]">{d.total_qty_dispatched?.toLocaleString()}</td>
@@ -271,7 +402,8 @@ export function DispatchBoard() {
                             <select
                               value={d.status}
                               onChange={e => handleStatusChange(d.id, e.target.value)}
-                              className={`text-[11px] font-medium border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 bg-white outline-none ${statusColor}`}
+                              disabled={reversed}
+                              className={`text-[11px] font-medium border border-[#E4E5E6] rounded-[3px] px-1.5 py-0.5 bg-white outline-none disabled:bg-[#F5F6F7] ${statusColor}`}
                               title="Update status"
                             >
                               {DISPATCH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -280,12 +412,28 @@ export function DispatchBoard() {
                           <td className="px-3 py-2 font-mono text-[11px] text-[#555]">
                             {d.invoice_value ? `₹${Number(d.invoice_value).toLocaleString('en-IN')}` : '—'}
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                            {reversed ? (
+                              <span className="text-[10px] text-[#9E9E9E] italic" title={d.reversal_note || ''}>reversed</span>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => startCorrection(d)} title="Correct this dispatch"
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-[#E9730C] border border-[#FFE0B2] rounded-[3px] px-1.5 py-0.5 hover:bg-[#FFF8EC] transition-colors">
+                                  <Pencil size={10} /> Correct
+                                </button>
+                                <button type="button" onClick={() => handleReverse(d)} title="Reverse this dispatch (qty returns to pool)"
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-[#BB0000] border border-[#FFCDD2] rounded-[3px] px-1.5 py-0.5 hover:bg-[#FFEBEE] transition-colors">
+                                  <Undo2 size={10} /> Reverse
+                                </button>
+                              </div>
+                            )}
+                          </td>
                         </tr>
 
                         {/* Expanded line items */}
                         {isOpen && (
                           <tr key={`${d.id}-exp`} className="bg-[#FAFAFA] border-b border-[#E4E5E6]">
-                            <td colSpan={10} className="px-6 py-3">
+                            <td colSpan={11} className="px-6 py-3">
                               <div className="text-[10.5px] font-semibold text-[#555] uppercase tracking-wider mb-2">
                                 Line Items — {items.length} job card{items.length !== 1 ? 's' : ''}
                               </div>
@@ -336,6 +484,47 @@ export function DispatchBoard() {
           </div>
         </section>
       </div>
+
+      {/* Dispatch correction modal */}
+      {correcting && (
+        <CorrectionModal
+          entryId={`${correcting.id} · ${correcting.invoice_no}`}
+          onClose={() => setCorrecting(null)}
+          onConfirm={saveCorrection}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Total Qty Dispatched</label>
+              <input type="number" className="w-full text-[12px] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]"
+                value={corrFields.qty} onChange={e => setCorrFields(f => ({ ...f, qty: e.target.value }))} title="Total qty" />
+              {getItemsForDispatch(correcting.id).length > 1 && (
+                <div className="text-[9.5px] text-[#E9730C] mt-0.5">Multi-line dispatch — header total only; edit line qty per item separately.</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Invoice Seq (4-digit)</label>
+              <input className="w-full text-[12px] font-mono border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]"
+                value={corrFields.invoiceSeq} maxLength={4}
+                onChange={e => setCorrFields(f => ({ ...f, invoiceSeq: e.target.value.replace(/\D/g, '').slice(0, 4) }))} title="Invoice seq" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Transport Mode</label>
+              <input className="w-full text-[12px] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]"
+                value={corrFields.mode} onChange={e => setCorrFields(f => ({ ...f, mode: e.target.value }))} title="Mode" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Courier</label>
+              <input className="w-full text-[12px] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]"
+                value={corrFields.courier} onChange={e => setCorrFields(f => ({ ...f, courier: e.target.value }))} title="Courier" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#555] mb-1">Tracking / LR No</label>
+              <input className="w-full text-[12px] border border-[#E4E5E6] rounded-[3px] px-2.5 py-1.5 outline-none focus:border-[#0A6ED1]"
+                value={corrFields.tracking} onChange={e => setCorrFields(f => ({ ...f, tracking: e.target.value }))} title="Tracking" />
+            </div>
+          </div>
+        </CorrectionModal>
+      )}
     </div>
   );
 }

@@ -4,9 +4,9 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, Download, Save, AlertTriangle, Search, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Download, Save, AlertTriangle, Search, CheckCircle2, Boxes } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
-import { insertJob, logStageEvent, nextJobId } from '../lib/db';
+import { insertJob, logStageEvent, nextJobId, insertFgMovement } from '../lib/db';
 import { assignJobsToPress } from '../lib/actions';
 import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
 import { localDateStr, fmtDate } from '../../lib/utils';
@@ -26,6 +26,7 @@ interface DraftLine {
   compound_code: string;
   tikli_size:    string;
   productSearch: string;    // text in the search box
+  fromStock:     string;    // qty allocated from finished-goods stock (reduces moulding)
 }
 
 const blankLine = (): DraftLine => ({
@@ -40,6 +41,7 @@ const blankLine = (): DraftLine => ({
   compound_code: '',
   tikli_size:    '',
   productSearch: '',
+  fromStock:     '',
 });
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -47,7 +49,14 @@ export function NewProductionJob() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const presetOrderId = searchParams.get('order');
-  const { jobs, products, presses, compounds, refresh, loading } = useProductionData();
+  const { jobs, products, presses, compounds, fgStock, refresh, loading } = useProductionData();
+
+  // FG stock on-hand per family code (Type_Model_MOC).
+  const fgByFamily = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of fgStock) m.set(r.family_code, (m.get(r.family_code) || 0) + (r.qty || 0));
+    return m;
+  }, [fgStock]);
 
   const [customerName,     setCustomerName]     = useState('');
   const [orderRef,         setOrderRef]         = useState('');
@@ -168,16 +177,22 @@ export function NewProductionJob() {
         const id = nextJobId(ids);
         ids.push(id);
         created.push({ id, productId: l.product_id || null });
+        const orderQty = Number(l.qty);
+        // Allocate from finished-goods stock (capped at available + order qty).
+        const family   = l.family_code.trim();
+        const available = family ? (fgByFamily.get(family) || 0) : 0;
+        const fromStock = Math.max(0, Math.min(parseInt(l.fromStock, 10) || 0, available, orderQty));
+        const toMould   = Math.max(0, orderQty - fromStock);
         const job: ProductionJob = {
           id,
           order_id:         importedOrderId || orderRef || null,
           order_line_seq:   i + 1,
           customer_name:    customerName.trim(),
           product_id:       l.product_id || null,
-          family_code:      l.family_code.trim() || null,
+          family_code:      family || null,
           product_desc:     l.product_desc.trim(),
-          qty:              Number(l.qty),
-          qty_to_mould:     Number(l.qty),
+          qty:              orderQty,
+          qty_to_mould:     toMould,
           qty_done:         0,
           promised_date:    promised,
           priority,
@@ -195,7 +210,22 @@ export function NewProductionJob() {
           po_no:            orderRef.trim() || null,
         };
         await insertJob(job);
-        await logStageEvent(id, 'moulding', null, null, 'Job created');
+        await logStageEvent(id, 'moulding', null, null,
+          fromStock > 0 ? `Job created · ${fromStock} from FG stock, mould ${toMould}` : 'Job created');
+
+        // Draw the allocation down from FG stock (append-only ledger row).
+        if (fromStock > 0 && family) {
+          await insertFgMovement({
+            id: `FG-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            family_code: family,
+            product_id: l.product_id || null,
+            ref_job_id: id,
+            qty: -fromStock,
+            movement: 'order_consume',
+            note: `Allocated to ${id} (order ${orderRef || importedOrderId || '—'})`,
+            created_by: null,
+          });
+        }
       }
 
       // Auto-assign press based on the product's configured presses:
@@ -421,6 +451,31 @@ export function NewProductionJob() {
                       placeholder="0" title="Qty" />
                   </Field>
                 </div>
+
+                {/* Finished-goods stock available for this family — allocate to reduce moulding */}
+                {(() => {
+                  const stock = l.family_code ? (fgByFamily.get(l.family_code) || 0) : 0;
+                  if (stock <= 0) return null;
+                  const orderQty = parseInt(l.qty, 10) || 0;
+                  const alloc    = parseInt(l.fromStock, 10) || 0;
+                  const toMould  = Math.max(0, orderQty - alloc);
+                  return (
+                    <div className="bg-[#FFF8EC] border border-[#FFE0B2] rounded-[3px] px-2.5 py-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                      <Boxes size={12} className="text-[#E9730C] shrink-0" />
+                      <span className="text-[#E9730C] font-medium">{stock.toLocaleString()} pcs in finished-goods stock</span>
+                      <span className="text-[#555]">·</span>
+                      <span className="text-[#555]">Use from stock:</span>
+                      <input type="number" min={0} max={Math.min(stock, orderQty || stock)}
+                        className="w-[70px] text-[11px] border border-[#FFE0B2] rounded-[3px] px-1.5 py-0.5 outline-none focus:border-[#E9730C]"
+                        value={l.fromStock}
+                        onChange={e => updateLine(i, { fromStock: e.target.value })}
+                        placeholder="0" title="Allocate from stock" />
+                      {alloc > 0 && (
+                        <span className="text-[#107E3E]">→ mould only <strong>{toMould.toLocaleString()}</strong> pcs</span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Row 2: Die / Mould, Cav, Cure, Temp, Compound, Tikli */}
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-2">

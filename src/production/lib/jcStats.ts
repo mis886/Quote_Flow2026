@@ -21,6 +21,7 @@ export function jcStats(
   finishing:  FinishingSession[],
   inspection: InspectionSession[],
   dispItems:  DispatchItem[],
+  reversedDispatchIds?: Set<string>,   // items of these dispatches don't count as dispatched
 ): JCStats {
   const molded    = molding.filter(m => m.job_card_id === jcId)
                            .reduce((a, m) => a + (m.qty_molded || 0), 0);
@@ -31,11 +32,18 @@ export function jcStats(
   const rejected  = insRows.reduce((a, i) => a + (i.rejected || 0), 0);
   const rework    = insRows.reduce((a, i) => a + (i.rework   || 0), 0);
   const scrapped  = insRows.reduce((a, i) => a + (i.scrapped || 0), 0);
-  const dispatched = dispItems.filter(d => d.job_card_id === jcId)
-                              .reduce((a, d) => a + (d.qty_dispatched || 0), 0);
+  const dispatched = dispItems
+    .filter(d => d.job_card_id === jcId)
+    .filter(d => !(reversedDispatchIds && d.dispatch_id && reversedDispatchIds.has(d.dispatch_id)))
+    .reduce((a, d) => a + (d.qty_dispatched || 0), 0);
   const yieldRate = molded > 0 ? Math.round((passed / molded) * 100) : 0;
   const readyQty  = Math.max(0, passed - dispatched);
   return { molded, finished, passed, rejected, rework, scrapped, dispatched, yieldRate, readyQty };
+}
+
+// Build the set of reversed dispatch IDs from a dispatch list, for jcStats.
+export function reversedDispatchIdSet(dispatches: { id: string; status?: string }[]): Set<string> {
+  return new Set(dispatches.filter(d => d.status === 'Reversed').map(d => d.id));
 }
 
 // ── Derived status — never stored ────────────────────────────────────────────
