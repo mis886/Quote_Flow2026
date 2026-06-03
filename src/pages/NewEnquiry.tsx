@@ -7,14 +7,12 @@ import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 
 import { uploadToS3 } from '../lib/s3';
-import { isBetaActive } from '../lib/beta';
 import { parseRfqPdf } from '../lib/rfqParser';
 import { RfqMapDialog } from '../components/RfqMapDialog';
 
 export function NewEnquiry() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isBeta = isBetaActive();
   const editId = searchParams.get('id');
   const { data, addEnquiry, updateEnquiry, addCustomer } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -544,12 +542,11 @@ export function NewEnquiry() {
                 </div>
               )}
 
-              {/* ── Beta: AI Extract panel ── only visible at ?beta=true ── */}
-              {isBeta && enquiryDocs.some(d => d.file && d.fileName.toLowerCase().endsWith('.pdf')) && (
+              {/* ── AI Extract panel — auto-fill items from an uploaded PDF ── */}
+              {enquiryDocs.some(d => d.file && d.fileName.toLowerCase().endsWith('.pdf')) && (
                 <div className="mt-3 border border-dashed border-amber-300 bg-amber-50 rounded-[3px] p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[9px] font-bold tracking-[1.5px] uppercase text-amber-700">Auto-fill Items from PDF</span>
-                    <span className="text-[8px] font-mono bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-full">BETA</span>
                   </div>
                   <p className="text-[10px] text-amber-700 mb-2 leading-relaxed">Scans the uploaded PDF and extracts line items automatically. Review before applying.</p>
 
