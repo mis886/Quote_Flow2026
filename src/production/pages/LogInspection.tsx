@@ -72,10 +72,37 @@ export function LogInspection() {
   useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
   const selectedJob = useMemo(() => jobs.find(j => j.id === jcId), [jobs, jcId]);
-  const prevPassed  = useMemo(
+  // Total inspected so far = passed + rejected + rework + scrapped (everything
+  // that has already been through inspection), so "remaining to inspect" is
+  // what finishing produced but inspection hasn't covered yet.
+  const prevInspected = useMemo(
+    () => allIns.filter(i => i.job_card_id === jcId)
+      .reduce((a, i) => a + (i.passed || 0) + (i.rejected || 0) + (i.rework || 0) + (i.scrapped || 0), 0),
+    [allIns, jcId]
+  );
+  const prevPassed = useMemo(
     () => allIns.filter(i => i.job_card_id === jcId).reduce((a, i) => a + (i.passed || 0), 0),
     [allIns, jcId]
   );
+  const prevFinished = useMemo(
+    () => allFin.filter(f => f.job_card_id === jcId).reduce((a, f) => a + (f.actual_qty || 0), 0),
+    [allFin, jcId]
+  );
+  const remainingToInspect = Math.max(0, prevFinished - prevInspected);
+
+  // When a JC is selected, prefill the first inspector row's "Qty to Inspect"
+  // with the remaining un-inspected finished qty (only if still untouched).
+  useEffect(() => {
+    if (!jcId) return;
+    setInsRows(rows => {
+      if (rows.length !== 1) return rows;        // don't clobber multi-row edits
+      const r = rows[0];
+      if (r.qtyToInspect || r.passed || r.rejected || r.rework || r.scrapped) return rows;
+      return [{ ...r, qtyToInspect: remainingToInspect > 0 ? String(remainingToInspect) : '' }];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jcId, remainingToInspect]);
+
   const jcSessions  = useMemo(
     () => allIns
       .filter(i => i.job_card_id === jcId)
@@ -262,8 +289,19 @@ export function LogInspection() {
               </Field>
 
               {selectedJob && (
-                <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1]">
-                  <strong>{selectedJob.id}</strong> · {productIdentity(selectedJob)} · Ordered: <strong>{selectedJob.qty} pcs</strong> · Previously passed: <strong>{prevPassed} pcs</strong>
+                <div className="md:col-span-2 bg-[#E8F0FD] border border-[#C2D8F8] rounded-[3px] px-3 py-2 text-[11px] text-[#0A6ED1] flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <strong>{selectedJob.id}</strong>
+                  <span className="text-[#0A6ED1]/60">·</span>
+                  {productIdentity(selectedJob)}
+                  <span className="text-[#0A6ED1]/60">·</span>
+                  Ordered: <strong>{selectedJob.qty}</strong>
+                  <span className="text-[#0A6ED1]/60">·</span>
+                  Finished: <strong>{prevFinished}</strong>
+                  <span className="text-[#0A6ED1]/60">·</span>
+                  Inspected: <strong>{prevInspected}</strong>
+                  <span className="ml-auto bg-white/70 border border-[#C2D8F8] rounded px-2 py-0.5">
+                    Remaining to inspect: <strong className={remainingToInspect > 0 ? 'text-[#107E3E]' : 'text-[#888]'}>{remainingToInspect} pcs</strong>
+                  </span>
                 </div>
               )}
 

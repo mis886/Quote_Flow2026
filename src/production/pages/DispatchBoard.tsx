@@ -32,6 +32,7 @@ export function DispatchBoard() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [expanded,   setExpanded]   = useState<Set<string>>(new Set());
+  const [collapsedCust, setCollapsedCust] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -46,13 +47,40 @@ export function DispatchBoard() {
 
   useEffect(() => { load(); }, []);
 
-  // Ready-to-dispatch pool
+  // Ready-to-dispatch pool, grouped Customer → PO → job cards.
   const readyPool = useMemo(() => {
     return jobs
       .map(j => ({ job: j, stats: jcStats(j.id, molding, finishing, inspection, dispItems) }))
       .filter(({ stats }) => stats.readyQty > 0)
       .sort((a, b) => (a.job.promised_date || '').localeCompare(b.job.promised_date || ''));
   }, [jobs, molding, finishing, inspection, dispItems]);
+
+  const readyGroups = useMemo(() => {
+    const byCust = new Map<string, {
+      customer: string;
+      totalReady: number;
+      pos: Map<string, { po: string; totalReady: number; rows: typeof readyPool }>;
+    }>();
+    for (const row of readyPool) {
+      const cust = row.job.customer_name || '— No customer —';
+      const po   = row.job.po_no || '— No PO —';
+      if (!byCust.has(cust)) byCust.set(cust, { customer: cust, totalReady: 0, pos: new Map() });
+      const c = byCust.get(cust)!;
+      c.totalReady += row.stats.readyQty;
+      if (!c.pos.has(po)) c.pos.set(po, { po, totalReady: 0, rows: [] });
+      const p = c.pos.get(po)!;
+      p.totalReady += row.stats.readyQty;
+      p.rows.push(row);
+    }
+    return [...byCust.values()].sort((a, b) => a.customer.localeCompare(b.customer));
+  }, [readyPool]);
+
+  // Already-dispatched qty per job (for the "remaining in order" column).
+  const dispatchedByJob = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const di of dispItems) m[di.job_card_id] = (m[di.job_card_id] || 0) + (di.qty_dispatched || 0);
+    return m;
+  }, [dispItems]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -69,6 +97,22 @@ export function DispatchBoard() {
 
   const getItemsForDispatch = (dspId: string) =>
     dispItems.filter(di => di.dispatch_id === dspId);
+
+  const toggleCust = (cust: string) => {
+    setCollapsedCust(prev => {
+      const next = new Set(prev);
+      next.has(cust) ? next.delete(cust) : next.add(cust);
+      return next;
+    });
+  };
+
+  // Open the Create Dispatch form preselected to a customer + PO.
+  const dispatchPo = (customer: string, po: string) => {
+    const q = new URLSearchParams();
+    if (customer && !customer.startsWith('—')) q.set('customer', customer);
+    if (po && !po.startsWith('—')) q.set('po', po);
+    navigate(`/production/dispatch/new${q.toString() ? `?${q}` : ''}`);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -102,36 +146,80 @@ export function DispatchBoard() {
               No jobs ready to dispatch yet.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {readyPool.map(({ job, stats }) => (
-                <div key={job.id} className="bg-white border border-[#C5E1A5] rounded-[3px] p-3">
-                  <div className="flex items-start justify-between mb-1">
-                    <div>
-                      <div className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">{job.id}</div>
-                      <div className="text-[11.5px] font-semibold text-[#111] mt-0.5">{productIdentity(job)}</div>
-                      <div className="text-[10.5px] text-[#555]">{job.customer_name}</div>
-                    </div>
-                    <div className="text-center ml-3">
-                      <div className="text-[28px] font-light leading-none text-[#107E3E]">{stats.readyQty}</div>
-                      <div className="text-[9px] text-[#555] uppercase tracking-wider">pcs ready</div>
-                    </div>
+            <div className="space-y-2">
+              {readyGroups.map(group => {
+                const collapsed = collapsedCust.has(group.customer);
+                return (
+                  <div key={group.customer} className="bg-white border border-[#E4E5E6] rounded-[3px] overflow-hidden">
+                    {/* Customer header */}
+                    <button type="button" onClick={() => toggleCust(group.customer)}
+                      className="w-full px-3 py-2 border-b border-[#E4E5E6] bg-[#FAFAFA] flex items-center gap-2 text-left hover:bg-[#F3F6F9] transition-colors">
+                      {collapsed ? <ChevronRight size={13} className="text-[#555]" /> : <ChevronDown size={13} className="text-[#555]" />}
+                      <span className="text-[12px] font-semibold text-[#111] flex-1">{group.customer}</span>
+                      <span className="text-[10px] text-[#555]">{group.pos.size} PO{group.pos.size !== 1 ? 's' : ''}</span>
+                      <span className="bg-[#E8F5E9] text-[#107E3E] text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#C5E1A5]">
+                        {group.totalReady.toLocaleString()} pcs ready
+                      </span>
+                    </button>
+
+                    {!collapsed && (
+                      <div className="divide-y divide-[#F0F0F0]">
+                        {[...group.pos.values()].map(po => (
+                          <div key={po.po} className="px-3 py-2">
+                            {/* PO sub-header */}
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#555]">PO</span>
+                              <span className="font-mono text-[11px] font-bold text-[#0A6ED1]">{po.po}</span>
+                              <span className="text-[10px] text-[#107E3E]">{po.totalReady.toLocaleString()} pcs ready</span>
+                              <button type="button" onClick={() => dispatchPo(group.customer, po.po)}
+                                className="ml-auto inline-flex items-center gap-1 text-[10.5px] font-medium bg-[#107E3E] text-white rounded-[3px] px-2 py-0.5 hover:bg-[#0B5C2A] transition-colors">
+                                <Package size={11} /> Dispatch this PO →
+                              </button>
+                            </div>
+                            {/* Job rows */}
+                            <table className="w-full border-collapse text-[11.5px]">
+                              <thead>
+                                <tr className="text-[9.5px] text-[#555] uppercase tracking-wider">
+                                  <th className="text-left pb-1 pr-3 font-semibold">Job Card</th>
+                                  <th className="text-left pb-1 pr-3 font-semibold">Product</th>
+                                  <th className="text-left pb-1 pr-3 font-semibold">Promised</th>
+                                  <th className="text-right pb-1 pr-3 font-semibold">Ordered</th>
+                                  <th className="text-right pb-1 pr-3 font-semibold">Dispatched</th>
+                                  <th className="text-right pb-1 pr-3 font-semibold text-[#107E3E]">Ready</th>
+                                  <th className="text-right pb-1 font-semibold">Remaining</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {po.rows.map(({ job, stats }) => {
+                                  const already   = dispatchedByJob[job.id] || 0;
+                                  const remaining = job.qty ? Math.max(0, job.qty - already) : null;
+                                  const overdue   = job.promised_date && job.promised_date < new Date().toISOString().slice(0, 10);
+                                  return (
+                                    <tr key={job.id} className="border-t border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer"
+                                      onClick={() => navigate(`/production/dispatch/new?jc=${job.id}`)}>
+                                      <td className="py-1 pr-3 font-mono text-[#0A6ED1] font-bold whitespace-nowrap">
+                                        {job.priority === 'emergency' && <span className="text-[#BB0000] mr-0.5">🔴</span>}{job.id}
+                                      </td>
+                                      <td className="py-1 pr-3 text-[#111] max-w-[200px] truncate">{productIdentity(job)}</td>
+                                      <td className={`py-1 pr-3 font-mono whitespace-nowrap ${overdue ? 'text-[#BB0000] font-semibold' : 'text-[#555]'}`}>
+                                        {fmtDate(job.promised_date)}{overdue ? ' ⚠' : ''}
+                                      </td>
+                                      <td className="py-1 pr-3 text-right font-mono text-[#555]">{(job.qty || 0).toLocaleString()}</td>
+                                      <td className="py-1 pr-3 text-right font-mono text-[#555]">{stats.dispatched.toLocaleString()}</td>
+                                      <td className="py-1 pr-3 text-right font-mono font-semibold text-[#107E3E]">{stats.readyQty.toLocaleString()}</td>
+                                      <td className="py-1 text-right font-mono text-[#111]">{remaining != null ? remaining.toLocaleString() : '—'}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-[10px] text-[#555] mt-1">
-                    Promised: <strong className="text-[#111]">{fmtDate(job.promised_date)}</strong>
-                    <span className="mx-1.5">·</span>
-                    Ordered: {job.qty}
-                    <span className="mx-1.5">·</span>
-                    Dispatched so far: {stats.dispatched}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/production/dispatch/new?jc=${job.id}`)}
-                    className="mt-2 w-full text-[10.5px] font-medium bg-[#107E3E] text-white rounded-[3px] py-1 hover:bg-[#0B5C2A] transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Package size={11} /> Dispatch →
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

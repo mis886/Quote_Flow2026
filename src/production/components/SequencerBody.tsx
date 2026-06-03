@@ -25,7 +25,16 @@ import {
 } from '../lib/actions';
 import type { ProductionData } from '../lib/useProductionData';
 import type { ProductionJob } from '../lib/types';
+import { getJobImpact, calcMouldRate, type Risk } from '../lib/otdImpact';
 import { fmtDate } from '../../lib/utils';
+
+type MouldSort = 'lsd' | 'otd' | 'throughput';
+const RISK_RANK: Record<Risk, number> = { breach: 0, atrisk: 1, safe: 2 };
+const RISK_BADGE: Record<Risk, { label: string; cls: string }> = {
+  breach: { label: 'Breach',  cls: 'bg-[#FFEBEE] text-[#BB0000] border-[#FFCDD2]' },
+  atrisk: { label: 'At risk', cls: 'bg-[#FFF3E0] text-[#E9730C] border-[#FFE0B2]' },
+  safe:   { label: 'On track', cls: 'bg-[#E8F5E9] text-[#107E3E] border-[#C5E1A5]' },
+};
 
 export type SequencerTab = 'shift' | 'mould' | 'finish' | 'insp' | 'pdi' | 'dispatch';
 
@@ -52,6 +61,29 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
 
   const [assigning, setAssigning] = useState<{ pressId: string | null; jobId: string | null } | null>(null);
   const [ncrJob, setNcrJob]       = useState<ProductionJob | null>(null);
+  const [mouldSort, setMouldSort] = useState<MouldSort>('lsd');
+
+  // Resolve a press_id (PK like "P1") to its user-facing name (e.g. "Press 11").
+  const pressName = (id?: string | null) =>
+    id ? (presses.find(p => p.id === id)?.name || id) : null;
+
+  // Headcount for the OTD impact engine (planned finishers/inspectors).
+  const hc = useMemo(() => ({
+    finishers:  data.settings?.planned_finishers  ?? 6,
+    inspectors: data.settings?.planned_inspectors ?? 3,
+  }), [data.settings]);
+
+  // OTD risk + throughput per moulding job, memoised for sort + badges.
+  const mouldMeta = useMemo(() => {
+    const m = new Map<string, { risk: Risk; bufferHrs: number; rate: number }>();
+    for (const j of jobs) {
+      if (j.stage !== 'moulding') continue;
+      const impact = getJobImpact(j, hc);
+      const rate = calcMouldRate({ cureTime: j.cure_time_min ?? undefined, cavities: j.cavities ?? undefined });
+      m.set(j.id, { risk: impact.risk, bufferHrs: impact.bufferHrs, rate });
+    }
+    return m;
+  }, [jobs, hc]);
   const [pdiJob, setPdiJob]       = useState<ProductionJob | null>(null);
   const [dispJob, setDispJob]     = useState<ProductionJob | null>(null);
 
@@ -61,15 +93,34 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
   const stageJobs = useMemo(() => {
     const t = SEQUENCER_TABS.find(x => x.k === activeTab);
     if (!t || !t.stage) return [];
+    const byLsd = (a: ProductionJob, b: ProductionJob) =>
+      (a.lsd || a.promised_date || '').localeCompare(b.lsd || b.promised_date || '');
     return jobs
       .filter(j => j.stage === t.stage)
       .slice()
       .sort((a, b) => {
+        // Emergency is always pinned to the top regardless of sort mode.
         if (a.priority === 'emergency' && b.priority !== 'emergency') return -1;
         if (b.priority === 'emergency' && a.priority !== 'emergency') return 1;
-        return (a.lsd || a.promised_date || '').localeCompare(b.lsd || b.promised_date || '');
+        // Sort modes only apply to the Moulding queue; other stages keep LSD.
+        if (t.stage === 'moulding' && mouldSort !== 'lsd') {
+          const ma = mouldMeta.get(a.id), mb = mouldMeta.get(b.id);
+          if (mouldSort === 'otd') {
+            const ra = ma ? RISK_RANK[ma.risk] : 9, rb = mb ? RISK_RANK[mb.risk] : 9;
+            if (ra !== rb) return ra - rb;                    // most at-risk first
+            const ba = ma?.bufferHrs ?? 0, bb = mb?.bufferHrs ?? 0;
+            if (ba !== bb) return ba - bb;                    // smallest buffer first
+            return byLsd(a, b);
+          }
+          if (mouldSort === 'throughput') {
+            const ta = ma?.rate ?? 0, tb = mb?.rate ?? 0;
+            if (ta !== tb) return tb - ta;                    // fastest mould rate first
+            return byLsd(a, b);
+          }
+        }
+        return byLsd(a, b);
       });
-  }, [jobs, activeTab]);
+  }, [jobs, activeTab, mouldSort, mouldMeta]);
 
   const queuedNoPress = useMemo(
     () => jobs.filter(j => j.stage === 'moulding' && !j.press_id),
@@ -155,13 +206,28 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
             />
 
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="text-[12px] font-semibold text-[#111] flex-1">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className="text-[12px] font-semibold text-[#111]">
                   Moulding Queue
-                  <span className="ml-2 text-[11px] text-[#333] font-normal">
-                    {stageJobs.length} jobs · sorted by LSD
-                  </span>
+                  <span className="ml-2 text-[11px] text-[#333] font-normal">{stageJobs.length} jobs</span>
                 </div>
+                {/* Sequence-by toggle: LSD / OTD risk / Throughput (emergency always pinned) */}
+                <div className="flex items-center gap-1 text-[10.5px]">
+                  <span className="text-[#555] mr-0.5">Sequence by:</span>
+                  {([
+                    ['lsd', 'LSD'],
+                    ['otd', 'OTD risk'],
+                    ['throughput', 'Throughput'],
+                  ] as [MouldSort, string][]).map(([k, label], i, arr) => (
+                    <button key={k} type="button" onClick={() => setMouldSort(k)}
+                      className={`px-2 py-[3px] border border-[#E4E5E6] ${i === 0 ? 'rounded-l-[3px]' : '-ml-px'} ${i === arr.length - 1 ? 'rounded-r-[3px]' : ''} transition-colors ${
+                        mouldSort === k ? 'bg-[#0A6ED1] text-white border-[#0A6ED1] relative z-10' : 'bg-white text-[#555] hover:bg-[#F7F7F7]'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1" />
                 {queuedNoPress.length > 0 && (
                   <Button
                     variant="secondary"
@@ -182,6 +248,7 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                     <TH>Qty</TH>
                     <TH>LSD</TH>
                     <TH>Promised</TH>
+                    <TH>OTD</TH>
                     <TH>Mould</TH>
                     <TH>Press</TH>
                     <TH>Status</TH>
@@ -190,9 +257,9 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                 </THead>
                 <tbody>
                   {loading ? (
-                    <EmptyRow colSpan={showActions ? 10 : 9} text="Loading…" />
+                    <EmptyRow colSpan={showActions ? 11 : 10} text="Loading…" />
                   ) : stageJobs.length === 0 ? (
-                    <EmptyRow colSpan={showActions ? 10 : 9} text="No jobs in Moulding." />
+                    <EmptyRow colSpan={showActions ? 11 : 10} text="No jobs in Moulding." />
                   ) : stageJobs.map(j => (
                     <TR key={j.id} onClick={() => navigate(`/production/jobs/${j.id}`)}>
                       <TD>
@@ -205,12 +272,25 @@ export function SequencerBody({ data, activeTab, onTabChange, showActions = true
                       <TD className="font-mono text-[11px]">{j.qty.toLocaleString()}</TD>
                       <TD className="font-mono text-[11px] text-[#333]">{j.lsd || '—'}</TD>
                       <TD className="font-mono text-[11px] text-[#333]">{fmtDate(j.promised_date)}</TD>
+                      <TD>
+                        {(() => {
+                          const meta = mouldMeta.get(j.id);
+                          if (!meta || !j.promised_date) return <span className="text-[#9E9E9E] text-[11px]">—</span>;
+                          const b = RISK_BADGE[meta.risk];
+                          return (
+                            <span className={`text-[10px] font-medium px-[6px] py-[2px] rounded-[2px] border ${b.cls}`}
+                              title={`Projected buffer: ${meta.bufferHrs >= 0 ? '+' : ''}${meta.bufferHrs.toFixed(1)} hrs · throughput ~${meta.rate.toFixed(1)} pcs/hr`}>
+                              {b.label}
+                            </span>
+                          );
+                        })()}
+                      </TD>
                       <TD className="font-mono text-[11px]">
                         {j.mould_code || '—'}
                         {j.cavities ? <span className="text-[#333] text-[10px]"> ({j.cavities})</span> : null}
                       </TD>
                       <TD className="font-mono text-[11px] text-[#333]">
-                        {j.press_id ? <span className="bg-[#F5F6F7] border border-[#E4E5E6] px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span> : <span className="text-[#555]">—</span>}
+                        {j.press_id ? <span className="bg-[#F5F6F7] border border-[#E4E5E6] px-1.5 py-0.5 rounded-[2px]">{pressName(j.press_id)}</span> : <span className="text-[#555]">—</span>}
                       </TD>
                       <TD><StatusPill status={j.status} tone={toneForStatus(j.status)} /></TD>
                       {showActions && (

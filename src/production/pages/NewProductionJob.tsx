@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Download, Save, AlertTriangle, Search, CheckCircle2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { insertJob, logStageEvent, nextJobId } from '../lib/db';
+import { assignJobsToPress } from '../lib/actions';
 import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
 import { localDateStr, fmtDate } from '../../lib/utils';
 import { PageHeader } from '../components/table';
@@ -46,7 +47,7 @@ export function NewProductionJob() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const presetOrderId = searchParams.get('order');
-  const { jobs, products, compounds, refresh, loading } = useProductionData();
+  const { jobs, products, presses, compounds, refresh, loading } = useProductionData();
 
   const [customerName,     setCustomerName]     = useState('');
   const [orderRef,         setOrderRef]         = useState('');
@@ -161,10 +162,12 @@ export function NewProductionJob() {
     setSaving(true);
     try {
       const ids = [...existingIds];
+      const created: { id: string; productId: string | null }[] = [];
       for (let i = 0; i < lines.length; i++) {
         const l  = lines[i];
         const id = nextJobId(ids);
         ids.push(id);
+        created.push({ id, productId: l.product_id || null });
         const job: ProductionJob = {
           id,
           order_id:         importedOrderId || orderRef || null,
@@ -194,7 +197,38 @@ export function NewProductionJob() {
         await insertJob(job);
         await logStageEvent(id, 'moulding', null, null, 'Job created');
       }
+
+      // Auto-assign press based on the product's configured presses:
+      //   • exactly 1 compatible press → assign automatically (if idle)
+      //   • more than 1 → leave unassigned and tell the user to pick on the board
+      // Jobs sharing a single press are batched so they queue behind one another.
+      const needPick: string[] = [];
+      const bySinglePress = new Map<string, string[]>();
+      for (const c of created) {
+        const prod = c.productId ? products.find(p => p.id === c.productId) : undefined;
+        const pressIds = (prod?.press_ids || []).filter(Boolean);
+        if (pressIds.length === 1) {
+          const arr = bySinglePress.get(pressIds[0]) || [];
+          arr.push(c.id);
+          bySinglePress.set(pressIds[0], arr);
+        } else if (pressIds.length > 1) {
+          needPick.push(c.id);
+        }
+      }
+      for (const [pressId, jobIds] of bySinglePress) {
+        const press = presses.find(p => p.id === pressId);
+        if (press && press.status === 'idle') {
+          try { await assignJobsToPress(jobIds, pressId); } catch { /* leave queued on failure */ }
+        }
+      }
+
       await refresh();
+      if (needPick.length > 0) {
+        alert(
+          `${needPick.length} job${needPick.length > 1 ? 's have' : ' has'} multiple compatible presses — ` +
+          `choose a press for ${needPick.join(', ')} from the Moulding queue ("Assign Press").`
+        );
+      }
       navigate('/production/sequencer/mould');
     } catch (e: any) {
       setErr(e?.message || 'Failed to save');

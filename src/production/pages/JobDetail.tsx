@@ -26,6 +26,7 @@ export function JobDetail() {
   const navigate = useNavigate();
   const [job, setJob] = useState<ProductionJob | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
+  const [pressNm, setPressNm] = useState<string | null>(null);
   const [events, setEvents] = useState<JobStageEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
@@ -55,6 +56,14 @@ export function JobDetail() {
       if (!alive) return;
       if (j.data) setJob(j.data as ProductionJob);
       if (evs.data) setEvents(evs.data as JobStageEvent[]);
+      // Resolve press name (the job stores the press PK in press_id).
+      const prId = (j.data as ProductionJob | null)?.press_id;
+      if (prId) {
+        const { data: pr } = await supabase.from('prod_presses').select('name').eq('id', prId).single();
+        if (alive) setPressNm((pr as { name?: string } | null)?.name || prId);
+      } else if (alive) {
+        setPressNm(null);
+      }
       const pid = (j.data as ProductionJob | null)?.product_id;
       if (pid) {
         const { data: p } = await supabase.from('prod_products').select('*').eq('id', pid).single();
@@ -137,7 +146,7 @@ export function JobDetail() {
             <Field label="Party Name"       value={job.customer_name || '—'} />
             <Field label="Customer PO No"   value={job.order_id || '—'} />
             <Field label="Order Date"        value={job.order_start_date || '—'} />
-            <Field label="Press No"         value={job.press_id || '—'} />
+            <Field label="Press No"         value={pressNm || job.press_id || '—'} />
             <Field label="Total Quantity"   value={job.qty.toLocaleString()} />
             <Field label="Promised Date"    value={fmtDate(job.promised_date)} accent />
             <Field label="Priority"         value={job.priority.toUpperCase()} accent={job.priority === 'emergency'} />

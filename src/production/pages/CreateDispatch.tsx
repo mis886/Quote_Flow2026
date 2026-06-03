@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Plus, Trash2, CheckCircle2, Truck, Search } from 'lucide-react';
+import { Save, Plus, Trash2, CheckCircle2, Truck, Search, Check } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import {
   listMoldingSessions, listFinishingSessions,
@@ -13,6 +13,7 @@ import {
   insertDispatch, insertDispatchItem, listDispatches,
 } from '../lib/db';
 import { AttachmentUploader } from '../components/AttachmentUploader';
+import { ComboBox } from '../components/ComboBox';
 import { jcStats, nextDspId, nextDspItemId } from '../lib/jcStats';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
@@ -72,6 +73,7 @@ export function CreateDispatch() {
   const [invoiceSeq,    setInvoiceSeq]    = useState('');    // 4-digit
   const [dispDate,      setDispDate]      = useState(new Date().toISOString().slice(0, 10));
   const [customerName,  setCustomerName]  = useState('');
+  const [poNo,          setPoNo]          = useState('');
   const [mode,          setMode]          = useState('Road');
   const [courier,       setCourier]       = useState('');
   const [tracking,      setTracking]      = useState('');
@@ -91,10 +93,15 @@ export function CreateDispatch() {
     ]).then(([m, f, i, di, d]) => {
       setMolding(m); setFinishing(f); setInspection(i); setDispItems(di); setAllDisps(d);
       const preJc = params.get('jc');
+      const preCust = params.get('customer');
+      const prePo = params.get('po');
+      if (preCust) setCustomerName(preCust);
+      if (prePo) setPoNo(prePo);
       if (preJc) {
         const job = jobs.find(j => j.id === preJc);
         if (job) {
-          setCustomerName(job.customer_name || '');
+          setCustomerName(prev => prev || job.customer_name || '');
+          setPoNo(prev => prev || job.po_no || '');
           setLines([{ key: ++keySeq, jcId: preJc, qty: '', unit: 'pcs', poNo: job.po_no || '', search: `${preJc} · ${job.product_desc}` }]);
         }
       }
@@ -128,6 +135,53 @@ export function CreateDispatch() {
 
   const readyJobs = useMemo(() => jobs.filter(j => (readyMap[j.id] || 0) > 0), [jobs, readyMap]);
 
+  // ── History-derived dropdown options (no options table) ──
+  const customerOptions = useMemo(() => {
+    const s = new Set<string>();
+    readyJobs.forEach(j => j.customer_name && s.add(j.customer_name));
+    allDisps.forEach(d => d.customer_name && s.add(d.customer_name));
+    jobs.forEach(j => j.customer_name && s.add(j.customer_name));
+    return [...s].sort();
+  }, [readyJobs, allDisps, jobs]);
+
+  // PO numbers — scoped to the chosen customer when one is set.
+  const poOptions = useMemo(() => {
+    const cust = customerName.trim().toLowerCase();
+    const match = (c?: string | null) => !cust || (c || '').toLowerCase() === cust;
+    const s = new Set<string>();
+    jobs.forEach(j => { if (j.po_no && match(j.customer_name)) s.add(j.po_no); });
+    allDisps.forEach(d => { if (d.po_no && match(d.customer_name)) s.add(d.po_no); });
+    return [...s].sort();
+  }, [jobs, allDisps, customerName]);
+
+  const courierOptions = useMemo(
+    () => [...new Set(allDisps.map(d => d.courier_name).filter(Boolean) as string[])].sort(),
+    [allDisps]
+  );
+  const modeOptions = useMemo(
+    () => [...new Set([...TRANSPORT_MODES, ...allDisps.map(d => d.mode).filter(Boolean) as string[]])],
+    [allDisps]
+  );
+
+  // Already-dispatched qty per job card (across all prior dispatches) — used to
+  // show "remaining in order" while editing a line.
+  const dispatchedByJob = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const di of dispItems) m[di.job_card_id] = (m[di.job_card_id] || 0) + (di.qty_dispatched || 0);
+    return m;
+  }, [dispItems]);
+
+  // Ready job cards matching the chosen customer + PO (for the quick picker).
+  const readyForPo = useMemo(() => {
+    const cust = customerName.trim().toLowerCase();
+    const po   = poNo.trim().toLowerCase();
+    if (!cust && !po) return [];
+    return readyJobs.filter(j =>
+      (!cust || (j.customer_name || '').toLowerCase() === cust) &&
+      (!po   || (j.po_no || '').toLowerCase() === po)
+    );
+  }, [readyJobs, customerName, poNo]);
+
   // Dispatch log sorted newest first
   const recentDisps = useMemo(
     () => [...allDisps].sort((a, b) => (b.dispatch_date || '').localeCompare(a.dispatch_date || '') || (b.id || '').localeCompare(a.id || '')),
@@ -140,6 +194,29 @@ export function CreateDispatch() {
   const removeLine = (key: number) => setLines(prev => prev.length > 1 ? prev.filter(l => l.key !== key) : prev);
 
   const totalQty = lines.reduce((a, l) => a + (parseInt(l.qty, 10) || 0), 0);
+
+  // Quick-picker: add a ready job as a line (default qty = ready), or remove it
+  // if already present. Drops a leading blank line on first add.
+  const jobIsPicked = (jcId: string) => lines.some(l => l.jcId === jcId);
+  const toggleJobLine = (jcId: string) => {
+    const job   = jobs.find(j => j.id === jcId);
+    const ready = readyMap[jcId] || 0;
+    setLines(prev => {
+      if (prev.some(l => l.jcId === jcId)) {
+        const next = prev.filter(l => l.jcId !== jcId);
+        return next.length ? next : [mkRow()];
+      }
+      const cleaned = prev.filter(l => l.jcId || l.search.trim()); // drop empty rows
+      return [...cleaned, {
+        key: ++keySeq, jcId, qty: String(ready), unit: 'pcs',
+        poNo: job?.po_no || poNo || '', search: `${jcId} · ${job?.product_desc || ''}`,
+      }];
+    });
+    if (job) {
+      setCustomerName(prev => prev || job.customer_name || '');
+      setPoNo(prev => prev || job.po_no || '');
+    }
+  };
 
   const selectJob = (lineKey: number, jcId: string) => {
     const job   = jobs.find(j => j.id === jcId);
@@ -164,6 +241,7 @@ export function CreateDispatch() {
     if (!invoiceSeq.trim()) { alert('Enter the invoice sequence number.'); return; }
     if (isDuplicate) { alert(`Invoice ${invoiceNo} already exists for ${unitId}. Use a different number.`); return; }
     if (!customerName.trim()) { alert('Customer name is required.'); return; }
+    if (!poNo.trim()) { alert('PO Number is required.'); return; }
     const validLines = lines.filter(l => l.jcId && l.qty);
     if (validLines.length === 0) { alert('Add at least one job card line with a quantity.'); return; }
     for (const l of validLines) {
@@ -185,7 +263,7 @@ export function CreateDispatch() {
         tax_type:             taxType,
         dispatch_date:        dispDate,
         customer_name:        customerName.trim(),
-        po_no:                validLines[0]?.poNo?.trim() || null,
+        po_no:                poNo.trim() || validLines[0]?.poNo?.trim() || null,
         total_qty_dispatched: totalQty,
         mode:                 mode || null,
         courier_name:         courier.trim()  || null,
@@ -228,6 +306,7 @@ export function CreateDispatch() {
       setAllDisps(refreshed);
       setInvoiceSeq('');
       setLines([mkRow()]);
+      setPoNo('');
       setTracking(''); setBiltyNo(''); setBiltyDate('');
       setCartons(''); setInvoiceValue(''); setRemarks('');
       showBanner(dspId);
@@ -365,16 +444,19 @@ export function CreateDispatch() {
               <Field label="Dispatch Date *">
                 <input type="date" className={inp} value={dispDate} onChange={e => setDispDate(e.target.value)} title="Date" />
               </Field>
-              <Field label="Customer *" className="md:col-span-2">
-                <input className={inp} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name" title="Customer" />
+              <Field label="Customer *">
+                <ComboBox value={customerName} onChange={v => { setCustomerName(v); setPoNo(''); }}
+                  options={customerOptions} placeholder="Select or type customer" title="Customer" />
+              </Field>
+              <Field label="PO Number *">
+                <ComboBox value={poNo} onChange={setPoNo}
+                  options={poOptions} placeholder="Select or type PO" title="PO number" />
               </Field>
               <Field label="Transport Mode">
-                <select className={inp} value={mode} onChange={e => setMode(e.target.value)} title="Mode">
-                  {TRANSPORT_MODES.map(m => <option key={m}>{m}</option>)}
-                </select>
+                <ComboBox value={mode} onChange={setMode} options={modeOptions} placeholder="Road" title="Mode" />
               </Field>
               <Field label="Courier Name">
-                <input className={inp} value={courier} onChange={e => setCourier(e.target.value)} placeholder="Blue Dart" title="Courier" />
+                <ComboBox value={courier} onChange={setCourier} options={courierOptions} placeholder="Blue Dart" title="Courier" />
               </Field>
               <Field label="Tracking / LR No">
                 <input className={inp} value={tracking} onChange={e => setTracking(e.target.value)} title="Tracking" />
@@ -396,6 +478,43 @@ export function CreateDispatch() {
               </Field>
             </div>
           </Card>
+
+          {/* Ready job cards for the selected customer / PO — tick to add as lines */}
+          {(customerName.trim() || poNo.trim()) && (
+            <Card title="Ready Job Cards for this PO">
+              {readyForPo.length === 0 ? (
+                <div className="text-[11px] text-[#888] italic py-1">
+                  No ready job cards for {customerName.trim() || '—'}{poNo.trim() ? ` · PO ${poNo.trim()}` : ''}.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {readyForPo.map(j => {
+                    const ready     = readyMap[j.id] || 0;
+                    const ordered   = j.qty || 0;
+                    const already   = dispatchedByJob[j.id] || 0;
+                    const picked    = jobIsPicked(j.id);
+                    const remaining = ordered ? Math.max(0, ordered - already) : null;
+                    return (
+                      <button key={j.id} type="button" onClick={() => toggleJobLine(j.id)}
+                        className={`w-full text-left flex items-center gap-2 px-2.5 py-2 rounded-[3px] border transition-colors ${
+                          picked ? 'bg-[#E8F5E9] border-[#C5E1A5]' : 'bg-white border-[#E4E5E6] hover:border-[#0A6ED1]'
+                        }`}>
+                        <span className={`w-3.5 h-3.5 rounded-[2px] border flex items-center justify-center shrink-0 ${picked ? 'bg-[#107E3E] border-[#107E3E]' : 'border-[#CCC] bg-white'}`}>
+                          {picked && <Check size={10} className="text-white" />}
+                        </span>
+                        <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1] shrink-0">{j.id}</span>
+                        <span className="text-[11px] text-[#333] truncate flex-1">{productIdentity(j)}</span>
+                        <span className="text-[10px] text-[#107E3E] font-medium shrink-0">{ready} ready</span>
+                        {remaining != null && (
+                          <span className="text-[10px] text-[#555] shrink-0">· {remaining} left in order</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Line items with searchable job/product dropdown */}
           <div className="bg-white border border-[#E4E5E6] rounded-[3px]">
@@ -455,9 +574,14 @@ export function CreateDispatch() {
                           </div>
                         )}
                         {job && (
-                          <div className="mt-0.5 text-[10px] text-[#555] flex gap-2">
+                          <div className="mt-0.5 text-[10px] text-[#555] flex gap-2 flex-wrap">
                             <span>{productIdentity(job)}</span>
                             {job.mould_code && <span className="text-[#888]">· Die: {job.mould_code}</span>}
+                            {job.qty ? (() => {
+                              const already   = dispatchedByJob[job.id] || 0;
+                              const remaining = Math.max(0, job.qty - already - (parseInt(line.qty, 10) || 0));
+                              return <span className="text-[#888]">· {remaining} left in order (of {job.qty})</span>;
+                            })() : null}
                           </div>
                         )}
                       </div>
@@ -470,7 +594,9 @@ export function CreateDispatch() {
                           onChange={e => updateLine(line.key, { qty: e.target.value })}
                           title="Qty to dispatch"
                           placeholder={ready > 0 ? `max ${ready}` : '0'} />
-                        {over && <div className="text-[9.5px] text-[#BB0000] mt-0.5">Exceeds ready ({ready})</div>}
+                        {over
+                          ? <div className="text-[9.5px] text-[#BB0000] mt-0.5">Exceeds ready ({ready})</div>
+                          : ready > 0 && <div className="text-[9.5px] text-[#107E3E] mt-0.5">{ready} ready</div>}
                       </div>
 
                       {/* Unit */}

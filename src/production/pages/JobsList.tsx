@@ -29,7 +29,8 @@ const STAGE_MAP: Record<StageTab, string | null> = {
 
 export function JobsList() {
   const navigate = useNavigate();
-  const { jobs, products, loading, refresh } = useProductionData();
+  const { jobs, products, presses, loading, refresh } = useProductionData();
+  const pressName = (id?: string | null) => id ? (presses.find(p => p.id === id)?.name || id) : null;
   const [tab, setTab] = useState<StageTab>('All');
   const [q, setQ] = useState('');
   const [pri, setPri] = useState('');
@@ -201,7 +202,7 @@ export function JobsList() {
                 <TD><StatusPill status={j.status} tone={toneForStatus(j.status)} /></TD>
                 <TD className="font-mono text-[11px] text-[#666]">
                   {j.press_id ? (
-                    <span className="bg-[#FAFAFA] px-1.5 py-0.5 rounded-[2px]">{j.press_id}</span>
+                    <span className="bg-[#FAFAFA] px-1.5 py-0.5 rounded-[2px]">{pressName(j.press_id)}</span>
                   ) : (
                     <span className="text-[#555]">—</span>
                   )}
