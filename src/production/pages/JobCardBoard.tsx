@@ -14,7 +14,7 @@ import {
   jcStats, deriveJCStatus, JC_STATUS_COLOR,
 } from '../lib/jcStats';
 import { productIdentity } from '../lib/productLabel';
-import { PageHeader, FilterBar } from '../components/table';
+import { PageHeader, FilterBar, Table, THead, TH, TR, TD, EmptyRow } from '../components/table';
 import { fmtDate } from '../../lib/utils';
 import type {
   MoldingSession, FinishingSession, InspectionSession, DispatchItem,
@@ -125,80 +125,80 @@ export function JobCardBoard() {
         <div className="ml-auto text-[10px] text-[#555]">{filtered.length} job{filtered.length !== 1 ? 's' : ''}</div>
       </FilterBar>
 
-      <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="text-center py-12 text-[12px] text-[#555]">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-[12px] text-[#555] italic">No job cards match the filter.</div>
-        ) : (
-          <table className="w-full border-collapse text-[12px] text-[#111]">
-            <thead className="bg-[#FAFAFA] sticky top-0 z-10">
-              <tr>
-                {['Job ID', 'Product', 'Customer', 'Status', 'Qty', '▲ Molded', '✓ Passed', '↑ Dispatched', 'Yield', 'Ready', 'Promised', 'Actions'].map(h => (
-                  <th key={h} className="text-[10px] font-semibold text-[#555] uppercase tracking-[0.2px] px-3 py-2 text-left whitespace-nowrap border-b border-[#E4E5E6]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(({ job, stats, status }) => {
-                const c = JC_STATUS_COLOR[status];
-                return (
-                  <tr key={job.id} className="border-b border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer"
-                    onClick={() => navigate(`/production/jobs/${job.id}`)}>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
-                        {job.priority === 'emergency' && <span className="text-[#BB0000] mr-0.5">🔴</span>}
-                        {job.id}
+      <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
+        <Table>
+          <THead>
+            <tr>
+              {['Job ID', 'Product', 'Customer', 'Status', 'Qty', '▲ Molded', '✓ Passed', '↑ Dispatched', 'Yield', 'Ready', 'Promised', 'Actions'].map(h => (
+                <TH key={h}>{h}</TH>
+              ))}
+            </tr>
+          </THead>
+          <tbody>
+            {isLoading ? (
+              <EmptyRow colSpan={12} text="Loading job cards…" />
+            ) : filtered.length === 0 ? (
+              <EmptyRow colSpan={12} text="No job cards match the filter." />
+            ) : filtered.map(({ job, stats, status }) => {
+              const c = JC_STATUS_COLOR[status];
+              const overdue = job.promised_date
+                && job.promised_date < new Date().toISOString().slice(0, 10)
+                && status !== 'Dispatched';
+              return (
+                <TR key={job.id} onClick={() => navigate(`/production/jobs/${job.id}`)}>
+                  <TD>
+                    <span className="font-mono text-[10.5px] font-bold text-[#0A6ED1]">
+                      {job.priority === 'emergency' && <span className="text-[#BB0000] mr-0.5">🔴</span>}
+                      {job.id}
+                    </span>
+                    {job.mould_code && (
+                      <div className="text-[9.5px] text-[#888] font-mono">{job.mould_code}</div>
+                    )}
+                  </TD>
+                  <TD className="font-semibold max-w-[180px] truncate">{productIdentity(job)}</TD>
+                  <TD className="text-[#555]">{job.customer_name || '—'}</TD>
+                  <TD>
+                    <span className={`text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] border ${c.chipCls}`}>
+                      {status}
+                    </span>
+                  </TD>
+                  <TD className="font-mono text-[11px]">{job.qty.toLocaleString()}</TD>
+                  <TD className="font-mono text-[11px] text-[#E9730C]">{stats.molded.toLocaleString()}</TD>
+                  <TD className="font-mono text-[11px] text-[#107E3E] font-semibold">{stats.passed.toLocaleString()}</TD>
+                  <TD className="font-mono text-[11px] text-[#555]">{stats.dispatched.toLocaleString()}</TD>
+                  <TD>
+                    {stats.molded > 0 ? (
+                      <span className={`text-[10px] font-medium ${stats.yieldRate >= 90 ? 'text-[#107E3E]' : stats.yieldRate >= 70 ? 'text-[#E9730C]' : 'text-[#BB0000]'}`}>
+                        {stats.yieldRate}%
                       </span>
-                      {job.mould_code && (
-                        <div className="text-[9.5px] text-[#888] font-mono">{job.mould_code}</div>
+                    ) : <span className="text-[#9E9E9E]">—</span>}
+                  </TD>
+                  <TD className="font-mono text-[11px] font-bold text-[#107E3E]">
+                    {stats.readyQty > 0 ? stats.readyQty.toLocaleString() : <span className="text-[#9E9E9E] font-normal">—</span>}
+                  </TD>
+                  <TD className="font-mono text-[11px]">
+                    {job.promised_date ? (
+                      <span className={overdue ? 'text-[#BB0000] font-semibold' : 'text-[#555]'}>
+                        {fmtDate(job.promised_date)}{overdue ? ' ⚠' : ''}
+                      </span>
+                    ) : <span className="text-[#9E9E9E]">—</span>}
+                  </TD>
+                  <TD onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-1">
+                      <ActionBtn icon={<Hammer size={10} />}     label="Mold"    to={`/production/log-molding?jc=${job.id}`}    navigate={navigate} />
+                      <ActionBtn icon={<Scissors size={10} />}   label="Finish"  to={`/production/log-finishing?jc=${job.id}`}  navigate={navigate} />
+                      <ActionBtn icon={<Microscope size={10} />} label="Inspect" to={`/production/log-inspection?jc=${job.id}`} navigate={navigate} />
+                      <ActionBtn icon={<ShieldCheck size={10} />} label="PDI"    to={`/production/log-pdi?jc=${job.id}`}        navigate={navigate} color="teal" />
+                      {stats.readyQty > 0 && (
+                        <ActionBtn icon={<Truck size={10} />} label="Dispatch" to={`/production/dispatch/new?jc=${job.id}`} navigate={navigate} color="green" />
                       )}
-                    </td>
-                    <td className="px-3 py-2 font-semibold max-w-[180px] truncate">{productIdentity(job)}</td>
-                    <td className="px-3 py-2 text-[#555] whitespace-nowrap">{job.customer_name || '—'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`text-[10px] font-medium px-[7px] py-[2px] rounded-[2px] border ${c.chipCls}`}>
-                        {status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px]">{job.qty.toLocaleString()}</td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-[#E9730C]">{stats.molded.toLocaleString()}</td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-[#107E3E] font-semibold">{stats.passed.toLocaleString()}</td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-[#555]">{stats.dispatched.toLocaleString()}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {stats.molded > 0 ? (
-                        <span className={`text-[10px] font-medium ${stats.yieldRate >= 90 ? 'text-[#107E3E]' : stats.yieldRate >= 70 ? 'text-[#E9730C]' : 'text-[#BB0000]'}`}>
-                          {stats.yieldRate}%
-                        </span>
-                      ) : <span className="text-[#9E9E9E]">—</span>}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] font-bold text-[#107E3E]">
-                      {stats.readyQty > 0 ? stats.readyQty.toLocaleString() : <span className="text-[#9E9E9E] font-normal">—</span>}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">
-                      {job.promised_date ? (
-                        <span className={job.promised_date < new Date().toISOString().slice(0, 10) && status !== 'Dispatched' ? 'text-[#BB0000] font-semibold' : 'text-[#555]'}>
-                          {fmtDate(job.promised_date)}
-                        </span>
-                      ) : <span className="text-[#9E9E9E]">—</span>}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-1">
-                        <ActionBtn icon={<Hammer size={10} />}     label="Mold"    to={`/production/log-molding?jc=${job.id}`}    navigate={navigate} />
-                        <ActionBtn icon={<Scissors size={10} />}   label="Finish"  to={`/production/log-finishing?jc=${job.id}`}  navigate={navigate} />
-                        <ActionBtn icon={<Microscope size={10} />} label="Inspect" to={`/production/log-inspection?jc=${job.id}`} navigate={navigate} />
-                        <ActionBtn icon={<ShieldCheck size={10} />} label="PDI"    to={`/production/log-pdi?jc=${job.id}`}        navigate={navigate} color="teal" />
-                        {stats.readyQty > 0 && (
-                          <ActionBtn icon={<Truck size={10} />} label="Dispatch" to={`/production/dispatch/new?jc=${job.id}`} navigate={navigate} color="green" />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                    </div>
+                  </TD>
+                </TR>
+              );
+            })}
+          </tbody>
+        </Table>
       </div>
     </div>
   );

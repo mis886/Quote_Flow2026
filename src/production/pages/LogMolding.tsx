@@ -10,6 +10,7 @@ import { CorrectionModal } from '../components/CorrectionModal';
 import { useProductionData } from '../lib/useProductionData';
 import { listMoldingSessions, insertMoldingSession, updateMoldingSession } from '../lib/db';
 import { nextMldId, calcWorkingMinutes } from '../lib/jcStats';
+import { useJcParam } from '../lib/useJcParam';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type { MoldingSession } from '../lib/types';
@@ -66,6 +67,9 @@ export function LogMolding() {
 
   // Multi-operator rows
   const [opRows, setOpRows] = useState<OperatorRow[]>([newRow()]);
+
+  // Preselect from Job Card Board "Mold" action (?jc=…)
+  useJcParam(setJcId);
 
   useEffect(() => {
     listMoldingSessions().then(setAllSessions);

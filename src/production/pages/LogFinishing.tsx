@@ -12,6 +12,7 @@ import {
   listInspectionSessions, listMoldingSessions,
 } from '../lib/db';
 import { nextFinId, getReworkQueue } from '../lib/jcStats';
+import { useJcParam } from '../lib/useJcParam';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import type { FinishingSession, InspectionSession, MoldingSession } from '../lib/types';
@@ -49,6 +50,9 @@ export function LogFinishing() {
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
   const [finRows, setFinRows] = useState<FinisherRow[]>([newRow()]);
+
+  // Preselect from Job Card Board "Finish" action (?jc=…)
+  useJcParam(setJcId);
 
   useEffect(() => {
     Promise.all([listFinishingSessions(), listInspectionSessions(), listMoldingSessions()])

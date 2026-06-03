@@ -7,6 +7,7 @@ import { Save, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-react';
 import { useProductionData } from '../lib/useProductionData';
 import { listPdiLogs, insertPdiLog, listInspectionSessions } from '../lib/db';
 import { nextPdiId } from '../lib/jcStats';
+import { useJcParam } from '../lib/useJcParam';
 import { productIdentity } from '../lib/productLabel';
 import { PageHeader } from '../components/table';
 import { AttachmentUploader } from '../components/AttachmentUploader';
@@ -53,6 +54,9 @@ export function LogPDI() {
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
   const [rows,    setRows]    = useState<OfficerRow[]>([newRow()]);
+
+  // Preselect from Job Card Board "PDI" action (?jc=…)
+  useJcParam(setJcId);
 
   useEffect(() => {
     Promise.all([listPdiLogs(), listInspectionSessions()])
