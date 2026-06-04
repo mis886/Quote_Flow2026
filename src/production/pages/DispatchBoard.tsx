@@ -184,6 +184,12 @@ export function DispatchBoard() {
     if (surplus <= 0) return;
     const family = job.family_code || job.product_id || '';
     if (!family) { alert('This job has no family code / product — cannot post to FG stock.'); return; }
+    // Prevent double-posting: check if this job has already been moved to stock.
+    const alreadyPosted = fgStock.some(r => r.job_card_id === job.id && r.movement === 'surplus_in');
+    if (alreadyPosted) {
+      alert(`Surplus for job ${job.id} has already been added to finished-goods stock.\nClick the button only once per job.`);
+      return;
+    }
     if (!window.confirm(`Post ${surplus} surplus pcs of ${family} to finished-goods stock?\nThese were produced beyond order ${job.id}'s quantity and will be available for future orders of the same family.`)) return;
     const row: FgStockRow = {
       id: `FG-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -282,6 +288,7 @@ export function DispatchBoard() {
                                   // Surplus = ready beyond what the order still needs (over-production).
                                   const surplus   = remaining != null ? Math.max(0, stats.readyQty - remaining) : 0;
                                   const overdue   = job.promised_date && job.promised_date < new Date().toISOString().slice(0, 10);
+                                  const surplusPosted = fgStock.some(r => r.job_card_id === job.id && r.movement === 'surplus_in');
                                   return (
                                     <tr key={job.id} className="border-t border-[#F3F3F3] hover:bg-[#EEF4FF] cursor-pointer"
                                       onClick={() => navigate(`/production/dispatch/new?jc=${job.id}`)}>
@@ -297,12 +304,14 @@ export function DispatchBoard() {
                                       <td className="py-1 pr-3 text-right font-mono font-semibold text-[#107E3E]">{stats.readyQty.toLocaleString()}</td>
                                       <td className="py-1 pr-3 text-right font-mono text-[#111]">{remaining != null ? remaining.toLocaleString() : '—'}</td>
                                       <td className="py-1 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                                        {surplus > 0 ? (
+                                        {surplus > 0 && !surplusPosted ? (
                                           <button type="button" onClick={() => postSurplus(job, surplus)}
                                             title="Move over-produced units into finished-goods stock"
                                             className="inline-flex items-center gap-1 text-[10px] font-medium text-[#E9730C] border border-[#FFE0B2] bg-[#FFF8EC] rounded-[3px] px-1.5 py-0.5 hover:bg-[#FFE0B2] transition-colors">
                                             <Boxes size={10} /> +{surplus} → stock
                                           </button>
+                                        ) : surplus > 0 && surplusPosted ? (
+                                          <span className="text-[10px] text-[#107E3E] font-medium" title="Already added to finished-goods stock">✓ in stock</span>
                                         ) : <span className="font-mono text-[#9E9E9E]">—</span>}
                                       </td>
                                     </tr>
