@@ -332,8 +332,12 @@ export default function FollowUps() {
     return total > 0 ? Math.round(onTime / total * 100) : null;
   }
 
+  function isQuoteSentLog(note: string) {
+    return note?.startsWith('Quote sent —') || note?.startsWith('Sent MRT-') || note?.startsWith('Sent ');
+  }
+
   function tatLabel(followUp: FollowUp | undefined, tatDays = 2) {
-    const touchCount = (followUp?.logs ?? []).filter(l => !l.note?.startsWith('Quote sent —')).length;
+    const touchCount = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length;
     return touchCount === 0 ? `TAT: ${tatDays}d (1st call)` : 'Customer-promised';
   }
 
@@ -535,133 +539,126 @@ export default function FollowUps() {
             onToday={() => setCalWeekOffset(0)}
           />
         ) : (
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
           {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => {
             const onTimePct = cardOnTimeRate(followUp?.logs ?? []);
             const tat = tatLabel(followUp);
+            const isSelected = selectedQuoteId === quote.id || (selectedItem && selectedItem.quote.id === quote.id);
+            const custRec = data.customers.find(c => c.name === quote.cust);
+            const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+            const city = site?.city;
+            const value = quote.items.reduce((a, i) => a + i.total, 0);
+            const lastLog = followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).slice(-1)[0];
+            const followUpStage = followUp?.stage ?? quote.status;
+
             return (
-            <div
+            <button
               key={quote.id}
+              type="button"
+              onClick={() => setSelectedQuoteId(quote.id)}
               className={cn(
-                "w-full rounded-[6px] border transition-all duration-200 overflow-hidden",
-                (selectedQuoteId === quote.id || (selectedItem && selectedItem.quote.id === quote.id))
-                  ? "bg-red-lt border-red-mrt/20"
-                  : "bg-white border-transparent hover:bg-g50 hover:border-g200"
+                "w-full text-left rounded-[6px] border-l-[3px] border border-r-0 border-t-0 border-b-0 transition-all duration-150 overflow-hidden",
+                isSelected
+                  ? "bg-red-lt shadow-[0_0_0_1px_rgba(212,32,39,0.15)] border-l-red-mrt"
+                  : "bg-white hover:bg-g50 border-l-transparent hover:border-l-g300",
+                // left border colour by priority
+                !isSelected && priority === 'overdue' && "border-l-red-mrt",
+                !isSelected && priority === 'today' && "border-l-sR",
+                !isSelected && priority === 'unscheduled' && "border-l-orange-400",
+                !isSelected && priority === 'upcoming' && "border-l-sW",
+                !isSelected && isClosedTab && "border-l-emerald-400",
               )}
             >
-              {/* Main card — click to select */}
-              <button
-                type="button"
-                onClick={() => setSelectedQuoteId(quote.id)}
-                className="w-full text-left p-3"
-              >
-                <div className="flex items-start justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "w-8 h-8 rounded-[4px] flex items-center justify-center font-mono text-[10px] font-bold",
-                      isClosedTab ? "bg-emerald-100 text-emerald-700" :
-                      priority === 'overdue' ? "bg-red-mrt text-white shadow-[0_2px_8px_rgba(212,32,39,0.2)]" :
-                      priority === 'today' ? "bg-sR text-white" :
-                      priority === 'unscheduled' ? "bg-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.2)]" :
-                      priority === 'upcoming' ? "bg-sW text-white" :
-                      "bg-g100 text-g500"
-                    )}>
-                      MRT
-                    </div>
-                    <div>
-                      <div className="font-mono text-[11px] font-bold text-sQ">{quote.id}</div>
-                      <div className="text-[10px] text-g400 font-medium">Ref: {quote.enqRef}</div>
-                    </div>
+              {/* Top row: ref + urgency badge */}
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-0">
+                <span className="font-mono text-[10px] font-bold text-sQ tracking-wide">{quote.id}</span>
+                <span className={cn(
+                  "text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
+                  isClosedTab ? "text-emerald-700 bg-emerald-100" :
+                  priority === 'overdue' ? "text-red-mrt bg-red-lt" :
+                  priority === 'today' ? "text-sR bg-sR/10" :
+                  priority === 'unscheduled' ? "text-orange-600 bg-orange-100" :
+                  priority === 'upcoming' ? "text-sW bg-sW/10" :
+                  "text-g500 bg-g100"
+                )}>
+                  {isClosedTab ? 'Closed' : priority === 'unscheduled' ? 'No Next Step' : priority === 'none' ? 'New' : priority}
+                </span>
+              </div>
+
+              {/* Customer name + city */}
+              <div className="px-3 pt-1">
+                <div className="text-[13px] font-bold text-blk leading-snug truncate">{quote.cust}</div>
+                {city && (
+                  <div className="flex items-center gap-0.5 text-[10px] text-g400 mt-0.5">
+                    <MapPin size={9} className="shrink-0" />
+                    <span className="truncate">{city}</span>
                   </div>
-                  <div className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider",
-                    isClosedTab ? "border-emerald-300 text-emerald-700 bg-emerald-50" :
-                    priority === 'overdue' ? "border-red-mrt text-red-mrt bg-red-lt" :
-                    priority === 'today' ? "border-sR text-sR bg-sR/5" :
-                    priority === 'unscheduled' ? "border-orange-400 text-orange-600 bg-orange-50" :
-                    priority === 'upcoming' ? "border-sW text-sW bg-sW/5" :
-                    "border-g300 text-g500 bg-g100"
-                  )}>
-                    {isClosedTab ? 'Closed' :
-                      priority === 'unscheduled' ? 'No Next Step' :
-                      priority === 'none' ? 'New' : priority}
+                )}
+              </div>
+
+              {/* Value + stage */}
+              <div className="flex items-center gap-2 px-3 pt-1.5">
+                <span className="font-mono text-[12px] font-bold text-blk">₹{value.toLocaleString('en-IN')}</span>
+                {followUpStage && (
+                  <span className={cn(
+                    "text-[9px] font-semibold px-1.5 py-0.5 rounded-[3px]",
+                    followUpStage === '1st Follow-up' || followUpStage === 'Sent Quotation' ? "bg-blue-50 text-blue-700" :
+                    followUpStage === '2nd Follow-up' || followUpStage === 'Offer Acknowledged' ? "bg-orange-50 text-orange-700" :
+                    followUpStage === 'Negotiation' || followUpStage?.includes('3rd') ? "bg-purple-50 text-purple-700" :
+                    "bg-g100 text-g600"
+                  )}>{followUpStage}</span>
+                )}
+              </div>
+
+              {/* Next follow-up date */}
+              <div className={cn(
+                "flex items-center gap-1 px-3 pt-1 text-[10px] font-medium",
+                priority === 'overdue' ? "text-red-mrt" :
+                priority === 'today' ? "text-sR" :
+                priority === 'unscheduled' ? "text-orange-500" : "text-g500"
+              )}>
+                {priority === 'unscheduled' ? (
+                  <AlertTriangle size={10} className="shrink-0 text-orange-500" />
+                ) : priority === 'overdue' ? (
+                  <Clock size={10} className="shrink-0 animate-pulse" />
+                ) : (
+                  <Calendar size={10} className="shrink-0" />
+                )}
+                <span>
+                  {isClosedTab ? 'Closed' :
+                    priority === 'unscheduled'
+                      ? (daysSinceQuote > 0 ? `Silent ${daysSinceQuote}d — set next step` : 'Set next step')
+                      : formatDue(followUp?.next_date, followUp?.next_time) ?? 'No date set'}
+                </span>
+              </div>
+
+              {/* Last log snippet */}
+              {lastLog && (
+                <div className="px-3 pt-1 pb-1">
+                  <div className="flex items-start gap-1 text-[10px] text-g400 leading-snug">
+                    <span className="shrink-0 mt-0.5">{CHANNEL_CONFIG[lastLog.channel]?.icon ?? '📌'}</span>
+                    <span className="truncate italic">{lastLog.note.substring(0, 65)}{lastLog.note.length > 65 ? '…' : ''}</span>
                   </div>
                 </div>
+              )}
+              {!lastLog && (
+                <div className="px-3 pt-1 pb-1 text-[10px] text-g300 italic">No activity yet</div>
+              )}
 
-                <div className="text-[13px] font-bold text-blk truncate">{quote.cust}</div>
-                {(() => {
-                  const custRec = data.customers.find(c => c.name === quote.cust);
-                  const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                  const city = site?.city;
-                  if (!city) return null;
-                  return (
-                    <div className="flex items-center gap-0.5 text-[10px] text-g400 mb-1">
-                      <MapPin size={9} className="shrink-0" />
-                      <span className="truncate">{city}</span>
-                    </div>
-                  );
-                })()}
-
-                <div className="flex items-center justify-between text-[11px] text-g500">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono">Rs{quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}</span>
-                    <span className="w-1 h-1 rounded-full bg-g300" />
-                    <span>{quote.items.length} Items</span>
-                  </div>
-                  <div className={cn(
-                    "flex items-center gap-1 font-medium",
-                    !isClosedTab && priority === 'unscheduled' && "text-orange-600"
-                  )}>
-                    {!isClosedTab && priority === 'unscheduled' ? (
-                      <AlertTriangle size={11} className="text-orange-500" />
-                    ) : !isClosedTab && followUp?.next_date && (priority === 'overdue' || priority === 'today') ? (
-                      <Clock size={11} className={priority === 'overdue' ? 'text-red-mrt animate-pulse' : 'text-sR'} />
-                    ) : <Calendar size={11} />}
-                    <span>
-                      {isClosedTab ? 'Closed' :
-                        priority === 'unscheduled'
-                          ? (daysSinceQuote > 0 ? `Silent ${daysSinceQuote}d — set next step` : 'Set next step')
-                          : formatDue(followUp?.next_date, followUp?.next_time) ?? 'No Date'}
-                    </span>
-                  </div>
-                </div>
-              </button>
-
-              {/* TAT + On-Time stat strip */}
-              <div className="flex items-center gap-3 px-3 py-1.5 bg-g50 border-t border-g100 text-[10px]">
-                <span className="font-mono text-g500">{tat}</span>
+              {/* TAT + On-Time footer */}
+              <div className="flex items-center gap-2 px-3 py-1.5 mt-0.5 border-t border-g100 bg-g50/60 text-[9.5px] font-mono">
+                <span className="text-g400">{tat}</span>
                 {onTimePct !== null && (
                   <>
-                    <span className="w-px h-3 bg-g200" />
+                    <span className="text-g300">·</span>
                     <span className={cn(
-                      "font-mono font-bold",
+                      "font-bold",
                       onTimePct >= 80 ? "text-emerald-600" : onTimePct >= 60 ? "text-orange-500" : "text-red-mrt"
                     )}>On-Time: {onTimePct}%</span>
                   </>
                 )}
               </div>
-
-              {/* WON / LOST quick-action buttons — only on active tab */}
-              {!isClosedTab && (
-                <div className="flex border-t border-g100">
-                  <button
-                    type="button"
-                    onClick={e => handleMarkLost(quote.id, e)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-red-mrt hover:bg-red-lt transition-colors"
-                  >
-                    <XCircle size={10} /> LOST
-                  </button>
-                  <div className="w-px bg-g100" />
-                  <button
-                    type="button"
-                    onClick={e => handleMarkWon(quote.id, e)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
-                  >
-                    <Trophy size={10} /> WON
-                  </button>
-                </div>
-              )}
-            </div>
+            </button>
             );
           })}
           {viewTab === 'thisweek' && thisWeekQueue.length === 0 && (
@@ -782,7 +779,7 @@ export default function FollowUps() {
                   {(() => {
                     const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
                     const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                    const city = site?.city || custRec?.city;
+                    const city = site?.city;
                     if (!city) return null;
                     return (
                       <div className="flex items-center gap-1 text-[12px] text-g500 font-medium mb-4">
@@ -934,8 +931,11 @@ export default function FollowUps() {
                           {dayLogs.map((log) => {
                             const globalIdx = allLogs.indexOf(log);
                             const cfg = CHANNEL_CONFIG[log.channel] ?? CHANNEL_CONFIG['Called'];
-                            const isSystem = log.note?.startsWith('Quote sent —');
+                            const isSystem = isQuoteSentLog(log.note);
                             const onTime = wasOnTime(globalIdx);
+                            // Quote Sent is the starting point — always mark ON TIME
+                            const onTimeFinal = isSystem ? true : onTime;
+                            const isLast = globalIdx === allLogs.length - 1;
 
                             // "Quote Sent" — prominent system entry
                             if (isSystem) {
@@ -943,11 +943,12 @@ export default function FollowUps() {
                                 <div key={globalIdx} className="flex gap-3 mb-3">
                                   <div className="flex flex-col items-center w-7 shrink-0">
                                     <div className="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[12px]">📄</div>
-                                    <div className="w-px flex-1 bg-g200 mt-1" />
+                                    {!isLast && <div className="w-px flex-1 bg-g200 mt-1" />}
                                   </div>
                                   <div className="flex-1 pb-3">
-                                    <div className="flex items-center gap-2 mb-0.5">
+                                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                       <span className="text-[12px] font-bold text-blk">Quote Sent</span>
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">ON TIME</span>
                                       <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
                                     </div>
                                     <p className="text-[12px] text-g600 leading-relaxed">{log.note}</p>
@@ -969,17 +970,17 @@ export default function FollowUps() {
                                   <div className={cn("w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[12px]", cfg.bg)}>
                                     {cfg.icon}
                                   </div>
-                                  <div className="w-px flex-1 bg-g200 mt-1" />
+                                  {!isLast && <div className="w-px flex-1 bg-g200 mt-1" />}
                                 </div>
                                 <div className="flex-1 pb-3">
                                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                     <span className="text-[12px] font-bold text-blk">{log.channel}</span>
-                                    {onTime !== null && (
+                                    {onTimeFinal !== null && (
                                       <span className={cn(
                                         "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
-                                        onTime ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
+                                        onTimeFinal ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
                                       )}>
-                                        {onTime ? 'ON TIME' : 'LATE'}
+                                        {onTimeFinal ? 'ON TIME' : 'LATE'}
                                       </span>
                                     )}
                                     <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>

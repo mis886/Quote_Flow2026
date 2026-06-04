@@ -32,15 +32,25 @@ export function FollowUpSendPrompt({ quote, onClose }: Props) {
 
   if (!quote) return null;
 
-  const createLog = (nextDate: string | null, _nextTime: string | null, nextNoteVal?: string) => ({
-    ts: new Date().toISOString(),
-    who: user?.user_metadata?.full_name ?? user?.email ?? 'System',
-    channel: 'Email' as const,
-    note: 'Quote sent — follow-up reminder set',
-    nextDate: nextDate ?? undefined,
-    nextChannel: 'Called' as const,
-    nextNote: nextNoteVal?.trim() || undefined,
-  });
+  const createLog = (nextDate: string | null, _nextTime: string | null, nextNoteVal?: string) => {
+    const total = quote.items.reduce((s, i) => s + i.total, 0);
+    const totalStr = `₹${total.toLocaleString('en-IN')}`;
+    const itemCount = quote.items.length;
+    // Build a meaningful first-line description from the items
+    const firstItem = quote.items[0];
+    const itemDesc = firstItem
+      ? `${firstItem.desc}${itemCount > 1 ? ` — ${itemCount} items` : ''}`
+      : `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+    return {
+      ts: new Date().toISOString(),
+      who: user?.user_metadata?.full_name ?? user?.email ?? 'System',
+      channel: 'Email' as const,
+      note: `Sent ${quote.id} for ${itemDesc}. ${totalStr}.`,
+      nextDate: nextDate ?? undefined,
+      nextChannel: 'Called' as const,
+      nextNote: nextNoteVal?.trim() || undefined,
+    };
+  };
 
   const save = async (nextDate: string, nextTime: string, nextNoteVal?: string) => {
     setSaving(true);

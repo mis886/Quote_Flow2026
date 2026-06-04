@@ -458,7 +458,8 @@ function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: ()
 
 // Right-side slide-over: contact strip + activity history + inline log form.
 function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose: () => void; onCreateQuote: () => void }) {
-  const { data, user, addFollowUpLog, openAttachmentModal } = useAppStore();
+  const { data, user, addFollowUpLog, closeFollowUp, openAttachmentModal } = useAppStore();
+  const [markingOutcome, setMarkingOutcome] = useState<null | 'Won' | 'Lost'>(null);
   const isEnquiry = card.kind === 'enquiry';
 
   // Open the cross-chain document modal (enquiry + all quotes + all orders +
@@ -569,6 +570,37 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
               >
                 <Paperclip size={12} /> Docs
               </button>
+            </div>
+          )}
+
+          {/* WON / LOST — quick outcome buttons for non-closed quote cards */}
+          {!isEnquiry && card.lane !== 'Closed' && (
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setMarkingOutcome('Lost')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-red-mrt/40 text-red-mrt bg-white hover:bg-red-50 transition-colors"
+              >
+                <Ban size={11} /> Lost
+              </button>
+              <button
+                type="button"
+                onClick={() => setMarkingOutcome('Won')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              >
+                <Trophy size={11} /> Won
+              </button>
+              {markingOutcome && (
+                <div className="ml-auto flex items-center gap-1.5 bg-g50 border border-g200 rounded-[4px] px-2.5 py-1.5 text-[10px]">
+                  <span className="text-g600 font-medium">Confirm mark as {markingOutcome}?</span>
+                  <button
+                    type="button"
+                    onClick={async () => { await closeFollowUp(card.quote!.id, markingOutcome); setMarkingOutcome(null); onClose(); }}
+                    className="text-[10px] font-bold text-emerald-700 hover:underline"
+                  >Yes</button>
+                  <button type="button" onClick={() => setMarkingOutcome(null)} className="text-[10px] text-g400 hover:text-blk">Cancel</button>
+                </div>
+              )}
             </div>
           )}
 
