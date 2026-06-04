@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { generateId, formatINR, parseQuoteTerms, localDateStr, resolveAdjustments } from '../lib/utils';
@@ -108,11 +108,19 @@ export function NewOrder() {
     setBankAccountId(def?.id ?? '');
   }, [unitId, data.bankAccounts]);
 
-  // Load / init
+  // Load / init — hydrate the form ONCE per order/quote. Without this guard a
+  // background data refresh (e.g. Supabase token refresh on tab focus changes
+  // data.orders' reference) would re-run this effect and silently overwrite the
+  // user's unsaved edits — exactly the "switch tab → rates revert" bug.
+  const hydratedKey = useRef<string | null>(null);
   useEffect(() => {
+    const key = editOrderId ? `edit:${editOrderId}` : quoteRef ? `quote:${quoteRef}` : 'new';
+    if (hydratedKey.current === key) return;   // already initialised this target
+
     if (editOrderId) {
       const o = data.orders.find(ord => ord.id === editOrderId);
       if (o) {
+        hydratedKey.current = key;             // mark hydrated only once data is present
         setOrderId(o.id); setPoNo(o.poNo); setPoDate(o.poDate); setDlvDate(o.dlvDate);
         setCustName(o.cust); setAuthName(o.authorizedPerson?.name || '');
         setAuthDesignation(o.authorizedPerson?.designation || ''); setAuthPhone(o.authorizedPerson?.phone || '');
@@ -133,9 +141,10 @@ export function NewOrder() {
         if (matched) setSelectedSigId(matched.id);
       }
     } else if (quoteRef) {
-      setOrderId(generateId('ORD', data.orders.map(o => o.id)));
       const q = data.quotes.find(e => e.id === quoteRef);
       if (q) {
+        hydratedKey.current = key;             // hydrate from quote only once
+        setOrderId(generateId('ORD', data.orders.map(o => o.id)));
         setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
         if ((q as any).siteId) setSiteId((q as any).siteId);
         setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
@@ -143,6 +152,7 @@ export function NewOrder() {
         setItems(q.items.map(i => ({ ...i, agreedRate: i.unitPrice, remarks: '' })));
       }
     } else {
+      hydratedKey.current = key;
       setOrderId(generateId('ORD', data.orders.map(o => o.id)));
       setItems([{ seq: 1, desc: '', mat: '', qty: 1, uom: 'pcs', agreedRate: 0, gst: 18, total: 0, remarks: '' }]);
     }
@@ -179,6 +189,24 @@ export function NewOrder() {
     else if (sel.includes('DDP') || sel.includes('DAP') || sel.includes('CIF')) t = `1. Delivery: ${sel} Destination.\n2. Insurance & Freight: Included.\n3. Taxes/Duties: As per quotation.\n4. Payment: As per agreement.`;
     if (t && !customTerms) setCustomTerms(t);
   }, [dlvTerms, customDlvTerms, editOrderId]);
+
+  // ── Unsaved-changes guard ──
+  // `dirty` flips true on the first edit after the form hydrates, and is cleared
+  // on a successful save. While dirty, refreshing/closing the tab or leaving the
+  // page prompts a confirmation so in-progress rate edits aren't lost.
+  const [dirty, setDirty] = useState(false);
+  const markDirty = () => { if (!dirty) setDirty(true); };
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  // Confirm before in-app navigation away (Back / Cancel) when there are edits.
+  const confirmLeave = () =>
+    !dirty || window.confirm('You have unsaved changes. Leave without saving?');
 
   // Item helpers
   const updateItem = (idx: number, field: keyof OrderItem, value: any) => {
@@ -266,7 +294,7 @@ export function NewOrder() {
     setIsSaving(true);
     try {
       const payload = await persistOrder();
-      if (payload) navigate('/orders');
+      if (payload) { setDirty(false); navigate('/orders'); }
     } catch (err) {
       setErrors({ global: `Failed to save: ${(err as any)?.message || 'Check connection'}` });
     } finally { setIsSaving(false); }
@@ -279,6 +307,7 @@ export function NewOrder() {
     try {
       const payload = await persistOrder();
       if (!payload) return;
+      setDirty(false);   // persisted — no longer unsaved
       const qt = quoteRef ? data.quotes.find(q => q.id === quoteRef) : undefined;
       const unit = unitId ? data.units.find(u => u.id === unitId) : data.units.find(u => u.is_default);
       const bank = bankAccountId ? data.bankAccounts.find(b => b.id === bankAccountId)
@@ -341,13 +370,13 @@ export function NewOrder() {
                 </select>
               </div>
             )}
-            <Button variant="secondary" onClick={() => navigate('/orders')}>Back</Button>
+            <Button variant="secondary" onClick={() => { if (confirmLeave()) navigate('/orders'); }}>Back</Button>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="px-5 pb-6 pt-3 flex-1 overflow-y-auto">
+      <div className="px-5 pb-6 pt-3 flex-1 overflow-y-auto" onInput={markDirty} onChange={markDirty}>
 
         {/* ══ STEP 1: Form ══ */}
         {step === 1 && (
@@ -914,7 +943,7 @@ export function NewOrder() {
                 Email to Client
               </button>
               <div className="h-5 w-px bg-g200" />
-              <button type="button" onClick={() => navigate('/orders')} disabled={isSaving} className="bg-white border border-g300 text-g600 font-mono text-[10px] font-bold tracking-widest uppercase px-[16px] py-[9px] rounded-[3px] hover:bg-g50 disabled:opacity-50">
+              <button type="button" onClick={() => { if (confirmLeave()) navigate('/orders'); }} disabled={isSaving} className="bg-white border border-g300 text-g600 font-mono text-[10px] font-bold tracking-widest uppercase px-[16px] py-[9px] rounded-[3px] hover:bg-g50 disabled:opacity-50">
                 Cancel
               </button>
             </>
