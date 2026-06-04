@@ -93,7 +93,7 @@ export default function FollowUps() {
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
   const [quickFilter, setQuickFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled'>('all');
-  const [viewTab, setViewTab] = useState<'board' | 'thisweek' | 'calendar'>('board');
+  const [viewTab, setViewTab] = useState<'queue' | 'board' | 'thisweek' | 'calendar'>('queue');
   const [calWeekOffset, setCalWeekOffset] = useState(0);
 
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
@@ -320,7 +320,7 @@ export default function FollowUps() {
             </div>
             {/* View tabs */}
             <div className="flex gap-1 bg-g100 rounded-[4px] p-1">
-              {(['board', 'thisweek', 'calendar'] as const).map(tab => (
+              {(['queue', 'board', 'thisweek', 'calendar'] as const).map(tab => (
                 <button
                   key={tab}
                   type="button"
@@ -330,7 +330,7 @@ export default function FollowUps() {
                     viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                   )}
                 >
-                  {tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+                  {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
                 </button>
               ))}
             </div>
@@ -426,7 +426,7 @@ export default function FollowUps() {
 
           {/* View tabs */}
           <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
-            {(['board', 'thisweek', 'calendar'] as const).map(tab => (
+            {(['queue', 'board', 'thisweek', 'calendar'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -436,7 +436,7 @@ export default function FollowUps() {
                   viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                 )}
               >
-                {tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+                {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
               </button>
             ))}
           </div>

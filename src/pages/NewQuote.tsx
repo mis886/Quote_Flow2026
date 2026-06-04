@@ -83,7 +83,7 @@ export function NewQuote() {
   const [authDesignation, setAuthDesignation] = useState('');
   const [authPhone, setAuthPhone] = useState('');
   const [selectedSigId, setSelectedSigId] = useState('');
-  const [quoteStatus, setQuoteStatus] = useState<QuoteStatus>('Sent');
+  const [quoteStatus, setQuoteStatus] = useState<QuoteStatus>('Draft');
   const [tnc, setTnc] = useState<TncState>(defaultTnc);
   const setTncField = (k: keyof TncState, v: string) => setTnc((p: TncState) => ({ ...p, [k]: v }));
   const [sigMsg, setSigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -333,10 +333,12 @@ export function NewQuote() {
     return Object.keys(e).length === 0;
   };
 
-  const buildQuoteData = (): Quote => ({
+  const buildQuoteData = (statusOverride?: QuoteStatus): Quote => ({
     id: quoteId, enqRef: enqRef || '', cust: custName, date, validity,
     siteId: siteId || undefined,
-    status: editId ? quoteStatus : 'Sent',
+    // Stays Draft until actually sent (email module / manual). Convert-to-order
+    // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
+    status: statusOverride ?? quoteStatus,
     curr, pay, items,
     notes: notes.filter(n => n.trim()),
     authorizedPerson: { name: authName, designation: authDesignation, phone: authPhone },
@@ -348,10 +350,10 @@ export function NewQuote() {
 
   // Persist the quote (without PDF). Returns the qData used, so callers can
   // reuse it for the PDF without rebuilding.
-  const persistQuote = async (): Promise<Quote | null> => {
+  const persistQuote = async (statusOverride?: QuoteStatus): Promise<Quote | null> => {
     if (!validateStep1()) { setStep(1); return null; }
     setErrors({});
-    const qData = buildQuoteData();
+    const qData = buildQuoteData(statusOverride);
     if (editId) {
       await updateQuote(editId, qData);
     } else {
@@ -365,10 +367,10 @@ export function NewQuote() {
   };
 
   // Save only: persist + navigate to /quotes. No PDF.
-  const handleSave = async () => {
+  const handleSave = async (statusOverride?: QuoteStatus) => {
     setIsSaving(true);
     try {
-      const qData = await persistQuote();
+      const qData = await persistQuote(statusOverride);
       if (qData) { setDirty(false); navigate('/quotes'); }
     } catch {
       setErrors({ global: 'Failed to save. Please check your connection.' });
@@ -984,7 +986,7 @@ export function NewQuote() {
             </button>
           ) : (
             <>
-              <button type="button" onClick={handleSave} disabled={isSaving}
+              <button type="button" onClick={() => handleSave()} disabled={isSaving}
                 className="bg-red-mrt text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-red-h disabled:opacity-50 flex items-center gap-2">
                 <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
                 {isSaving ? 'Saving...' : 'Save & PDF'}
@@ -1015,7 +1017,12 @@ export function NewQuote() {
           onClose={() => setShowEmailModal(false)}
           onSent={async () => {
             setShowEmailModal(false);
-            await handleSave();
+            // Emailing via the integrated module counts as "Sent" — flip Draft → Sent
+            // (don't downgrade Won/Lost/Parked). Pass it explicitly so the save
+            // doesn't race the state update.
+            const sentStatus: QuoteStatus = quoteStatus === 'Draft' ? 'Sent' : quoteStatus;
+            if (quoteStatus === 'Draft') setQuoteStatus('Sent');
+            await handleSave(sentStatus);
           }}
         />
       )}

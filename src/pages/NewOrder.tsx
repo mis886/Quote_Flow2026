@@ -34,7 +34,7 @@ export function NewOrder() {
   const quoteRef = searchParams.get('quoteRef');
   const editOrderId = searchParams.get('orderId');
   const navigate = useNavigate();
-  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory } = useAppStore();
+  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp } = useAppStore();
 
   const descSuggestions = useMemo(() =>
     [...new Set([
@@ -291,7 +291,11 @@ export function NewOrder() {
       await updateOrder(editOrderId, orderPayload);
     } else {
       await addOrder(orderPayload);
-      if (quoteRef) await updateQuote(quoteRef, { status: 'Won' });
+      if (quoteRef) {
+        await updateQuote(quoteRef, { status: 'Won' });
+        // Converting to an order wins the quote → close its follow-up process.
+        try { await closeFollowUp(quoteRef, 'Won'); } catch { /* no follow-up row — ignore */ }
+      }
       if (!data.customers.find(c => c.name.toLowerCase() === custName.toLowerCase())) {
         await addCustomer({ id: generateId('CUST', data.customers.map(c => c.id)), code: generateId('CUS', data.customers.map(c => c.code)), name: custName, seg: 'General', gstin: '', inco: 'Ex-Works', curr: 'INR', pay: '30 days', sites: [] });
       }

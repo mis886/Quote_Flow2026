@@ -29,7 +29,7 @@ const InfoItem = ({ label, value }: { label: string, value: string }) => (
 );
 
 export function DetailPanel() {
-  const { detailPanel, closeDetailPanel, openDetailPanel, data, updateEnquiry, updateQuote, updateOrder, deleteEnquiry } = useAppStore();
+  const { detailPanel, closeDetailPanel, openDetailPanel, data, updateEnquiry, updateQuote, updateOrder, deleteEnquiry, closeFollowUp } = useAppStore();
   const navigate = useNavigate();
   const [downloadingItemId, setDownloadingItemId] = React.useState<string | null>(null);
   const [showLineItems, setShowLineItems] = React.useState(false);
@@ -484,7 +484,12 @@ export function DetailPanel() {
               title="Quote status"
               value={q.status}
               onChange={async (e) => {
-                await updateQuote(q.id, { status: e.target.value as any });
+                const next = e.target.value as any;
+                await updateQuote(q.id, { status: next });
+                // Marking Won closes the follow-up process (outcome = Won).
+                if (next === 'Won') {
+                  try { await closeFollowUp(q.id, 'Won'); } catch { /* no follow-up row — ignore */ }
+                }
               }}
               className="font-sans text-[12px] text-blk bg-white border border-g300 rounded-[3px] p-[6px_10px] outline-none hover:border-g400"
             >
@@ -496,18 +501,32 @@ export function DetailPanel() {
             </select>
           </div>
           <div className="flex gap-2">
-            {(q.status === 'Sent' || q.status === 'Won') && (
-              <Button 
-                variant="primary" 
-                onClick={() => {
-                  closeDetailPanel();
-                  navigate(`/orders/new?quoteRef=${q.id}`);
-                }}
-                className="btn-order transition-colors font-mono tracking-wider font-bold !text-[11px] px-3 py-1.5 uppercase"
-              >
-                + Convert to Order
-              </Button>
-            )}
+            {(q.status === 'Sent' || q.status === 'Won') && (() => {
+              // Mirror the Quotations Register: once an order exists for this
+              // quote (or it's marked Won), it's already converted — show a
+              // disabled "Ordered" state instead of letting it convert again.
+              const isOrdered = q.status === 'Won' || data.orders.some(o => o.quoteRef === q.id);
+              return isOrdered ? (
+                <Button
+                  variant="secondary"
+                  disabled
+                  className="bg-g100 text-g400 cursor-not-allowed font-mono tracking-wider font-bold !text-[11px] px-3 py-1.5 uppercase"
+                >
+                  Ordered
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    closeDetailPanel();
+                    navigate(`/orders/new?quoteRef=${q.id}`);
+                  }}
+                  className="btn-order transition-colors font-mono tracking-wider font-bold !text-[11px] px-3 py-1.5 uppercase"
+                >
+                  + Convert to Order
+                </Button>
+              );
+            })()}
             <Button variant="secondary" onClick={() => {
               const cust = data.customers.find(c => c.name === q.cust);
               const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
