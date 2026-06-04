@@ -569,14 +569,14 @@ export function generatePIPDF(
     const pctNote = adj.mode === 'percent' ? ` (${adj.rate}%)` : '';
     const label = `${adj.label || 'Adjustment'}${pctNote}${adj.direction === 'deduct' ? ' (less)' : ''}`;
     doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-    doc.text(label, rx - 55, y);
+    doc.text(label, rx - 60, y, { align: 'right' });
     doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
     doc.text(`${adj.amount < 0 ? '-' : ''}${fmtAmount(Math.abs(adj.amount), sym)}`, rx, y, { align: 'right' });
     y += 5.5;
   };
 
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80, 80, 80);
-  doc.text('Sub-Total (excl. GST)', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+  doc.text('Sub-Total (excl. GST)', rx - 60, y, { align: 'right' }); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
   doc.text(fmtAmount(t.sub, sym), rx, y, { align: 'right' }); y += 5.5;
 
   // Taxable charges (P&F, Freight…) are added to the taxable value BEFORE GST.
@@ -584,13 +584,13 @@ export function generatePIPDF(
   if (preLines.length > 0) {
     const taxableValue = t.sub + preLines.reduce((s, a) => s + a.amount, 0);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-    doc.text('Taxable Value', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    doc.text('Taxable Value', rx - 60, y, { align: 'right' }); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
     doc.text(fmtAmount(taxableValue, sym), rx, y, { align: 'right' }); y += 5.5;
   }
 
   // GST is charged on the (P&F-inclusive) taxable value.
   doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-  doc.text('GST Amount', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+  doc.text('GST Amount', rx - 60, y, { align: 'right' }); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
   doc.text(fmtAmount(t.gst, sym), rx, y, { align: 'right' }); y += 5.5;
 
   // Post-GST lines (TDS/TCS, post-tax freight) after GST.
@@ -599,7 +599,7 @@ export function generatePIPDF(
   y -= 3.5;
   doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(rx - 60, y, rx, y); y += 5;
   doc.setFontSize(11); doc.setTextColor(0, 0, 0);
-  doc.text('Grand Total', rx - 55, y);
+  doc.text('Grand Total', rx - 60, y, { align: 'right' });
   doc.text(fmtAmount(t.grand, sym), rx, y, { align: 'right' });
   y += 10;
 
