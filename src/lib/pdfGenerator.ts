@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Customer, Quote, Order, AppSettings, CompanyUnit, BankAccount } from './types';
-import { formatINR } from './utils';
+import { formatINR, resolveAdjustments, type ResolvedAdjustment } from './utils';
 
 export function getQuoteTotals(q: Quote) {
   const sub = q.items.reduce((a, i) => a + i.total, 0);
@@ -12,7 +12,8 @@ export function getQuoteTotals(q: Quote) {
 export function getOrderTotals(o: Order) {
   const sub = o.items.reduce((a, i) => a + i.total, 0);
   const gst = o.items.reduce((a, i) => a + (i.total * i.gst / 100), 0);
-  return { sub, gst, grand: sub + gst };
+  const { lines: adjustmentLines, net: adjustmentsNet } = resolveAdjustments(o.adjustments, sub);
+  return { sub, gst, adjustmentLines, adjustmentsNet, grand: sub + gst + adjustmentsNet };
 }
 
 function getCurrencySymbol(curr: string) {
@@ -557,7 +558,21 @@ export function generatePIPDF(
   doc.text(fmtAmount(t.sub, sym), rx, y, { align: 'right' }); y += 5.5;
   doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
   doc.text('GST Amount', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-  doc.text(fmtAmount(t.gst, sym), rx, y, { align: 'right' }); y += 2;
+  doc.text(fmtAmount(t.gst, sym), rx, y, { align: 'right' }); y += 5.5;
+
+  // Extra taxes & charges (Freight, P&F, TDS, …) between GST and Grand Total.
+  for (const adj of (t.adjustmentLines as ResolvedAdjustment[])) {
+    const pctNote = adj.mode === 'percent' ? ` (${adj.rate}%)` : '';
+    const label = `${adj.label}${pctNote}${adj.direction === 'deduct' ? ' (less)' : ''}`;
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+    doc.text(label, rx - 55, y);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    const shown = `${adj.amount < 0 ? '-' : ''}${fmtAmount(Math.abs(adj.amount), sym)}`;
+    doc.text(shown, rx, y, { align: 'right' });
+    y += 5.5;
+  }
+
+  y -= 3.5;
   doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(rx - 60, y, rx, y); y += 5;
   doc.setFontSize(11); doc.setTextColor(0, 0, 0);
   doc.text('Grand Total', rx - 55, y);

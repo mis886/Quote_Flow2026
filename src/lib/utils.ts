@@ -1,8 +1,31 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { OrderAdjustment } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// ── Order taxes & charges ────────────────────────────────────────────────────
+// Resolve each adjustment to a signed rupee amount. Percentage lines are
+// computed on `subTotal` (items excl. GST). Charges add (+), deductions like
+// TDS subtract (−). Used by the order form, getOrderTotals, and the PI PDF so
+// the math is identical everywhere.
+export interface ResolvedAdjustment extends OrderAdjustment {
+  amount: number;   // signed: + adds to total, − deducts
+}
+
+export function resolveAdjustments(
+  adjustments: OrderAdjustment[] | undefined,
+  subTotal: number,
+): { lines: ResolvedAdjustment[]; net: number } {
+  const lines = (adjustments || []).map(a => {
+    const base = a.mode === 'percent' ? (subTotal * (Number(a.rate) || 0)) / 100 : (Number(a.rate) || 0);
+    const amount = a.direction === 'deduct' ? -base : base;
+    return { ...a, amount };
+  });
+  const net = lines.reduce((s, l) => s + l.amount, 0);
+  return { lines, net };
 }
 
 /** Returns YYYY-MM-DD in local time (avoids UTC offset shift from toISOString) */

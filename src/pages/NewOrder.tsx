@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId, formatINR, parseQuoteTerms, localDateStr } from '../lib/utils';
-import { OrderItem, Order, AuthorizedSignatory, OrderStatus } from '../lib/types';
+import { generateId, formatINR, parseQuoteTerms, localDateStr, resolveAdjustments } from '../lib/utils';
+import { OrderItem, Order, AuthorizedSignatory, OrderStatus, OrderAdjustment, OrderAdjustmentKind } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 import { generatePIPDF } from '../lib/pdfGenerator';
@@ -72,6 +72,7 @@ export function NewOrder() {
   const [orderStatus, setOrderStatus] = useState<OrderStatus>('Processing');
   const [sigMsg, setSigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [adjustments, setAdjustments] = useState<OrderAdjustment[]>([]);
   const [orderId, setOrderId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -116,6 +117,7 @@ export function NewOrder() {
         setCustName(o.cust); setAuthName(o.authorizedPerson?.name || '');
         setAuthDesignation(o.authorizedPerson?.designation || ''); setAuthPhone(o.authorizedPerson?.phone || '');
         setOrderStatus(o.status as OrderStatus); setCustomTerms(parseQuoteTerms(o.terms)); setItems(o.items);
+        if (Array.isArray(o.adjustments)) setAdjustments(o.adjustments);
         if (o.unitId) setUnitId(o.unitId);
         if (o.bankAccountId) setBankAccountId(o.bankAccountId);
         if (o.priceBasis) setPriceBasis(o.priceBasis);
@@ -189,7 +191,19 @@ export function NewOrder() {
 
   const subTotal = items.reduce((s, i) => s + i.total, 0);
   const gstTotal = items.reduce((s, i) => s + i.total * i.gst / 100, 0);
-  const grandTotal = subTotal + gstTotal;
+  const { lines: adjLines, net: adjNet } = resolveAdjustments(adjustments, subTotal);
+  const grandTotal = subTotal + gstTotal + adjNet;
+
+  // Adjustment row helpers
+  const addAdjustment = (kind: OrderAdjustmentKind, label = '') =>
+    setAdjustments(a => [...a, {
+      id: 'adj-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      kind, label, mode: 'percent', rate: 0,
+      direction: kind === 'tax' && /tds/i.test(label) ? 'deduct' : 'add',
+    }]);
+  const updateAdjustment = (id: string, patch: Partial<OrderAdjustment>) =>
+    setAdjustments(a => a.map(x => x.id === id ? { ...x, ...patch } : x));
+  const removeAdjustment = (id: string) => setAdjustments(a => a.filter(x => x.id !== id));
 
   const validateStep1 = () => {
     const e: Record<string, string> = {};
@@ -207,7 +221,8 @@ export function NewOrder() {
     status: editOrderId ? orderStatus : 'Processing',
     value: grandTotal,
     inco: dlvTerms === 'OVERRIDE' ? customDlvTerms : dlvTerms,
-    items, poFileName: existingPoFileName || undefined,
+    items, adjustments,
+    poFileName: existingPoFileName || undefined,
     authorizedPerson: { name: authName, designation: authDesignation, phone: authPhone },
     terms: customTerms,
     unitId: unitId || undefined,
@@ -527,13 +542,78 @@ export function NewOrder() {
                   Add Another Line Item
                 </div>
                 <div className="mt-3 flex justify-end">
-                  <div className="w-[260px] bg-g50/50 border border-g200 rounded-[3px] p-[10px_14px] space-y-1.5 text-[12px]">
+                  <div className="w-[300px] bg-g50/50 border border-g200 rounded-[3px] p-[10px_14px] space-y-1.5 text-[12px]">
                     <div className="flex justify-between text-g500"><span>Sub-Total (excl. GST)</span><span className="font-mono font-bold text-blk">{formatINR(subTotal)}</span></div>
                     <div className="flex justify-between text-g500"><span>Total GST</span><span className="font-mono font-bold text-blk">{formatINR(gstTotal)}</span></div>
+                    {adjLines.map(l => (
+                      <div key={l.id} className="flex justify-between text-g500">
+                        <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}{l.direction === 'deduct' ? ' −' : ''}</span>
+                        <span className={`font-mono font-bold ${l.amount < 0 ? 'text-red-mrt' : 'text-blk'}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>
+                      </div>
+                    ))}
                     <div className="flex justify-between font-bold text-blk border-t border-g200 pt-2 text-[13px]"><span>Order Value</span><span className="font-mono text-red-mrt text-[15px]">{formatINR(grandTotal)}</span></div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Taxes & Charges (VAT/TDS/TCS, Freight, P&F, Other) */}
+            <div className="bg-white border border-g200">
+              <div className="p-[11px_16px] border-b border-g200 flex items-center justify-between flex-wrap gap-2">
+                <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-g500">Taxes &amp; Charges (added to / deducted from total)</span>
+                <div className="flex items-center gap-1.5">
+                  {([['charge', 'Freight'], ['charge', 'Packing & Forwarding'], ['charge', 'Carriage'], ['tax', 'TDS'], ['tax', 'TCS'], ['tax', 'VAT'], ['other', '']] as [OrderAdjustmentKind, string][]).map(([k, label], i) => (
+                    <button key={i} type="button" onClick={() => addAdjustment(k, label)}
+                      className="text-[10px] font-semibold text-red-mrt border border-red-mrt/25 rounded-[3px] px-2 py-1 hover:bg-red-lt transition-colors">
+                      + {label || 'Other'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {adjustments.length === 0 ? (
+                <div className="p-[12px_16px] text-[11px] text-g400 italic">No extra taxes or charges. Use the buttons above to add Freight, P&amp;F, TDS, TCS, etc.</div>
+              ) : (
+                <div className="p-[10px_12px] space-y-2">
+                  {adjustments.map(a => {
+                    const resolved = adjLines.find(l => l.id === a.id);
+                    return (
+                      <div key={a.id} className="grid grid-cols-[110px_1fr_120px_110px_120px_28px] gap-2 items-center">
+                        <select title="Type" value={a.kind} onChange={e => updateAdjustment(a.id, { kind: e.target.value as OrderAdjustmentKind })}
+                          className="font-mono text-[11px] border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt bg-white">
+                          <option value="charge">Charge</option>
+                          <option value="tax">Tax</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <input type="text" value={a.label} placeholder="Label (e.g. Freight, TDS)"
+                          onChange={e => updateAdjustment(a.id, { label: e.target.value })}
+                          className="text-[12px] border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt" />
+                        <div className="flex">
+                          <button type="button" onClick={() => updateAdjustment(a.id, { mode: 'percent' })}
+                            className={`flex-1 text-[11px] font-semibold py-[6px] border rounded-l-[3px] ${a.mode === 'percent' ? 'bg-blk text-white border-blk' : 'bg-white text-g500 border-g300'}`}>%</button>
+                          <button type="button" onClick={() => updateAdjustment(a.id, { mode: 'value' })}
+                            className={`flex-1 text-[11px] font-semibold py-[6px] border -ml-px rounded-r-[3px] ${a.mode === 'value' ? 'bg-blk text-white border-blk' : 'bg-white text-g500 border-g300'}`}>₹</button>
+                        </div>
+                        <input type="number" step="any" min="0" value={a.rate || ''} placeholder={a.mode === 'percent' ? '%' : 'amount'}
+                          onChange={e => updateAdjustment(a.id, { rate: Number(e.target.value) })}
+                          className="font-mono text-[12px] text-right border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt" />
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" title="Add or deduct" onClick={() => updateAdjustment(a.id, { direction: a.direction === 'add' ? 'deduct' : 'add' })}
+                            className={`text-[11px] font-bold w-7 py-[6px] rounded-[3px] border ${a.direction === 'deduct' ? 'bg-red-lt text-red-mrt border-red-mrt/30' : 'bg-green-50 text-green-700 border-green-300'}`}>
+                            {a.direction === 'deduct' ? '−' : '+'}
+                          </button>
+                          <span className={`font-mono text-[11px] font-bold ${resolved && resolved.amount < 0 ? 'text-red-mrt' : 'text-blk'}`}>
+                            {resolved ? `${resolved.amount < 0 ? '−' : ''}${formatINR(Math.abs(resolved.amount))}` : '—'}
+                          </span>
+                        </div>
+                        <button type="button" onClick={() => removeAdjustment(a.id)} title="Remove" className="text-g400 hover:text-red-mrt p-1">
+                          <svg viewBox="0 0 16 16" width="13" height="13" className="fill-current"><path d="M5.5 1h5v1h-5V1zM3 3v1h10V3H3zm1 2v9h8V5H4zm2 1h1v7H6V6zm3 0h1v7H9V6z" /></svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <div className="text-[10px] text-g400 pt-1">Percentages apply on the items sub-total (excl. GST). These appear on the Proforma Invoice between GST and Grand Total.</div>
+                </div>
+              )}
             </div>
 
             {/* Export / Tax Details for PI */}
@@ -772,9 +852,15 @@ export function NewOrder() {
                 </tbody>
               </table>
               <div className="flex justify-end p-4">
-                <div className="w-[240px] text-[12px] space-y-1.5">
+                <div className="w-[280px] text-[12px] space-y-1.5">
                   <div className="flex justify-between text-g500"><span>Sub-Total</span><span className="font-mono">{formatINR(subTotal)}</span></div>
                   <div className="flex justify-between text-g500"><span>GST</span><span className="font-mono">{formatINR(gstTotal)}</span></div>
+                  {adjLines.map(l => (
+                    <div key={l.id} className="flex justify-between text-g500">
+                      <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}</span>
+                      <span className={`font-mono ${l.amount < 0 ? 'text-red-mrt' : ''}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between font-bold text-blk border-t border-g200 pt-2 text-[14px]"><span>Order Value</span><span className="font-mono text-red-mrt">{formatINR(grandTotal)}</span></div>
                 </div>
               </div>

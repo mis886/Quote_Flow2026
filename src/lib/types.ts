@@ -30,6 +30,18 @@ export interface OrderItem extends LineItem {
   remarks?: string;
 }
 
+// Extra taxes (VAT/TDS/TCS…) and charges (Freight/P&F…) on an order.
+// Percentage lines are computed on the items sub-total (excl. GST).
+export type OrderAdjustmentKind = 'tax' | 'charge' | 'other';
+export interface OrderAdjustment {
+  id: string;
+  kind: OrderAdjustmentKind;       // grouping/label hint
+  label: string;                   // e.g. 'Freight', 'TDS', 'Packing & Forwarding'
+  mode: 'percent' | 'value';       // % of sub-total, or fixed amount
+  rate: number;                    // the % or the fixed amount, as entered
+  direction: 'add' | 'deduct';     // add (charges) or deduct (e.g. TDS withheld)
+}
+
 export interface Contact {
   id: string;
   name: string;
@@ -120,6 +132,7 @@ export interface Order {
   value: number;
   inco?: string;
   items: OrderItem[];
+  adjustments?: OrderAdjustment[];   // line taxes & charges applied between GST and Grand Total
   poFileName?: string;
   attachments?: Attachment[];
   authorizedPerson?: {
