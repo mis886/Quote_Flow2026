@@ -35,6 +35,20 @@ export function NewQuote() {
   const navigate = useNavigate();
   const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory } = useAppStore();
 
+  // ── Unsaved-changes guard ──
+  // `dirty` flips on first edit, clears on a successful save; while dirty,
+  // refreshing / closing / leaving the page warns before discarding edits.
+  const [dirty, setDirty] = useState(false);
+  const markDirty = () => setDirty(d => d || true);
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+  const confirmLeave = () =>
+    !dirty || window.confirm('You have unsaved changes. Leave without saving?');
+
   const descSuggestions = useMemo(() =>
     [...new Set([
       ...data.enquiries.flatMap(e => e.items.map(i => i.desc)),
@@ -189,6 +203,7 @@ export function NewQuote() {
   const copyFromQuote = (srcQuote: Quote) => {
     const copied = srcQuote.items.map((it, idx) => ({ ...it, seq: idx + 1 }));
     setItems(copied);
+    markDirty();
     setShowCopyQuote(false);
   };
 
@@ -354,7 +369,7 @@ export function NewQuote() {
     setIsSaving(true);
     try {
       const qData = await persistQuote();
-      if (qData) navigate('/quotes');
+      if (qData) { setDirty(false); navigate('/quotes'); }
     } catch {
       setErrors({ global: 'Failed to save. Please check your connection.' });
     } finally { setIsSaving(false); }
@@ -366,6 +381,7 @@ export function NewQuote() {
     try {
       const qData = await persistQuote();
       if (!qData) return;
+      setDirty(false);   // persisted — no longer unsaved
       const unit = unitId ? data.units.find(u => u.id === unitId) : data.units.find(u => u.is_default);
       const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
       const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
@@ -425,13 +441,13 @@ export function NewQuote() {
                 </select>
               </div>
             )}
-            <Button variant="secondary" onClick={() => navigate('/quotes')}>Back</Button>
+            <Button variant="secondary" onClick={() => { if (confirmLeave()) navigate('/quotes'); }}>Back</Button>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="px-5 pb-6 pt-3 flex-1 overflow-y-auto">
+      <div className="px-5 pb-6 pt-3 flex-1 overflow-y-auto" onInput={markDirty} onChange={markDirty}>
 
         {/* ══ STEP 1: Form ══ */}
         {step === 1 && (
@@ -619,7 +635,7 @@ export function NewQuote() {
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => { setItems(pdfPreview); setPdfPreview(null); }} className="px-3 py-1.5 bg-red-mrt text-white rounded-[4px] text-[11px] font-bold hover:bg-red-700 transition-colors">
+                    <button type="button" onClick={() => { setItems(pdfPreview); setPdfPreview(null); markDirty(); }} className="px-3 py-1.5 bg-red-mrt text-white rounded-[4px] text-[11px] font-bold hover:bg-red-700 transition-colors">
                       Use These Items
                     </button>
                     <button type="button" onClick={() => setPdfPreview(null)} className="px-3 py-1.5 border border-g300 text-g600 rounded-[4px] text-[11px] font-medium hover:bg-g100 transition-colors">
@@ -979,7 +995,7 @@ export function NewQuote() {
                 Email to Client
               </button>
               <div className="h-5 w-px bg-g200" />
-              <button type="button" onClick={() => navigate('/quotes')} disabled={isSaving} className="bg-white border border-g300 text-g600 font-mono text-[10px] font-bold tracking-widest uppercase px-[16px] py-[9px] rounded-[3px] hover:bg-g50 disabled:opacity-50">
+              <button type="button" onClick={() => { if (confirmLeave()) navigate('/quotes'); }} disabled={isSaving} className="bg-white border border-g300 text-g600 font-mono text-[10px] font-bold tracking-widest uppercase px-[16px] py-[9px] rounded-[3px] hover:bg-g50 disabled:opacity-50">
                 Cancel
               </button>
             </>

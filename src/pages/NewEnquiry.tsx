@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { generateId, localDateStr, localDateTimeStr } from '../lib/utils';
@@ -16,6 +16,20 @@ export function NewEnquiry() {
   const editId = searchParams.get('id');
   const { data, addEnquiry, updateEnquiry, addCustomer } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
+
+  // ── Unsaved-changes guard ──
+  // `dirty` flips on first edit, clears on a successful save; while dirty,
+  // refreshing / closing / leaving the page warns before discarding edits.
+  const [dirty, setDirty] = useState(false);
+  const markDirty = () => setDirty(d => d || true);
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+  const confirmLeave = () =>
+    !dirty || window.confirm('You have unsaved changes. Leave without saving?');
 
   const descSuggestions = useMemo(() =>
     [...new Set(data.enquiries.flatMap(e => e.items.map(i => i.desc)).filter(Boolean))].sort(),
@@ -83,6 +97,7 @@ export function NewEnquiry() {
     setItems(extractedItems.map((it, i) => ({ ...it, seq: i + 1 })));
     setExtractedItems(null);
     setExtractError('');
+    markDirty();
   };
 
   const [items, setItems] = useState<LineItem[]>([
@@ -92,10 +107,17 @@ export function NewEnquiry() {
   const [enqId, setEnqId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Hydrate the form ONCE per enquiry. Guards against a background data refresh
+  // (e.g. Supabase token refresh on tab focus) re-running this effect and wiping
+  // the user's unsaved edits.
+  const hydratedKey = useRef<string | null>(null);
   useEffect(() => {
+    const key = editId ? `edit:${editId}` : 'new';
+    if (hydratedKey.current === key) return;
     if (editId) {
       const e = data.enquiries.find(x => x.id === editId);
       if (e) {
+        hydratedKey.current = key;
         setEnqId(e.id);
         setDate(localDateTimeStr(new Date(e.recv)));
         setSrc(e.src);
@@ -126,6 +148,7 @@ export function NewEnquiry() {
         }
       }
     } else {
+      hydratedKey.current = key;
       setEnqId(generateId('ENQ', data.enquiries.map(e => e.id)));
     }
   }, [editId, data.enquiries, data.customers]);
@@ -320,6 +343,7 @@ export function NewEnquiry() {
         });
       }
 
+      setDirty(false);   // persisted — no longer unsaved
       if (andQuote) navigate(`/quotes/new?enqRef=${enqId}`);
       else navigate('/enquiries');
     } catch (error: any) {
@@ -339,11 +363,11 @@ export function NewEnquiry() {
             <h1 className="font-serif text-2xl text-blk tracking-tight leading-tight">{editId ? 'Edit' : 'Log'} <em className="italic text-red-mrt">{editId ? 'Enquiry' : 'New Enquiry'}</em></h1>
             <p className="text-xs text-g500 mt-1 font-light">{editId ? `Updating record ${editId}` : 'Capture all requirements with individual line items.'}</p>
           </div>
-          <Button variant="secondary" onClick={() => navigate('/enquiries')}>Back</Button>
+          <Button variant="secondary" onClick={() => { if (confirmLeave()) navigate('/enquiries'); }}>Back</Button>
         </div>
       </div>
 
-      <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
+      <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto" onInput={markDirty} onChange={markDirty}>
         <div className="bg-blk p-[9px_14px] rounded-[3px] inline-flex items-center gap-[12px] mb-[18px]">
           <div className="font-mono text-[8px] font-bold tracking-[2px] uppercase text-white/30">Auto ENQ No.</div>
           <div className="font-mono text-[14px] font-bold text-white">{enqId}</div>
@@ -637,7 +661,7 @@ export function NewEnquiry() {
                 <RfqMapDialog
                   headers={mapDialog.headers}
                   rows={mapDialog.rows}
-                  onApply={mapped => { setItems(mapped); setMapDialog(null); setExtractedItems(null); setExtractError(''); }}
+                  onApply={mapped => { setItems(mapped); setMapDialog(null); setExtractedItems(null); setExtractError(''); markDirty(); }}
                   onClose={() => setMapDialog(null)}
                 />
               )}
@@ -687,7 +711,7 @@ export function NewEnquiry() {
         <Button variant="dark" onClick={() => handleSave(true)} disabled={isSaving}>
           {isSaving ? 'Uploading...' : 'Save & Create Quote'}
         </Button>
-        <Button variant="secondary" onClick={() => navigate('/enquiries')} disabled={isSaving}>Cancel</Button>
+        <Button variant="secondary" onClick={() => { if (confirmLeave()) navigate('/enquiries'); }} disabled={isSaving}>Cancel</Button>
         <div className="ml-auto text-[11px] text-g500">Fields marked <span className="text-red-mrt">*</span> required</div>
         {errors.global && <div className="ml-4 text-red-mrt text-[11px] font-bold">{errors.global}</div>}
       </div>
