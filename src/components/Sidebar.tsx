@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, FileSignature, ShoppingCart, Users, LineChart, Settings, Boxes, LogOut, Phone, Brain } from 'lucide-react';
+import { LayoutDashboard, FileText, FileSignature, ShoppingCart, Users, LineChart, Settings, Boxes, LogOut, Phone, Brain, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store';
 
 export function Sidebar() {
   const location = useLocation();
   const { data, user, logout } = useAppStore();
+
+  // Auto-collapse when entering the Follow-Ups command centre
+  const [collapsed, setCollapsed] = useState(location.pathname === '/followups');
+  useEffect(() => {
+    if (location.pathname === '/followups') setCollapsed(true);
+  }, [location.pathname]);
 
   const newEnqCount = data.enquiries.filter(e => e.status === 'New' || e.status === 'In Review').length;
   const sentQuotesCount = data.quotes.filter(q => q.status === 'Sent').length;
@@ -30,7 +36,22 @@ export function Sidebar() {
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
 
   return (
-    <aside className="w-[220px] min-w-[220px] bg-dark flex flex-col border-r border-white/5">
+    <aside className={cn(
+      "bg-dark flex flex-col border-r border-white/5 relative transition-all duration-200 shrink-0",
+      collapsed ? "w-0 min-w-0 overflow-hidden" : "w-[220px] min-w-[220px]"
+    )}>
+      {/* Toggle tab — always visible, sticks to right edge */}
+      <button
+        type="button"
+        onClick={() => setCollapsed(c => !c)}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-50 w-4 h-8 bg-dark border border-white/10 rounded-r flex items-center justify-center text-white/30 hover:text-white/70 transition-colors",
+          collapsed ? "left-0" : "left-[220px]"
+        )}
+      >
+        <ChevronRight size={10} className={cn("transition-transform", !collapsed && "rotate-180")} />
+      </button>
       <div className="bg-white border-b border-g200 px-4 py-3.5 flex items-center gap-3">
         <img
           src="/mangla-logo.png"

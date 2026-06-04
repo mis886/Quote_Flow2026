@@ -5,14 +5,12 @@ import {
   Phone,
   Mail,
   MessageCircle,
-  Users,
   MapPin,
   Calendar,
   Clock,
   Search,
   Filter,
   CheckCircle2,
-  Send,
   User,
   History,
   RotateCcw,
@@ -23,6 +21,8 @@ import {
   ChevronRight,
   ExternalLink,
   AlertTriangle,
+  Trophy,
+  XCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
@@ -284,6 +284,18 @@ export default function FollowUps() {
     }
   };
 
+  const handleMarkWon = async (quoteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Mark this quote as WON? Ensure PO is received.')) return;
+    try { await closeFollowUp(quoteId, 'Won'); } catch { alert('Failed to mark as Won.'); }
+  };
+
+  const handleMarkLost = async (quoteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Mark this quote as LOST?')) return;
+    try { await closeFollowUp(quoteId, 'Lost'); } catch { alert('Failed to mark as Lost.'); }
+  };
+
   const handleQuotePDF = (quote: Quote) => {
     const cust = data.customers.find(c => c.name === quote.cust);
     const unit = quote.unitId ? data.units.find(u => u.id === quote.unitId) : data.units.find(u => u.is_default);
@@ -306,6 +318,24 @@ export default function FollowUps() {
   };
 
   const isClosedTab = queueTab === 'closed';
+
+  function cardOnTimeRate(logs: FollowUpLog[]) {
+    let onTime = 0, total = 0;
+    for (let i = 1; i < logs.length; i++) {
+      const prevNext = logs[i - 1].nextDate;
+      if (!prevNext) continue;
+      const due = new Date(prevNext);
+      due.setHours(23, 59, 59, 999);
+      total++;
+      if (new Date(logs[i].ts) <= due) onTime++;
+    }
+    return total > 0 ? Math.round(onTime / total * 100) : null;
+  }
+
+  function tatLabel(followUp: FollowUp | undefined, tatDays = 2) {
+    const touchCount = (followUp?.logs ?? []).filter(l => !l.note?.startsWith('Quote sent —')).length;
+    return touchCount === 0 ? `TAT: ${tatDays}d (1st call)` : 'Customer-promised';
+  }
 
   // ── Board view: full-width Kanban (replaces the old Queue list) ──
   if (viewTab === 'board') {
@@ -506,78 +536,134 @@ export default function FollowUps() {
           />
         ) : (
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => (
-            <button
+          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => {
+            const onTimePct = cardOnTimeRate(followUp?.logs ?? []);
+            const tat = tatLabel(followUp);
+            return (
+            <div
               key={quote.id}
-              type="button"
-              onClick={() => setSelectedQuoteId(quote.id)}
               className={cn(
-                "w-full text-left p-3 rounded-[6px] border transition-all duration-200 group relative",
+                "w-full rounded-[6px] border transition-all duration-200 overflow-hidden",
                 (selectedQuoteId === quote.id || (selectedItem && selectedItem.quote.id === quote.id))
                   ? "bg-red-lt border-red-mrt/20"
                   : "bg-white border-transparent hover:bg-g50 hover:border-g200"
               )}
             >
-              <div className="flex items-start justify-between mb-1.5">
-                <div className="flex items-center gap-2">
+              {/* Main card — click to select */}
+              <button
+                type="button"
+                onClick={() => setSelectedQuoteId(quote.id)}
+                className="w-full text-left p-3"
+              >
+                <div className="flex items-start justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "w-8 h-8 rounded-[4px] flex items-center justify-center font-mono text-[10px] font-bold",
+                      isClosedTab ? "bg-emerald-100 text-emerald-700" :
+                      priority === 'overdue' ? "bg-red-mrt text-white shadow-[0_2px_8px_rgba(212,32,39,0.2)]" :
+                      priority === 'today' ? "bg-sR text-white" :
+                      priority === 'unscheduled' ? "bg-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.2)]" :
+                      priority === 'upcoming' ? "bg-sW text-white" :
+                      "bg-g100 text-g500"
+                    )}>
+                      MRT
+                    </div>
+                    <div>
+                      <div className="font-mono text-[11px] font-bold text-sQ">{quote.id}</div>
+                      <div className="text-[10px] text-g400 font-medium">Ref: {quote.enqRef}</div>
+                    </div>
+                  </div>
                   <div className={cn(
-                    "w-8 h-8 rounded-[4px] flex items-center justify-center font-mono text-[10px] font-bold",
-                    isClosedTab ? "bg-emerald-100 text-emerald-700" :
-                    priority === 'overdue' ? "bg-red-mrt text-white shadow-[0_2px_8px_rgba(212,32,39,0.2)]" :
-                    priority === 'today' ? "bg-sR text-white" :
-                    priority === 'unscheduled' ? "bg-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.2)]" :
-                    priority === 'upcoming' ? "bg-sW text-white" :
-                    "bg-g100 text-g500"
+                    "px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider",
+                    isClosedTab ? "border-emerald-300 text-emerald-700 bg-emerald-50" :
+                    priority === 'overdue' ? "border-red-mrt text-red-mrt bg-red-lt" :
+                    priority === 'today' ? "border-sR text-sR bg-sR/5" :
+                    priority === 'unscheduled' ? "border-orange-400 text-orange-600 bg-orange-50" :
+                    priority === 'upcoming' ? "border-sW text-sW bg-sW/5" :
+                    "border-g300 text-g500 bg-g100"
                   )}>
-                    MRT
-                  </div>
-                  <div>
-                    <div className="font-mono text-[11px] font-bold text-sQ">{quote.id}</div>
-                    <div className="text-[10px] text-g400 font-medium">Ref: {quote.enqRef}</div>
-                  </div>
-                </div>
-                <div className={cn(
-                  "px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider",
-                  isClosedTab ? "border-emerald-300 text-emerald-700 bg-emerald-50" :
-                  priority === 'overdue' ? "border-red-mrt text-red-mrt bg-red-lt" :
-                  priority === 'today' ? "border-sR text-sR bg-sR/5" :
-                  priority === 'unscheduled' ? "border-orange-400 text-orange-600 bg-orange-50" :
-                  priority === 'upcoming' ? "border-sW text-sW bg-sW/5" :
-                  "border-g300 text-g500 bg-g100"
-                )}>
-                  {isClosedTab ? 'Closed' :
-                    priority === 'unscheduled' ? 'No Next Step' :
-                    priority === 'none' ? 'New' : priority}
-                </div>
-              </div>
-
-              <div className="text-[13px] font-bold text-blk mb-1 truncate">{quote.cust}</div>
-
-              <div className="flex items-center justify-between text-[11px] text-g500">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono">Rs{quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}</span>
-                  <span className="w-1 h-1 rounded-full bg-g300" />
-                  <span>{quote.items.length} Items</span>
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1 font-medium",
-                  !isClosedTab && priority === 'unscheduled' && "text-orange-600"
-                )}>
-                  {!isClosedTab && priority === 'unscheduled' ? (
-                    <AlertTriangle size={11} className="text-orange-500" />
-                  ) : !isClosedTab && followUp?.next_date && (priority === 'overdue' || priority === 'today') ? (
-                    <Clock size={11} className={priority === 'overdue' ? 'text-red-mrt animate-pulse' : 'text-sR'} />
-                  ) : <Calendar size={11} />}
-                  <span>
                     {isClosedTab ? 'Closed' :
-                      priority === 'unscheduled'
-                        ? (daysSinceQuote > 0 ? `Silent ${daysSinceQuote}d — set next step` : 'Set next step')
-                        : formatDue(followUp?.next_date, followUp?.next_time) ?? 'No Date'}
-                  </span>
+                      priority === 'unscheduled' ? 'No Next Step' :
+                      priority === 'none' ? 'New' : priority}
+                  </div>
                 </div>
+
+                <div className="text-[13px] font-bold text-blk truncate">{quote.cust}</div>
+                {(() => {
+                  const custRec = data.customers.find(c => c.name === quote.cust);
+                  const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                  const city = site?.city;
+                  if (!city) return null;
+                  return (
+                    <div className="flex items-center gap-0.5 text-[10px] text-g400 mb-1">
+                      <MapPin size={9} className="shrink-0" />
+                      <span className="truncate">{city}</span>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center justify-between text-[11px] text-g500">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono">Rs{quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}</span>
+                    <span className="w-1 h-1 rounded-full bg-g300" />
+                    <span>{quote.items.length} Items</span>
+                  </div>
+                  <div className={cn(
+                    "flex items-center gap-1 font-medium",
+                    !isClosedTab && priority === 'unscheduled' && "text-orange-600"
+                  )}>
+                    {!isClosedTab && priority === 'unscheduled' ? (
+                      <AlertTriangle size={11} className="text-orange-500" />
+                    ) : !isClosedTab && followUp?.next_date && (priority === 'overdue' || priority === 'today') ? (
+                      <Clock size={11} className={priority === 'overdue' ? 'text-red-mrt animate-pulse' : 'text-sR'} />
+                    ) : <Calendar size={11} />}
+                    <span>
+                      {isClosedTab ? 'Closed' :
+                        priority === 'unscheduled'
+                          ? (daysSinceQuote > 0 ? `Silent ${daysSinceQuote}d — set next step` : 'Set next step')
+                          : formatDue(followUp?.next_date, followUp?.next_time) ?? 'No Date'}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* TAT + On-Time stat strip */}
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-g50 border-t border-g100 text-[10px]">
+                <span className="font-mono text-g500">{tat}</span>
+                {onTimePct !== null && (
+                  <>
+                    <span className="w-px h-3 bg-g200" />
+                    <span className={cn(
+                      "font-mono font-bold",
+                      onTimePct >= 80 ? "text-emerald-600" : onTimePct >= 60 ? "text-orange-500" : "text-red-mrt"
+                    )}>On-Time: {onTimePct}%</span>
+                  </>
+                )}
               </div>
-            </button>
-          ))}
+
+              {/* WON / LOST quick-action buttons — only on active tab */}
+              {!isClosedTab && (
+                <div className="flex border-t border-g100">
+                  <button
+                    type="button"
+                    onClick={e => handleMarkLost(quote.id, e)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-red-mrt hover:bg-red-lt transition-colors"
+                  >
+                    <XCircle size={10} /> LOST
+                  </button>
+                  <div className="w-px bg-g100" />
+                  <button
+                    type="button"
+                    onClick={e => handleMarkWon(quote.id, e)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  >
+                    <Trophy size={10} /> WON
+                  </button>
+                </div>
+              )}
+            </div>
+            );
+          })}
           {viewTab === 'thisweek' && thisWeekQueue.length === 0 && (
             <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
               <Calendar className="mx-auto text-g300 mb-2" size={24} />
@@ -626,26 +712,61 @@ export default function FollowUps() {
                         </span>
                       </>
                     )}
+                    {/* TAT + On-Time badge */}
+                    {(() => {
+                      const tat = tatLabel(selectedItem.followUp);
+                      const pct = cardOnTimeRate(selectedItem.followUp?.logs ?? []);
+                      return (
+                        <div className="ml-auto flex items-center gap-2 bg-g50 border border-g200 rounded-[4px] px-2.5 py-1 text-[10px] font-mono">
+                          <span className="text-g500">{tat}</span>
+                          {pct !== null && (
+                            <>
+                              <span className="text-g300">·</span>
+                              <span className={cn(
+                                "font-bold",
+                                pct >= 80 ? "text-emerald-600" : pct >= 60 ? "text-orange-500" : "text-red-mrt"
+                              )}>On-Time: {pct}%</span>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* Close / Reopen — status action stays in header */}
                     {isClosedTab ? (
                       <button
                         type="button"
                         onClick={handleReopen}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-g600 bg-white hover:bg-g50 hover:text-blk transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-g600 bg-white hover:bg-g50 hover:text-blk transition-colors"
                       >
                         <RotateCcw size={12} /> Re-open
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={handleClose}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                      >
-                        <CheckCircle2 size={12} /> Close Follow-Up
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={e => handleMarkLost(selectedItem.quote.id, e)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-red-mrt/40 text-red-mrt bg-white hover:bg-red-lt transition-colors"
+                        >
+                          <XCircle size={12} /> LOST
+                        </button>
+                        <button
+                          type="button"
+                          onClick={e => handleMarkWon(selectedItem.quote.id, e)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                        >
+                          <Trophy size={12} /> WON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClose}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-g600 bg-white hover:bg-g50 hover:text-blk transition-colors"
+                        >
+                          <CheckCircle2 size={12} /> Close
+                        </button>
+                      </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <h1 className="text-3xl font-serif text-blk italic truncate">{selectedItem.quote.cust}</h1>
                     {(() => {
                       const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
@@ -657,6 +778,19 @@ export default function FollowUps() {
                       );
                     })()}
                   </div>
+                  {/* City / branch under the customer name */}
+                  {(() => {
+                    const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                    const city = site?.city || custRec?.city;
+                    if (!city) return null;
+                    return (
+                      <div className="flex items-center gap-1 text-[12px] text-g500 font-medium mb-4">
+                        <MapPin size={11} className="text-g400 shrink-0" />
+                        <span>{city}{site?.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}</span>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex flex-wrap gap-6 items-center">
                     <div className="flex flex-col">
@@ -772,67 +906,105 @@ export default function FollowUps() {
                 {(!selectedItem.followUp || selectedItem.followUp.logs.length === 0) ? (
                   <div className="py-8 text-center text-g400 text-[12px]">No activity logged yet.</div>
                 ) : (
-                  <div className="space-y-4">
-                    {groupLogsByDay(selectedItem.followUp.logs).map(({ day, logs }) => (
-                      <div key={day}>
-                        {/* Date divider */}
-                        <div className="flex items-center gap-3 my-3">
-                          <div className="flex-1 h-px bg-g200" />
-                          <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
-                            {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
-                          </span>
-                          <div className="flex-1 h-px bg-g200" />
-                        </div>
+                  <div className="space-y-1">
+                    {(() => {
+                      // Flatten all logs in chronological order to compute ON TIME
+                      const allLogs = selectedItem.followUp.logs;
+                      // For each log at position i, its "due" was the nextDate of log[i-1]
+                      const wasOnTime = (i: number): boolean | null => {
+                        if (i === 0) return null; // first entry has no prior due date
+                        const prevNextDate = allLogs[i - 1].nextDate;
+                        if (!prevNextDate) return null;
+                        const due = new Date(prevNextDate);
+                        due.setHours(23, 59, 59, 999);
+                        return new Date(allLogs[i].ts) <= due;
+                      };
 
-                        {logs.map((log, idx) => {
-                          const cfg = CHANNEL_CONFIG[log.channel] ?? CHANNEL_CONFIG['Called'];
-                          const isSystem = log.note?.startsWith('Quote sent —');
+                      return groupLogsByDay(allLogs).map(({ day, logs: dayLogs }) => (
+                        <div key={day}>
+                          {/* Date divider */}
+                          <div className="flex items-center gap-3 my-3">
+                            <div className="flex-1 h-px bg-g200" />
+                            <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
+                              {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
+                            </span>
+                            <div className="flex-1 h-px bg-g200" />
+                          </div>
 
-                          if (isSystem) {
+                          {dayLogs.map((log) => {
+                            const globalIdx = allLogs.indexOf(log);
+                            const cfg = CHANNEL_CONFIG[log.channel] ?? CHANNEL_CONFIG['Called'];
+                            const isSystem = log.note?.startsWith('Quote sent —');
+                            const onTime = wasOnTime(globalIdx);
+
+                            // "Quote Sent" — prominent system entry
+                            if (isSystem) {
+                              return (
+                                <div key={globalIdx} className="flex gap-3 mb-3">
+                                  <div className="flex flex-col items-center w-7 shrink-0">
+                                    <div className="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[12px]">📄</div>
+                                    <div className="w-px flex-1 bg-g200 mt-1" />
+                                  </div>
+                                  <div className="flex-1 pb-3">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className="text-[12px] font-bold text-blk">Quote Sent</span>
+                                      <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                                    </div>
+                                    <p className="text-[12px] text-g600 leading-relaxed">{log.note}</p>
+                                    {log.nextDate && (
+                                      <div className="text-[11px] font-semibold text-sR mt-1">
+                                        → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                      </div>
+                                    )}
+                                    <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Regular follow-up log
                             return (
-                              <div key={idx} className="flex justify-center my-2">
-                                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                                  <span className="text-[10px]">📨</span>
-                                  <span className="text-[11px] text-amber-700 font-medium">{log.note}</span>
-                                  <span className="text-[9px] text-amber-500 font-mono">
-                                    {fmtIST(parseISO(log.ts), 'hh:mm aa')}
-                                  </span>
+                              <div key={globalIdx} className="flex gap-3 mb-3">
+                                <div className="flex flex-col items-center w-7 shrink-0">
+                                  <div className={cn("w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[12px]", cfg.bg)}>
+                                    {cfg.icon}
+                                  </div>
+                                  <div className="w-px flex-1 bg-g200 mt-1" />
+                                </div>
+                                <div className="flex-1 pb-3">
+                                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                    <span className="text-[12px] font-bold text-blk">{log.channel}</span>
+                                    {onTime !== null && (
+                                      <span className={cn(
+                                        "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                        onTime ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
+                                      )}>
+                                        {onTime ? 'ON TIME' : 'LATE'}
+                                      </span>
+                                    )}
+                                    <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                                  </div>
+                                  <p className="text-[12px] text-g700 leading-relaxed whitespace-pre-wrap mb-1">{log.note}</p>
+                                  {log.nextDate && (
+                                    <div className="mb-1">
+                                      <div className="text-[11px] font-semibold text-sR">
+                                        → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                      </div>
+                                      {log.nextNote && (
+                                        <div className="text-[10.5px] italic text-g500 pl-2 border-l-2 border-g200 mt-0.5">
+                                          {log.nextNote}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="text-[10px] text-g400">{log.who}</div>
                                 </div>
                               </div>
                             );
-                          }
-
-                          return (
-                            <div key={idx} className="flex justify-end mb-2">
-                              <div className={cn("max-w-[85%] rounded-[12px] border px-4 py-3", cfg.bg, cfg.border)}>
-                                {/* Channel badge */}
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <span className="text-[11px]">{cfg.icon}</span>
-                                  <span className={cn("text-[9px] font-bold uppercase tracking-widest", cfg.color)}>{log.channel}</span>
-                                </div>
-                                <p className="text-[13px] text-blk leading-relaxed whitespace-pre-wrap mb-2">{log.note}</p>
-                                {log.nextDate && (
-                                  <div className="mb-1.5">
-                                    <div className="text-[11px] font-semibold text-sR">
-                                      → Next: {log.nextDate}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
-                                    </div>
-                                    {log.nextNote && (
-                                      <div className="text-[10.5px] italic text-g500 mt-0.5 pl-2 border-l-2 border-g200">
-                                        {log.nextNote}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="flex items-center justify-between gap-4">
-                                  <span className="text-[10px] text-g500 font-medium">{log.who}</span>
-                                  <span className="text-[9px] text-g400 font-mono">{fmtIST(parseISO(log.ts), 'hh:mm aa')}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+                          })}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </div>
