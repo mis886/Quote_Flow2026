@@ -397,7 +397,7 @@ function CustomerDetail({ stats, allFollowups }: {
             <div className="text-[9px] font-bold tracking-[1.5px] uppercase text-g400 mb-4">Conversion Funnel</div>
             <div className="space-y-2.5">
               {[
-                { label: 'Enquiries', n: enqs.length,   pct: 100, color: 'bg-blue-500' },
+                { label: 'Enquiries', n: enqs.length,   pct: enqs.length > 0 ? 100 : 0, color: 'bg-blue-500' },
                 { label: 'Quoted',    n: quotes.length,  pct: enqs.length ? Math.round(quotes.length / enqs.length * 100) : 0, color: 'bg-violet-500' },
                 { label: 'Won',       n: quotes.filter(q => q.status === 'Won').length,
                   pct: enqs.length ? Math.round(quotes.filter(q => q.status === 'Won').length / enqs.length * 100) : 0, color: 'bg-emerald-500' },
@@ -405,7 +405,7 @@ function CustomerDetail({ stats, allFollowups }: {
                 <div key={row.label} className="flex items-center gap-2.5">
                   <span className="text-[11px] text-g500 w-16 shrink-0">{row.label}</span>
                   <div className="flex-1 h-[7px] bg-g100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${row.color}`} style={{ width: `${Math.max(row.pct, row.n > 0 ? 4 : 0)}%` }} />
+                    <div className={`h-full rounded-full ${row.n > 0 ? row.color : ''}`} style={{ width: `${row.n > 0 ? Math.max(row.pct, 4) : 0}%` }} />
                   </div>
                   <span className="text-[11px] font-semibold text-blk w-5 text-right">{row.n}</span>
                   <span className="text-[9px] text-g400 w-7 text-right">{row.pct}%</span>
