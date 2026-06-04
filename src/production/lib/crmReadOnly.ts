@@ -15,9 +15,6 @@ export interface CrmOrderLite {
   cust: string | null;    // customer name (denormalised on orders)
   status: string | null;
   items: CrmOrderItem[];  // JSONB
-  // Document attachments from the CRM order
-  po_file_name: string | null;          // raw S3 path for the PO PDF
-  attachments: CrmOrderAttachment[];    // drawing / other attachments
 }
 
 export interface CrmOrderItem {
@@ -34,36 +31,19 @@ export interface CrmOrderItem {
   remarks?: string;
 }
 
-export interface CrmOrderAttachment {
-  id: string;
-  fileName: string;
-  storagePath: string;
-  uploadedAt: string;
-}
-
 // Open Orders only — Processing status. We surface PO No + customer
 // for the picker.
 export async function listOpenCrmOrders(): Promise<CrmOrderLite[]> {
   const { data, error } = await supabase
     .from('orders')
-    .select('id, po_no, po_date, dlv_date, cust, status, items, poFileName, attachments')
+    .select('id, po_no, po_date, dlv_date, cust, status, items')
     .eq('status', 'Processing')
     .order('po_date', { ascending: false });
   if (error) {
     console.error('listOpenCrmOrders', error);
     return [];
   }
-  return (data || []).map((r: any) => ({
-    id:           r.id,
-    po_no:        r.po_no,
-    po_date:      r.po_date,
-    dlv_date:     r.dlv_date,
-    cust:         r.cust,
-    status:       r.status,
-    items:        r.items || [],
-    po_file_name: r.poFileName ?? null,
-    attachments:  r.attachments || [],
-  })) as CrmOrderLite[];
+  return (data || []) as CrmOrderLite[];
 }
 
 // Return only those CRM orders that don't yet have ANY production job

@@ -4,13 +4,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, FileInput, RefreshCw, Paperclip, ExternalLink, X, Loader2 } from 'lucide-react';
+import { Search, ArrowRight, FileInput, RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui';
 import {
   Table, THead, TH, TR, TD, EmptyRow, PageHeader, FilterBar,
 } from '../components/table';
 import { listOrdersWithoutJobs, type CrmOrderLite } from '../lib/crmReadOnly';
-import { getS3SignedUrl } from '../../lib/s3';
 import { fmtDate, localDateStr, formatINR } from '../../lib/utils';
 
 type Urgency = 'all' | 'overdue' | 'soon' | 'later';
@@ -28,7 +27,6 @@ export function ProductionOrders() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('all');
-  const [docsOrder, setDocsOrder] = useState<CrmOrderLite | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -163,25 +161,13 @@ export function ProductionOrders() {
                     {fmtDate(o.dlv_date)}{overdue ? ' ⚠' : ''}
                   </TD>
                   <TD>
-                    <div className="flex items-center gap-1.5">
-                      {(o.po_file_name || o.attachments?.length > 0) && (
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); setDocsOrder(o); }}
-                          className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[#555] border border-[#D0D0D0] rounded-[3px] px-2 py-1 hover:bg-[#F5F5F5] transition-colors whitespace-nowrap"
-                          title="View attached documents"
-                        >
-                          <Paperclip size={11} /> Docs
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); createJob(o.id); }}
-                        className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[#0A6ED1] border border-[#C2D8F8] rounded-[3px] px-2 py-1 hover:bg-[#E8F0FD] transition-colors whitespace-nowrap"
-                      >
-                        <FileInput size={11} /> Create Job <ArrowRight size={11} />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); createJob(o.id); }}
+                      className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[#0A6ED1] border border-[#C2D8F8] rounded-[3px] px-2 py-1 hover:bg-[#E8F0FD] transition-colors whitespace-nowrap"
+                    >
+                      <FileInput size={11} /> Create Job <ArrowRight size={11} />
+                    </button>
                   </TD>
                 </TR>
               );
@@ -191,78 +177,8 @@ export function ProductionOrders() {
 
         <div className="mt-3 flex items-center gap-2 text-[11px] text-[#333]">
           <FileInput size={11} />
-          <span>Click a row (or &quot;Create Job&quot;) to open a pre-filled New Production Job. Orders that already have a job are hidden.</span>
+          <span>Click a row (or “Create Job”) to open a pre-filled New Production Job. Orders that already have a job are hidden.</span>
         </div>
-      </div>
-
-      {docsOrder && (
-        <OrderDocsModal order={docsOrder} onClose={() => setDocsOrder(null)} />
-      )}
-    </div>
-  );
-}
-
-// Modal that shows PO + drawing attachments for a CRM order.
-function OrderDocsModal({ order, onClose }: { order: CrmOrderLite; onClose: () => void }) {
-  const [urls, setUrls] = useState<{ label: string; url: string | null; loading: boolean }[]>([]);
-
-  useEffect(() => {
-    const files: { label: string; path: string }[] = [];
-    if (order.po_file_name) {
-      files.push({ label: `PO — ${order.po_file_name.split('/').pop()}`, path: order.po_file_name });
-    }
-    for (const a of order.attachments || []) {
-      files.push({ label: a.fileName, path: a.storagePath });
-    }
-    setUrls(files.map(f => ({ label: f.label, url: null, loading: true })));
-    Promise.all(files.map(f => getS3SignedUrl(f.path))).then(resolved => {
-      setUrls(files.map((f, i) => ({ label: f.label, url: resolved[i], loading: false })));
-    });
-  }, [order]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="bg-white rounded-[4px] shadow-xl border border-[#E4E5E6] w-full max-w-md mx-4 p-5 space-y-3"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[12px] font-semibold text-[#111]">Order Documents</div>
-            <div className="text-[10.5px] text-[#555]">{order.cust} · {order.po_no || order.id}</div>
-          </div>
-          <button type="button" onClick={onClose} className="text-[#555] hover:text-[#111] p-0.5">
-            <X size={15} />
-          </button>
-        </div>
-
-        {urls.length === 0 ? (
-          <div className="text-[11.5px] text-[#888] italic py-2">No attachments on this order.</div>
-        ) : (
-          <div className="space-y-1.5">
-            {urls.map((f, i) => (
-              <div key={i} className="flex items-center gap-2 bg-[#F5F6F7] border border-[#E4E5E6] rounded-[3px] px-3 py-2">
-                <Paperclip size={11} className="text-[#0A6ED1] shrink-0" />
-                <span className="flex-1 text-[11px] text-[#111] truncate" title={f.label}>{f.label}</span>
-                {f.loading ? (
-                  <Loader2 size={11} className="animate-spin text-[#888]" />
-                ) : f.url ? (
-                  <a
-                    href={f.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#0A6ED1] hover:text-[#085EA8]"
-                    title="Open"
-                  >
-                    <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <span className="text-[10px] text-[#BB0000]">unavailable</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
