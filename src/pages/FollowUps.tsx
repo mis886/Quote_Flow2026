@@ -900,13 +900,29 @@ export default function FollowUps() {
                   <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
                 </div>
 
-                {(!selectedItem.followUp || selectedItem.followUp.logs.length === 0) ? (
-                  <div className="py-8 text-center text-g400 text-[12px]">No activity logged yet.</div>
-                ) : (
+                {(() => {
+                  const q = selectedItem.quote;
+                  const qTotal = q.items.reduce((s, i) => s + i.total, 0);
+                  const qItemDesc = q.items[0]?.desc ?? '';
+                  const qItemCount = q.items.length;
+                  const quoteSentNote = `Sent ${q.id} for ${qItemDesc}${qItemCount > 1 ? ` — ${qItemCount} items` : ''}. ₹${qTotal.toLocaleString('en-IN')}.`;
+
+                  // Synthetic "Quote Sent" entry built from quote data — always shown first
+                  const syntheticSent: FollowUpLog = {
+                    ts: q.date ? `${q.date}T09:00:00.000Z` : new Date(q.validity || Date.now()).toISOString(),
+                    who: selectedItem.followUp?.owner || 'System',
+                    channel: 'Email',
+                    note: quoteSentNote,
+                    nextDate: selectedItem.followUp?.logs?.[0]?.nextDate,
+                    nextChannel: selectedItem.followUp?.logs?.[0]?.nextChannel,
+                  };
+
+                  // Use stored logs but skip any duplicate quote-sent entry
+                  const storedLogs = (selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+                  const allLogs: FollowUpLog[] = [syntheticSent, ...storedLogs];
+                  return (
                   <div className="space-y-1">
                     {(() => {
-                      // Flatten all logs in chronological order to compute ON TIME
-                      const allLogs = selectedItem.followUp.logs;
                       // For each log at position i, its "due" was the nextDate of log[i-1]
                       const wasOnTime = (i: number): boolean | null => {
                         if (i === 0) return null; // first entry has no prior due date
@@ -1007,7 +1023,8 @@ export default function FollowUps() {
                       ));
                     })()}
                   </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Log Activity Form — hidden when viewing closed tab */}

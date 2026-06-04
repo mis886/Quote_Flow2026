@@ -657,15 +657,52 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                 <History size={14} className="text-g400" />
                 <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
               </div>
-              {logs.length === 0 ? (
-                <div className="py-8 text-center text-g400 text-[12px]">No activity logged yet.</div>
-              ) : (
+              {(() => {
+                const q = card.quote!;
+                const qTotal = q.items.reduce((s, i) => s + i.total, 0);
+                const qItemDesc = q.items[0]?.desc ?? '';
+                const qItemCount = q.items.length;
+                const quoteSentNote = `Sent ${q.id} for ${qItemDesc}${qItemCount > 1 ? ` — ${qItemCount} items` : ''}. ₹${qTotal.toLocaleString('en-IN')}.`;
+                const sentLog: FollowUpLog = {
+                  ts: q.date ? `${q.date}T09:00:00.000Z` : new Date().toISOString(),
+                  who: card.followUp?.owner || card.owner || 'System',
+                  channel: 'Email',
+                  note: quoteSentNote,
+                  nextDate: card.followUp?.logs?.[0]?.nextDate,
+                  nextChannel: card.followUp?.logs?.[0]?.nextChannel,
+                };
+                // Real logs without any duplicate quote-sent entries
+                const realLogs = logs.filter(l => !(l.note?.startsWith('Quote sent —') || l.note?.startsWith('Sent ')));
+                const allLogs: FollowUpLog[] = [sentLog, ...realLogs].reverse(); // newest first for chat view
+
+                return (
                 <div className="space-y-2">
-                  {/* Chat-style: 'what happened' on the LEFT (customer side),
-                      'next to-do' on the RIGHT (our side). Stored newest-first,
-                      so reverse to read oldest → newest like a conversation. */}
-                  {[...logs].reverse().map((log, idx) => {
+                  {allLogs.map((log, idx) => {
+                    const isQuoteSent = idx === allLogs.length - 1; // last in reversed = first chronologically
                     const cfg = CHANNEL_PILL[log.channel] ?? CHANNEL_PILL.Called;
+
+                    if (isQuoteSent) {
+                      return (
+                        <div key={idx} className="flex justify-center">
+                          <div className="bg-amber-50 border border-amber-200 rounded-[10px] px-4 py-3 max-w-[90%] w-full">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[13px]">📄</span>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-700">Quote Sent</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 ml-1">ON TIME</span>
+                              <span className="text-[8.5px] font-mono text-amber-600/70 ml-auto">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                            </div>
+                            <p className="text-[12.5px] text-blk leading-relaxed">{log.note}</p>
+                            {log.nextDate && (
+                              <div className="mt-1.5 text-[11px] font-semibold text-sR">
+                                → Next: {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                              </div>
+                            )}
+                            <div className="text-[8.5px] text-amber-600/60 mt-1">{log.who}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <React.Fragment key={idx}>
                         {/* LEFT — what happened */}
@@ -682,10 +719,10 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                           </div>
                         </div>
 
-                        {/* RIGHT — next to-do (only when a next step was planned) */}
+                        {/* RIGHT — next to-do */}
                         {log.nextDate && (
                           <div className="flex justify-end">
-                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] px-3 py-2 shadow-sm border border-[#c5e9a8]" style={{ backgroundColor: '#DCF8C6' }}>
+                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] px-3 py-2 shadow-sm border border-[#c5e9a8] bg-[#DCF8C6]">
                               <div className="text-[8.5px] font-bold uppercase tracking-widest text-emerald-800/70 mb-0.5">
                                 To-Do{log.nextChannel ? ` · ${log.nextChannel}` : ''}
                               </div>
@@ -702,7 +739,8 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                     );
                   })}
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Inline log form */}
