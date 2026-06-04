@@ -28,6 +28,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
+import { DEFAULT_STAGE_TAT_H } from '../lib/types';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import PipelineBoard from '../components/PipelineBoard';
 
@@ -319,26 +320,78 @@ export default function FollowUps() {
 
   const isClosedTab = queueTab === 'closed';
 
-  function cardOnTimeRate(logs: FollowUpLog[]) {
-    let onTime = 0, total = 0;
-    for (let i = 1; i < logs.length; i++) {
-      const prevNext = logs[i - 1].nextDate;
-      if (!prevNext) continue;
-      const due = new Date(prevNext);
-      due.setHours(23, 59, 59, 999);
-      total++;
-      if (new Date(logs[i].ts) <= due) onTime++;
-    }
-    return total > 0 ? Math.round(onTime / total * 100) : null;
-  }
-
   function isQuoteSentLog(note: string) {
     return note?.startsWith('Quote sent —') || note?.startsWith('Sent MRT-') || note?.startsWith('Sent ');
   }
 
-  function tatLabel(followUp: FollowUp | undefined, tatDays = 2) {
-    const touchCount = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length;
-    return touchCount === 0 ? `TAT: ${tatDays}d (1st call)` : 'Customer-promised';
+  // Resolve TAT hours for a stage from settings (mirrors PipelineBoard logic).
+  function stageTatHours(stage: string): number {
+    const settings = data.settings;
+    const h = settings?.pipeline_tat_h?.[stage as any];
+    if (h != null) return h;
+    const d = settings?.pipeline_tat?.[stage as any];
+    if (d != null) return d * 24;
+    return DEFAULT_STAGE_TAT_H[stage as any] ?? 48;
+  }
+
+  // Build the full chronological log chain for a quote:
+  // synthetic "Quote Sent" entry first (with its TAT deadline as nextDate),
+  // then real follow-up logs (excluding any duplicate sent entries).
+  function buildFullChain(quote: Quote, followUp: FollowUp | undefined): FollowUpLog[] {
+    const total = quote.items.reduce((s, i) => s + i.total, 0);
+    const firstItem = quote.items[0]?.desc ?? '';
+    const itemCount = quote.items.length;
+    const sentNote = `Sent ${quote.id} for ${firstItem}${itemCount > 1 ? ` — ${itemCount} items` : ''}. ₹${total.toLocaleString('en-IN')}.`;
+    const realLogs = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+    const storedSent = (followUp?.logs ?? []).find(l => isQuoteSentLog(l.note));
+    const sentTs = storedSent?.ts ?? (quote.date ? `${quote.date}T09:00:00.000Z` : new Date().toISOString());
+
+    // nextDate for the sent entry: use stored prompt date if available,
+    // else compute from Settings TAT for "Sent Quotation" stage.
+    let sentNextDate = storedSent?.nextDate;
+    if (!sentNextDate && quote.date) {
+      const tatH = stageTatHours('Sent Quotation');
+      const due = new Date(`${quote.date}T09:00:00.000Z`);
+      due.setTime(due.getTime() + tatH * 3600000);
+      sentNextDate = due.toISOString().split('T')[0];
+    }
+
+    const synthetic: FollowUpLog = {
+      ts: sentTs,
+      who: storedSent?.who ?? followUp?.owner ?? 'System',
+      channel: 'Email',
+      note: sentNote,
+      nextDate: sentNextDate,
+      nextChannel: storedSent?.nextChannel ?? 'Called',
+    };
+    return [synthetic, ...realLogs];
+  }
+
+  // On-time rate using Settings stage TAT as benchmark.
+  // Step 0 (Quote Sent): on-time if first follow-up log was done within its nextDate.
+  // Steps 1+: on-time if done by the nextDate committed in the previous step.
+  function cardOnTimeRate(chain: FollowUpLog[]): number | null {
+    let onTime = 0, total = 0;
+    for (let i = 1; i < chain.length; i++) {
+      const prevNext = chain[i - 1].nextDate;
+      if (!prevNext) continue;
+      const due = new Date(prevNext);
+      due.setHours(23, 59, 59, 999);
+      total++;
+      if (new Date(chain[i].ts) <= due) onTime++;
+    }
+    return total > 0 ? Math.round(onTime / total * 100) : null;
+  }
+
+  function tatLabel(followUp: FollowUp | undefined) {
+    const realLogs = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+    if (realLogs.length === 0) {
+      const tatH = stageTatHours('Sent Quotation');
+      const d = Math.round(tatH / 24);
+      const h = tatH % 24;
+      return `TAT: ${d > 0 ? `${d}d` : ''}${h > 0 ? ` ${h}h` : ''} (1st call)`.trim();
+    }
+    return 'Customer-promised';
   }
 
   // ── Board view: full-width Kanban (replaces the old Queue list) ──
@@ -541,7 +594,8 @@ export default function FollowUps() {
         ) : (
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
           {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => {
-            const onTimePct = cardOnTimeRate(followUp?.logs ?? []);
+            const fullChain = buildFullChain(quote, followUp);
+            const onTimePct = cardOnTimeRate(fullChain);
             const tat = tatLabel(followUp);
             const isSelected = selectedQuoteId === quote.id || (selectedItem && selectedItem.quote.id === quote.id);
             const custRec = data.customers.find(c => c.name === quote.cust);
@@ -712,7 +766,7 @@ export default function FollowUps() {
                     {/* TAT + On-Time badge */}
                     {(() => {
                       const tat = tatLabel(selectedItem.followUp);
-                      const pct = cardOnTimeRate(selectedItem.followUp?.logs ?? []);
+                      const pct = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp));
                       return (
                         <div className="ml-auto flex items-center gap-2 bg-g50 border border-g200 rounded-[4px] px-2.5 py-1 text-[10px] font-mono">
                           <span className="text-g500">{tat}</span>
@@ -901,31 +955,14 @@ export default function FollowUps() {
                 </div>
 
                 {(() => {
-                  const q = selectedItem.quote;
-                  const qTotal = q.items.reduce((s, i) => s + i.total, 0);
-                  const qItemDesc = q.items[0]?.desc ?? '';
-                  const qItemCount = q.items.length;
-                  const quoteSentNote = `Sent ${q.id} for ${qItemDesc}${qItemCount > 1 ? ` — ${qItemCount} items` : ''}. ₹${qTotal.toLocaleString('en-IN')}.`;
-
-                  // Synthetic "Quote Sent" entry built from quote data — always shown first
-                  const syntheticSent: FollowUpLog = {
-                    ts: q.date ? `${q.date}T09:00:00.000Z` : new Date(q.validity || Date.now()).toISOString(),
-                    who: selectedItem.followUp?.owner || 'System',
-                    channel: 'Email',
-                    note: quoteSentNote,
-                    nextDate: selectedItem.followUp?.logs?.[0]?.nextDate,
-                    nextChannel: selectedItem.followUp?.logs?.[0]?.nextChannel,
-                  };
-
-                  // Use stored logs but skip any duplicate quote-sent entry
-                  const storedLogs = (selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
-                  const allLogs: FollowUpLog[] = [syntheticSent, ...storedLogs];
+                  // Single source of truth — same chain used for on-time calc and display
+                  const allLogs = buildFullChain(selectedItem.quote, selectedItem.followUp);
                   return (
                   <div className="space-y-1">
                     {(() => {
-                      // For each log at position i, its "due" was the nextDate of log[i-1]
+                      // For each log at index i, "on time" = actual ts ≤ previous log's nextDate
                       const wasOnTime = (i: number): boolean | null => {
-                        if (i === 0) return null; // first entry has no prior due date
+                        if (i === 0) return null;
                         const prevNextDate = allLogs[i - 1].nextDate;
                         if (!prevNextDate) return null;
                         const due = new Date(prevNextDate);
