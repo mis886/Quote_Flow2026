@@ -427,7 +427,19 @@ function Card({ card, onAdvance, onBack, onOpen }: { card: BoardCard; onAdvance:
 }
 
 function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: () => void; onPick: (o: PipelineOutcome) => void }) {
+  const { openAttachmentModal } = useAppStore();
   const outcomes: PipelineOutcome[] = ['Won', 'Lost', 'Rejected', 'Other'];
+  const hasPO = (card.quote?.attachments?.length ?? 0) > 0;
+
+  const handlePick = (o: PipelineOutcome) => {
+    if (o === 'Won' && !hasPO) {
+      openAttachmentModal('quote', card.quote!.id);
+      onCancel();
+      return;
+    }
+    onPick(o);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="bg-white rounded-[8px] w-full max-w-sm p-5 shadow-xl" onClick={e => e.stopPropagation()}>
@@ -438,11 +450,22 @@ function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: ()
         <p className="text-[12px] text-g500 mb-4">
           <span className="font-bold text-blk">{card.cust}</span> · {card.title}. Pick an outcome.
         </p>
+        {!hasPO && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-[4px] text-[11px] text-amber-700">
+            <Trophy size={12} className="shrink-0" />
+            <span><strong>Won</strong> requires a PO attachment. Upload it first, then mark Won.</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {outcomes.map(o => (
             <button
-              key={o} type="button" onClick={() => onPick(o)}
-              className={cn('inline-flex items-center justify-center gap-1.5 py-2.5 rounded-[5px] border text-[12px] font-bold transition-colors', OUTCOME_META[o].cls, 'hover:brightness-95')}
+              key={o} type="button" onClick={() => handlePick(o)}
+              title={o === 'Won' && !hasPO ? 'Upload PO first' : undefined}
+              className={cn(
+                'inline-flex items-center justify-center gap-1.5 py-2.5 rounded-[5px] border text-[12px] font-bold transition-colors',
+                OUTCOME_META[o].cls,
+                o === 'Won' && !hasPO ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-95'
+              )}
             >
               {OUTCOME_META[o].icon}{OUTCOME_META[o].label}
             </button>
@@ -585,8 +608,17 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
               </button>
               <button
                 type="button"
-                onClick={() => setMarkingOutcome('Won')}
+                onClick={() => {
+                  const hasPO = (card.quote?.attachments?.length ?? 0) > 0;
+                  if (!hasPO) {
+                    openAttachmentModal('quote', card.quote!.id);
+                    onClose();
+                    return;
+                  }
+                  setMarkingOutcome('Won');
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[4px] border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                title="Requires PO attachment"
               >
                 <Trophy size={11} /> Won
               </button>

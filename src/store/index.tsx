@@ -519,11 +519,29 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
+  // Map real follow-up log count → pipeline stage (excludes quote-sent entries).
+  const stageFromLogCount = (count: number): PipelineStage => {
+    if (count <= 0) return 'Sent Quotation';
+    if (count === 1) return 'Offer Acknowledged';
+    if (count === 2) return '1st Follow-up';
+    if (count === 3) return '2nd Follow-up';
+    return 'Negotiation';
+  };
+
   const addFollowUpLog = async (quoteId: string, log: any, nextDate: string | null = null, nextTime: string | null = null, owner: string = '') => {
     const existing = data.followups.find(f => f.quote_id === quoteId);
+    const nowIso = new Date().toISOString();
 
     if (existing) {
       const updatedLogs = [log, ...existing.logs];
+      // Count only real follow-up actions (not quote-sent system entries)
+      const realCount = updatedLogs.filter((l: any) => {
+        const n: string = l.note ?? '';
+        return !n.startsWith('Quote sent —') && !n.startsWith('Sent MRT-') && !n.startsWith('Sent ');
+      }).length;
+      const newStage = stageFromLogCount(realCount);
+      const stageChanged = newStage !== existing.stage;
+
       const { error } = await supabase
         .from('followups')
         .update({
@@ -532,7 +550,10 @@ const mapEnquiryToDB = (e: any) => {
           next_time: nextTime,
           status: 'open',
           owner: owner || existing.owner,
-          updated_at: new Date().toISOString()
+          stage: newStage,
+          // Reset stage TAT clock only when advancing to a new stage
+          ...(stageChanged ? { stage_entered_at: nowIso } : {}),
+          updated_at: nowIso,
         })
         .eq('quote_id', quoteId);
 
@@ -545,7 +566,9 @@ const mapEnquiryToDB = (e: any) => {
             next_date: nextDate,
             next_time: nextTime,
             status: 'open' as const,
-            owner: owner || f.owner
+            owner: owner || f.owner,
+            stage: newStage,
+            ...(stageChanged ? { stage_entered_at: nowIso } : {}),
           } : f)
         }));
       } else {

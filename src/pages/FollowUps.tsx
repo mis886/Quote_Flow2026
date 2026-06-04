@@ -287,7 +287,16 @@ export default function FollowUps() {
 
   const handleMarkWon = async (quoteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Mark this quote as WON? Ensure PO is received.')) return;
+    const quote = data.quotes.find(q => q.id === quoteId);
+    const hasPO = (quote?.attachments?.length ?? 0) > 0;
+    if (!hasPO) {
+      const proceed = confirm(
+        '⚠️ No PO attachment found for this quote.\n\nPlease upload the Purchase Order before marking as Won.\n\nClick OK to open the attachments panel, or Cancel to go back.'
+      );
+      if (proceed) openAttachmentModal('quote', quoteId);
+      return;
+    }
+    if (!confirm(`Mark ${quoteId} as WON? PO attachment confirmed.`)) return;
     try { await closeFollowUp(quoteId, 'Won'); } catch { alert('Failed to mark as Won.'); }
   };
 
@@ -367,31 +376,52 @@ export default function FollowUps() {
     return [synthetic, ...realLogs];
   }
 
-  // On-time rate using Settings stage TAT as benchmark.
-  // Step 0 (Quote Sent): on-time if first follow-up log was done within its nextDate.
-  // Steps 1+: on-time if done by the nextDate committed in the previous step.
+  // Stage sequence a quote passes through — index maps to log position.
+  const STAGE_SEQUENCE: string[] = [
+    'Sent Quotation',      // log[0] — quote sent, TAT clock starts
+    'Offer Acknowledged',  // log[1] — 1st touch
+    '1st Follow-up',       // log[2]
+    '2nd Follow-up',       // log[3]
+    'Negotiation',         // log[4]+
+  ];
+
+  // Deadline for step i: if prev log has a nextDate (customer-promised), use that.
+  // Otherwise fall back to prevLog.ts + Settings TAT for that stage.
+  function stepDeadline(chain: FollowUpLog[], i: number): Date {
+    const prev = chain[i - 1];
+    if (prev.nextDate) {
+      const d = new Date(prev.nextDate);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+    const stageForPrev = STAGE_SEQUENCE[Math.min(i - 1, STAGE_SEQUENCE.length - 1)];
+    const tatH = stageTatHours(stageForPrev);
+    return new Date(new Date(prev.ts).getTime() + tatH * 3600000);
+  }
+
+  // On-time per step: was log[i] done by its deadline?
+  // Deadline = customer-promised nextDate if set, else prevLog.ts + stage TAT.
   function cardOnTimeRate(chain: FollowUpLog[]): number | null {
+    if (chain.length < 2) return null;
     let onTime = 0, total = 0;
     for (let i = 1; i < chain.length; i++) {
-      const prevNext = chain[i - 1].nextDate;
-      if (!prevNext) continue;
-      const due = new Date(prevNext);
-      due.setHours(23, 59, 59, 999);
+      const deadline = stepDeadline(chain, i);
       total++;
-      if (new Date(chain[i].ts) <= due) onTime++;
+      if (new Date(chain[i].ts) <= deadline) onTime++;
     }
     return total > 0 ? Math.round(onTime / total * 100) : null;
   }
 
+  // TAT label for the queue card footer: shows the active stage TAT from Settings.
   function tatLabel(followUp: FollowUp | undefined) {
+    const stage = followUp?.stage ?? 'Sent Quotation';
+    const tatH = stageTatHours(stage === 'Closed' ? 'Sent Quotation' : stage);
+    const d = Math.floor(tatH / 24);
+    const h = tatH % 24;
+    const formatted = [d > 0 ? `${d}d` : '', h > 0 ? `${h}h` : ''].filter(Boolean).join(' ');
     const realLogs = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
-    if (realLogs.length === 0) {
-      const tatH = stageTatHours('Sent Quotation');
-      const d = Math.round(tatH / 24);
-      const h = tatH % 24;
-      return `TAT: ${d > 0 ? `${d}d` : ''}${h > 0 ? ` ${h}h` : ''} (1st call)`.trim();
-    }
-    return 'Customer-promised';
+    const suffix = realLogs.length === 0 ? '(1st call)' : `(${stage})`;
+    return `TAT: ${formatted} ${suffix}`;
   }
 
   // ── Board view: full-width Kanban (replaces the old Queue list) ──
@@ -960,14 +990,10 @@ export default function FollowUps() {
                   return (
                   <div className="space-y-1">
                     {(() => {
-                      // For each log at index i, "on time" = actual ts ≤ previous log's nextDate
+                      // On time = done by deadline (customer nextDate if set, else TAT budget)
                       const wasOnTime = (i: number): boolean | null => {
                         if (i === 0) return null;
-                        const prevNextDate = allLogs[i - 1].nextDate;
-                        if (!prevNextDate) return null;
-                        const due = new Date(prevNextDate);
-                        due.setHours(23, 59, 59, 999);
-                        return new Date(allLogs[i].ts) <= due;
+                        return new Date(allLogs[i].ts) <= stepDeadline(allLogs, i);
                       };
 
                       return groupLogsByDay(allLogs).map(({ day, logs: dayLogs }) => (
