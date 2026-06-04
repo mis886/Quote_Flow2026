@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId, formatINR, parseQuoteTerms, localDateStr, resolveAdjustments } from '../lib/utils';
+import { generateId, formatINR, parseQuoteTerms, localDateStr, resolveAdjustments, maxItemGstRate } from '../lib/utils';
 import { OrderItem, Order, AuthorizedSignatory, OrderStatus, OrderAdjustment, OrderAdjustmentKind } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
@@ -218,17 +218,27 @@ export function NewOrder() {
   const removeItem = (idx: number) => { if (items.length === 1) return; setItems(items.filter((_, i) => i !== idx).map((it, i) => ({ ...it, seq: i + 1 }))); };
 
   const subTotal = items.reduce((s, i) => s + i.total, 0);
-  const gstTotal = items.reduce((s, i) => s + i.total * i.gst / 100, 0);
-  const { lines: adjLines, net: adjNet } = resolveAdjustments(adjustments, subTotal);
-  const grandTotal = subTotal + gstTotal + adjNet;
+  const itemGst  = items.reduce((s, i) => s + i.total * i.gst / 100, 0);
+  const maxGstRate = maxItemGstRate(items);
+  // Taxable charges (P&F, Freight…) add to the base before GST; GST recomputed
+  // on that combined value. Post-GST lines (TDS/TCS) apply after GST.
+  const adj = resolveAdjustments(adjustments, subTotal, itemGst, maxGstRate);
+  const adjLines = adj.lines;
+  const gstTotal = adj.gstTotal;          // items GST + GST on taxable charges
+  const grandTotal = adj.grand;
 
   // Adjustment row helpers
-  const addAdjustment = (kind: OrderAdjustmentKind, label = '') =>
+  const addAdjustment = (kind: OrderAdjustmentKind, label = '') => {
+    const isTds = /tds/i.test(label);
     setAdjustments(a => [...a, {
       id: 'adj-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
       kind, label, mode: 'percent', rate: 0,
-      direction: kind === 'tax' && /tds/i.test(label) ? 'deduct' : 'add',
+      direction: kind === 'tax' && isTds ? 'deduct' : 'add',
+      // Charges (P&F, Freight…) are part of the supply value → taxable before GST.
+      // Taxes (TDS/TCS) apply after GST → not taxable.
+      taxable: kind === 'charge',
     }]);
+  };
   const updateAdjustment = (id: string, patch: Partial<OrderAdjustment>) =>
     setAdjustments(a => a.map(x => x.id === id ? { ...x, ...patch } : x));
   const removeAdjustment = (id: string) => setAdjustments(a => a.filter(x => x.id !== id));
@@ -571,10 +581,21 @@ export function NewOrder() {
                   Add Another Line Item
                 </div>
                 <div className="mt-3 flex justify-end">
-                  <div className="w-[300px] bg-g50/50 border border-g200 rounded-[3px] p-[10px_14px] space-y-1.5 text-[12px]">
+                  <div className="w-[320px] bg-g50/50 border border-g200 rounded-[3px] p-[10px_14px] space-y-1.5 text-[12px]">
                     <div className="flex justify-between text-g500"><span>Sub-Total (excl. GST)</span><span className="font-mono font-bold text-blk">{formatINR(subTotal)}</span></div>
-                    <div className="flex justify-between text-g500"><span>Total GST</span><span className="font-mono font-bold text-blk">{formatINR(gstTotal)}</span></div>
-                    {adjLines.map(l => (
+                    {/* Pre-GST charges (P&F, Freight…) — added to taxable value */}
+                    {adjLines.filter(l => l.taxable).map(l => (
+                      <div key={l.id} className="flex justify-between text-g500">
+                        <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}{l.direction === 'deduct' ? ' −' : ''}</span>
+                        <span className={`font-mono font-bold ${l.amount < 0 ? 'text-red-mrt' : 'text-blk'}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>
+                      </div>
+                    ))}
+                    {adj.preNet !== 0 && (
+                      <div className="flex justify-between text-g600 border-t border-g100 pt-1"><span>Taxable Value</span><span className="font-mono font-bold text-blk">{formatINR(adj.taxableValue)}</span></div>
+                    )}
+                    <div className="flex justify-between text-g500"><span>Total GST{maxGstRate ? ` (@ ${maxGstRate}%)` : ''}</span><span className="font-mono font-bold text-blk">{formatINR(gstTotal)}</span></div>
+                    {/* Post-GST lines (TDS/TCS) */}
+                    {adjLines.filter(l => !l.taxable).map(l => (
                       <div key={l.id} className="flex justify-between text-g500">
                         <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}{l.direction === 'deduct' ? ' −' : ''}</span>
                         <span className={`font-mono font-bold ${l.amount < 0 ? 'text-red-mrt' : 'text-blk'}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>
@@ -606,7 +627,7 @@ export function NewOrder() {
                   {adjustments.map(a => {
                     const resolved = adjLines.find(l => l.id === a.id);
                     return (
-                      <div key={a.id} className="grid grid-cols-[110px_1fr_120px_110px_120px_28px] gap-2 items-center">
+                      <div key={a.id} className="grid grid-cols-[100px_1fr_96px_92px_96px_110px_28px] gap-2 items-center">
                         <select title="Type" value={a.kind} onChange={e => updateAdjustment(a.id, { kind: e.target.value as OrderAdjustmentKind })}
                           className="font-mono text-[11px] border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt bg-white">
                           <option value="charge">Charge</option>
@@ -625,6 +646,11 @@ export function NewOrder() {
                         <input type="number" step="any" min="0" value={a.rate || ''} placeholder={a.mode === 'percent' ? '%' : 'amount'}
                           onChange={e => updateAdjustment(a.id, { rate: Number(e.target.value) })}
                           className="font-mono text-[12px] text-right border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt" />
+                        <button type="button" title={a.taxable ? 'Added before GST (GST applies on it)' : 'Applied after GST'}
+                          onClick={() => updateAdjustment(a.id, { taxable: !a.taxable })}
+                          className={`text-[10px] font-semibold py-[6px] rounded-[3px] border ${a.taxable ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-g500 border-g300'}`}>
+                          {a.taxable ? 'Pre-GST' : 'Post-GST'}
+                        </button>
                         <div className="flex items-center gap-1.5">
                           <button type="button" title="Add or deduct" onClick={() => updateAdjustment(a.id, { direction: a.direction === 'add' ? 'deduct' : 'add' })}
                             className={`text-[11px] font-bold w-7 py-[6px] rounded-[3px] border ${a.direction === 'deduct' ? 'bg-red-lt text-red-mrt border-red-mrt/30' : 'bg-green-50 text-green-700 border-green-300'}`}>
@@ -640,7 +666,7 @@ export function NewOrder() {
                       </div>
                     );
                   })}
-                  <div className="text-[10px] text-g400 pt-1">Percentages apply on the items sub-total (excl. GST). These appear on the Proforma Invoice between GST and Grand Total.</div>
+                  <div className="text-[10px] text-g400 pt-1">Percentages apply on the items sub-total (excl. GST). <strong className="text-amber-700">Pre-GST</strong> charges (e.g. P&amp;F, Freight) are added to the taxable value and GST is charged on the combined amount{maxGstRate ? ` (@ ${maxGstRate}%)` : ''}; <strong>Post-GST</strong> lines (e.g. TDS) apply after GST.</div>
                 </div>
               )}
             </div>
@@ -881,10 +907,17 @@ export function NewOrder() {
                 </tbody>
               </table>
               <div className="flex justify-end p-4">
-                <div className="w-[280px] text-[12px] space-y-1.5">
+                <div className="w-[300px] text-[12px] space-y-1.5">
                   <div className="flex justify-between text-g500"><span>Sub-Total</span><span className="font-mono">{formatINR(subTotal)}</span></div>
+                  {adjLines.filter(l => l.taxable).map(l => (
+                    <div key={l.id} className="flex justify-between text-g500">
+                      <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}</span>
+                      <span className={`font-mono ${l.amount < 0 ? 'text-red-mrt' : ''}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>
+                    </div>
+                  ))}
+                  {adj.preNet !== 0 && <div className="flex justify-between text-g600 border-t border-g100 pt-1"><span>Taxable Value</span><span className="font-mono">{formatINR(adj.taxableValue)}</span></div>}
                   <div className="flex justify-between text-g500"><span>GST</span><span className="font-mono">{formatINR(gstTotal)}</span></div>
-                  {adjLines.map(l => (
+                  {adjLines.filter(l => !l.taxable).map(l => (
                     <div key={l.id} className="flex justify-between text-g500">
                       <span className="truncate pr-2">{l.label || '(unnamed)'}{l.mode === 'percent' ? ` (${l.rate}%)` : ''}</span>
                       <span className={`font-mono ${l.amount < 0 ? 'text-red-mrt' : ''}`}>{l.amount < 0 ? '−' : ''}{formatINR(Math.abs(l.amount))}</span>

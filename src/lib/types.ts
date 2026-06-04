@@ -40,6 +40,8 @@ export interface OrderAdjustment {
   mode: 'percent' | 'value';       // % of sub-total, or fixed amount
   rate: number;                    // the % or the fixed amount, as entered
   direction: 'add' | 'deduct';     // add (charges) or deduct (e.g. TDS withheld)
+  taxable?: boolean;               // true = added to taxable value BEFORE GST (e.g. P&F, Freight);
+                                   // false/undefined = applied to the total AFTER GST (e.g. TDS, TCS)
 }
 
 export interface Contact {

@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Customer, Quote, Order, AppSettings, CompanyUnit, BankAccount } from './types';
-import { formatINR, resolveAdjustments, type ResolvedAdjustment } from './utils';
+import { formatINR, resolveAdjustments, maxItemGstRate, type ResolvedAdjustment } from './utils';
 
 export function getQuoteTotals(q: Quote) {
   const sub = q.items.reduce((a, i) => a + i.total, 0);
@@ -11,9 +11,17 @@ export function getQuoteTotals(q: Quote) {
 
 export function getOrderTotals(o: Order) {
   const sub = o.items.reduce((a, i) => a + i.total, 0);
-  const gst = o.items.reduce((a, i) => a + (i.total * i.gst / 100), 0);
-  const { lines: adjustmentLines, net: adjustmentsNet } = resolveAdjustments(o.adjustments, sub);
-  return { sub, gst, adjustmentLines, adjustmentsNet, grand: sub + gst + adjustmentsNet };
+  const itemGst = o.items.reduce((a, i) => a + (i.total * i.gst / 100), 0);
+  const adj = resolveAdjustments(o.adjustments, sub, itemGst, maxItemGstRate(o.items));
+  // `gst` is the combined GST (items + GST on taxable charges) so the existing
+  // "GST Amount" line reflects tax on the P&F-inclusive value.
+  return {
+    sub,
+    gst: adj.gstTotal,
+    adjustmentLines: adj.lines,
+    adjustmentsNet: adj.net,
+    grand: adj.grand,
+  };
 }
 
 function getCurrencySymbol(curr: string) {
@@ -553,24 +561,40 @@ export function generatePIPDF(
   y = (doc as any).lastAutoTable.finalY + 8;
 
   // ── Totals ───────────────────────────────────────────────────────────────
+  const adjLines = t.adjustmentLines as ResolvedAdjustment[];
+  const preLines  = adjLines.filter(a => a.taxable);
+  const postLines = adjLines.filter(a => !a.taxable);
+
+  const adjRow = (adj: ResolvedAdjustment) => {
+    const pctNote = adj.mode === 'percent' ? ` (${adj.rate}%)` : '';
+    const label = `${adj.label || 'Adjustment'}${pctNote}${adj.direction === 'deduct' ? ' (less)' : ''}`;
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+    doc.text(label, rx - 55, y);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    doc.text(`${adj.amount < 0 ? '-' : ''}${fmtAmount(Math.abs(adj.amount), sym)}`, rx, y, { align: 'right' });
+    y += 5.5;
+  };
+
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80, 80, 80);
   doc.text('Sub-Total (excl. GST)', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
   doc.text(fmtAmount(t.sub, sym), rx, y, { align: 'right' }); y += 5.5;
+
+  // Taxable charges (P&F, Freight…) are added to the taxable value BEFORE GST.
+  preLines.forEach(adjRow);
+  if (preLines.length > 0) {
+    const taxableValue = t.sub + preLines.reduce((s, a) => s + a.amount, 0);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+    doc.text('Taxable Value', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    doc.text(fmtAmount(taxableValue, sym), rx, y, { align: 'right' }); y += 5.5;
+  }
+
+  // GST is charged on the (P&F-inclusive) taxable value.
   doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
   doc.text('GST Amount', rx - 55, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
   doc.text(fmtAmount(t.gst, sym), rx, y, { align: 'right' }); y += 5.5;
 
-  // Extra taxes & charges (Freight, P&F, TDS, …) between GST and Grand Total.
-  for (const adj of (t.adjustmentLines as ResolvedAdjustment[])) {
-    const pctNote = adj.mode === 'percent' ? ` (${adj.rate}%)` : '';
-    const label = `${adj.label}${pctNote}${adj.direction === 'deduct' ? ' (less)' : ''}`;
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-    doc.text(label, rx - 55, y);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-    const shown = `${adj.amount < 0 ? '-' : ''}${fmtAmount(Math.abs(adj.amount), sym)}`;
-    doc.text(shown, rx, y, { align: 'right' });
-    y += 5.5;
-  }
+  // Post-GST lines (TDS/TCS, post-tax freight) after GST.
+  postLines.forEach(adjRow);
 
   y -= 3.5;
   doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(rx - 60, y, rx, y); y += 5;

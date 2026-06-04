@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Loader2, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, fmtIST, isInDateRange, resolveAdjustments } from '../lib/utils';
+import { formatINR, fmtIST, isInDateRange, resolveAdjustments, maxItemGstRate } from '../lib/utils';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { exportOrderToSheets, buildSheetsPayload } from '../lib/sheets';
 import { getS3SignedUrl } from '../lib/s3';
@@ -183,8 +183,8 @@ export function Orders() {
               ) : (
                 filteredOrders.map(o => {
                   const subTotal = o.items.reduce((s, i) => s + i.total, 0);
-                  const gstTotal = o.items.reduce((s, i) => s + (i.total * i.gst / 100), 0);
-                  const grandTotal = subTotal + gstTotal + resolveAdjustments(o.adjustments, subTotal).net;
+                  const itemGst = o.items.reduce((s, i) => s + (i.total * i.gst / 100), 0);
+                  const grandTotal = resolveAdjustments(o.adjustments, subTotal, itemGst, maxItemGstRate(o.items)).grand;
                   const isExpanded = expandedRow === o.id;
 
                   return (

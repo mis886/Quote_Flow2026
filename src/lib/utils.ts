@@ -7,25 +7,58 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // ── Order taxes & charges ────────────────────────────────────────────────────
-// Resolve each adjustment to a signed rupee amount. Percentage lines are
-// computed on `subTotal` (items excl. GST). Charges add (+), deductions like
-// TDS subtract (−). Used by the order form, getOrderTotals, and the PI PDF so
-// the math is identical everywhere.
+// Each adjustment resolves to a signed rupee amount (% lines computed on the
+// items sub-total excl. GST; + adds, − deducts).
+//
+// Crucially, a `taxable` adjustment (e.g. Packing & Forwarding, Freight that's
+// part of the supply value) is added to the taxable base BEFORE GST, and GST is
+// then charged on that combined value at the order's highest item GST rate.
+// Non-taxable lines (e.g. TDS, TCS) apply to the total AFTER GST.
+//
+// Worked example (the customer's case): Sub 6000 + P&F 0.5% (=30, taxable) →
+// taxable value 6030; GST @18% = 1085.40; grand = 7115.40. Correct.
 export interface ResolvedAdjustment extends OrderAdjustment {
   amount: number;   // signed: + adds to total, − deducts
+}
+
+export interface AdjustedTotals {
+  lines: ResolvedAdjustment[];
+  preNet: number;        // signed sum of taxable (pre-GST) adjustments
+  postNet: number;       // signed sum of post-GST adjustments
+  chargeGst: number;     // GST charged on the taxable adjustments (at maxGstRate)
+  net: number;           // preNet + chargeGst + postNet (total added beyond sub+itemGst)
+  taxableValue: number;  // subTotal + preNet
+  gstTotal: number;      // itemGst + chargeGst
+  grand: number;         // subTotal + preNet + itemGst + chargeGst + postNet
 }
 
 export function resolveAdjustments(
   adjustments: OrderAdjustment[] | undefined,
   subTotal: number,
-): { lines: ResolvedAdjustment[]; net: number } {
-  const lines = (adjustments || []).map(a => {
+  itemGst = 0,
+  maxGstRate = 0,
+): AdjustedTotals {
+  const lines: ResolvedAdjustment[] = (adjustments || []).map(a => {
     const base = a.mode === 'percent' ? (subTotal * (Number(a.rate) || 0)) / 100 : (Number(a.rate) || 0);
     const amount = a.direction === 'deduct' ? -base : base;
     return { ...a, amount };
   });
-  const net = lines.reduce((s, l) => s + l.amount, 0);
-  return { lines, net };
+  const preNet  = lines.filter(l => l.taxable).reduce((s, l) => s + l.amount, 0);
+  const postNet = lines.filter(l => !l.taxable).reduce((s, l) => s + l.amount, 0);
+  const chargeGst = (preNet * maxGstRate) / 100;
+  const gstTotal = itemGst + chargeGst;
+  const taxableValue = subTotal + preNet;
+  return {
+    lines, preNet, postNet, chargeGst,
+    net: preNet + chargeGst + postNet,
+    taxableValue, gstTotal,
+    grand: subTotal + preNet + gstTotal + postNet,
+  };
+}
+
+/** Highest GST% across an order's line items — used as the rate for taxable charges. */
+export function maxItemGstRate(items: { gst: number }[]): number {
+  return items.reduce((m, i) => Math.max(m, Number(i.gst) || 0), 0);
 }
 
 /** Returns YYYY-MM-DD in local time (avoids UTC offset shift from toISOString) */
