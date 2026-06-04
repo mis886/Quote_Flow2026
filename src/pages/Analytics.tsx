@@ -175,9 +175,9 @@ export function Analytics() {
                   <div
                     className={cn(
                       "h-[44px] rounded-[3px] flex items-center justify-between px-5 font-mono text-[13px] font-bold text-white transition-all duration-700 shadow-sm",
-                      f.color
+                      f.count === 0 ? "bg-g200 text-g400" : f.color
                     )}
-                    style={{ width: `${Math.max(40, f.w)}%` }}
+                    style={{ width: f.count === 0 ? '40%' : `${Math.max(40, f.w)}%` }}
                   >
                     <span>{f.label}</span>
                     <span className="flex items-center gap-2">
