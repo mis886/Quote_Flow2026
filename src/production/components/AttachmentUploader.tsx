@@ -18,10 +18,11 @@ interface Props {
   logEntryId?: string;         // optional backlink e.g. MLD-2026-00001
   label?: string;              // section label shown in UI
   accept?: string;             // e.g. ".pdf,.jpg,.png"
+  onUploaded?: () => void;     // called after each successful upload
 }
 
 export function AttachmentUploader({
-  type, shiftDate, shift, jobCardId, logEntryId, label, accept = '.pdf,.jpg,.jpeg,.png',
+  type, shiftDate, shift, jobCardId, logEntryId, label, accept = '.pdf,.jpg,.jpeg,.png', onUploaded,
 }: Props) {
   const { user } = useAppStore();
   const [attachments, setAttachments] = useState<ProdAttachment[]>([]);
@@ -58,6 +59,7 @@ export function AttachmentUploader({
         });
       }
       await load();
+      onUploaded?.();
     } catch (e: any) {
       setError(e?.message || 'Upload failed.');
     } finally {
@@ -131,7 +133,7 @@ export function AttachmentUploader({
             </div>
         }
         <input ref={inputRef} type="file" accept={accept} multiple className="hidden"
-          onChange={e => handleFiles(e.target.files)} />
+          title="Upload attachment" onChange={e => handleFiles(e.target.files)} />
       </div>
 
       {error && <div className="text-[10.5px] text-[#BB0000]">{error}</div>}

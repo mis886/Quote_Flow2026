@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Workflow, Factory, AlertTriangle,
   Settings as Cog, ArrowLeftRight, Package, FlaskConical,
   LayoutGrid, Hammer, Scissors, Microscope, Truck, ShieldCheck,
-  FileInput,
+  FileInput, FolderOpen,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -13,6 +13,7 @@ const SHOP_ITEMS = [
   { to: '/production/sequencer',  icon: Workflow,        label: 'Sequencer' },
   { to: '/production/presses',    icon: Factory,         label: 'Press Board' },
   { to: '/production/ncr',        icon: AlertTriangle,   label: 'NCR Log' },
+  { to: '/production/docs',       icon: FolderOpen,      label: 'Docs' },
   { to: '/production/settings',   icon: Cog,             label: 'Shop Floor' },
 ];
 

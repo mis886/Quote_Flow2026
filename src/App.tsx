@@ -41,6 +41,7 @@ import { LogInspection } from './production/pages/LogInspection';
 import { LogPDI } from './production/pages/LogPDI';
 import { DispatchBoard } from './production/pages/DispatchBoard';
 import { CreateDispatch } from './production/pages/CreateDispatch';
+import { DocsGallery } from './production/pages/DocsGallery';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAppStore();
@@ -117,6 +118,7 @@ export default function App() {
                   <Route path="log-pdi" element={<LogPDI />} />
                   <Route path="dispatch" element={<DispatchBoard />} />
                   <Route path="dispatch/new" element={<CreateDispatch />} />
+                  <Route path="docs" element={<DocsGallery />} />
                   <Route path="*" element={<div className="p-8 text-[13px] font-mono">Production module not found...</div>} />
                 </Route>
               </Routes>
