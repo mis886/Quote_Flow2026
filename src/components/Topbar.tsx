@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Bell, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
+import { SlaNotificationBell } from './SlaNotificationBell';
 import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { hasActiveToken } from '../lib/gmail';
@@ -76,10 +77,7 @@ export function Topbar() {
 
       <GlobalDateRangePicker />
 
-      <button type="button" title="Notifications" className="w-[30px] h-[30px] rounded-[5px] border border-g200 bg-transparent flex items-center justify-center cursor-pointer transition-colors hover:bg-g100 relative group">
-        <Bell size={14} className="text-g500" />
-        <span className="absolute -top-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-red-mrt border-2 border-white"></span>
-      </button>
+      <SlaNotificationBell />
     </header>
   );
 }

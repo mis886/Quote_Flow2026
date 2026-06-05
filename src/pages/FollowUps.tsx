@@ -392,15 +392,30 @@ export default function FollowUps() {
   }
 
   // On-time per step: was log[i] done by its deadline?
-  // Deadline = customer-promised nextDate if set, else prevLog.ts + stage TAT.
+  // Also counts the pending next step as LATE if it is now overdue and never acted on.
   function cardOnTimeRate(chain: FollowUpLog[]): number | null {
-    if (chain.length < 2) return null;
+    if (chain.length < 1) return null;
     let onTime = 0, total = 0;
+
+    // Score completed steps (index 1..n)
     for (let i = 1; i < chain.length; i++) {
       const deadline = stepDeadline(chain, i);
       total++;
       if (new Date(chain[i].ts) <= deadline) onTime++;
     }
+
+    // Score the pending next step: if the last log has a nextDate that is
+    // already past today, the follow-up was not done on time — count it late.
+    const last = chain[chain.length - 1];
+    if (last.nextDate) {
+      const nextDue = new Date(last.nextDate);
+      nextDue.setHours(23, 59, 59, 999);
+      if (nextDue < new Date()) {
+        total++;
+        // not onTime — the action was due but never logged
+      }
+    }
+
     return total > 0 ? Math.round(onTime / total * 100) : null;
   }
 
