@@ -149,11 +149,8 @@ export default function FollowUps() {
       const owner = item.followUp?.owner || 'Unassigned';
       const matchesOwner = filterOwner === 'All Owners' || owner === filterOwner;
 
-      // Global date range filter (next_date). Unscheduled items have no
-      // next_date — they're the at-risk pile, so they stay visible regardless
-      // of the date range rather than being silently filtered out.
-      const nextDate = item.followUp?.next_date;
-      if (globalDateRange && item.priority !== 'unscheduled' && !isInDateRange(nextDate, globalDateRange)) return false;
+      // Global date range filter by quote date — consistent with Quotes/Orders/Enquiries.
+      if (globalDateRange && !isInDateRange(item.quote.date, globalDateRange)) return false;
 
       return matchesSearch && matchesOwner;
     }).sort((a, b) => {
@@ -170,7 +167,7 @@ export default function FollowUps() {
       }
       return 0;
     });
-  }, [data.quotes, data.followups, searchQuery, filterOwner, queueTab, quickFilter]);
+  }, [data.quotes, data.followups, searchQuery, filterOwner, queueTab, quickFilter, globalDateRange]);
 
   const allOpen = useMemo(() =>
     data.quotes.filter(q => q.status !== 'Lost').filter(q => {
