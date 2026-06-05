@@ -187,10 +187,11 @@ export function generateQuotePDF(
     const rateCell = (i as any).rateOverride
       ? ((i as any).rateText?.trim() || 'Regret')
       : fmtRate(i.unitPrice, sym);
+    const perUnit = (i as any).priceBasis?.trim() || i.uom || 'Each';
     if (showRateWtCol) {
-      return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), (i as any).rateAsPerWeight || '', rateCell, i.uom || 'Each'];
+      return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), (i as any).rateAsPerWeight || '', rateCell, perUnit];
     }
-    return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), rateCell, i.uom || 'Each'];
+    return [i.seq, i.qty + ' ' + (i.uom || 'nos.'), i.desc + (i.mat ? '-' + i.mat : ''), rateCell, perUnit];
   });
 
   // Column index of Rates cell depends on whether rateWt col is present
@@ -600,6 +601,7 @@ export function generatePIPDF(
   doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(rx - 65, y, rx, y); y += 5;
   doc.setFontSize(11); doc.setTextColor(0, 0, 0);
   doc.text('Grand Total', rx - 60, y);
+   
   doc.text(fmtAmount(t.grand, sym), rx, y, { align: 'right' });
   y += 10;
 

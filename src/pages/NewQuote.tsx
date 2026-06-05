@@ -193,7 +193,15 @@ export function NewQuote() {
   // Item helpers
   const updateItem = (idx: number, field: keyof QuoteItem, value: any) => {
     const ni = [...items]; (ni[idx] as any)[field] = value;
-    if (field === 'qty' || field === 'unitPrice') ni[idx].total = Number(ni[idx].qty) * Number(ni[idx].unitPrice);
+    if (field === 'qty' || field === 'unitPrice' || field === 'priceBasisConv') {
+      const conv = Number(ni[idx].priceBasisConv) || 1;
+      ni[idx].total = Number(ni[idx].qty) * conv * Number(ni[idx].unitPrice);
+    }
+    // Clear conv when priceBasis is cleared
+    if (field === 'priceBasis' && !value) {
+      ni[idx].priceBasisConv = undefined;
+      ni[idx].total = Number(ni[idx].qty) * Number(ni[idx].unitPrice);
+    }
     setItems(ni);
   };
   const addItem = () => setItems([...items, { seq: items.length + 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0, rateAsPerWeight: '', rateOverride: false, rateText: '' }]);
@@ -659,7 +667,7 @@ export function NewQuote() {
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border border-g400 min-w-[110px]">Material</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border border-g400 w-24">HSN Code</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-red-mrt px-3 py-1.5 text-center border border-g400 w-16">Qty *</th>
-                        <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border border-g400 w-24">Price Basis</th>
+                        <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border border-g400 w-28">UOM / Rate Per</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border border-g400 w-28">Rate as per Weight</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-right border border-g400 w-28">Unit Rate ({curr === 'INR' ? '₹' : curr})</th>
                         <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border border-g400 w-20">GST %</th>
@@ -686,8 +694,39 @@ export function NewQuote() {
                             <input type="number" min="1" value={item.qty || ''} placeholder="0" onChange={e => { updateItem(idx, 'qty', Number(e.target.value)); setErrors({ ...errors, items: '' }); }}
                               className={`w-full bg-transparent outline-none font-mono text-[12px] text-center placeholder:text-g300 ${errors.items && Number(item.qty) <= 0 ? 'text-red-mrt' : 'text-blk'}`} />
                           </td>
-                          <td className="px-3 py-[5px] border border-g400 align-middle">
-                            <input list="qt-uom-list" value={item.uom} onChange={e => updateItem(idx, 'uom', e.target.value)} placeholder="uom" className="w-full bg-g50 border border-g300 rounded-[3px] px-1.5 py-[3px] font-mono text-[11px] text-blk outline-none cursor-pointer focus:border-red-mrt focus:bg-white transition-colors" />
+                          <td className="px-2 py-[5px] border border-g400 align-top">
+                            {/* UOM row */}
+                            <input list="qt-uom-list" value={item.uom} onChange={e => updateItem(idx, 'uom', e.target.value)} placeholder="uom"
+                              className="w-full bg-g50 border border-g300 rounded-[3px] px-1.5 py-[3px] font-mono text-[11px] text-blk outline-none focus:border-red-mrt focus:bg-white transition-colors" />
+                            {/* Rate Per — optional different basis */}
+                            <div className="mt-1 flex items-center gap-1">
+                              <span className="font-mono text-[9px] text-g400 shrink-0">Per</span>
+                              <input
+                                list="qt-uom-list"
+                                value={item.priceBasis || ''}
+                                onChange={e => updateItem(idx, 'priceBasis', e.target.value)}
+                                placeholder={item.uom || 'same'}
+                                title="Rate is per this unit (leave blank = same as UOM)"
+                                className="flex-1 min-w-0 bg-g50 border border-g300 rounded-[3px] px-1.5 py-[2px] font-mono text-[11px] text-blk outline-none focus:border-red-mrt focus:bg-white transition-colors placeholder:text-g300"
+                              />
+                            </div>
+                            {/* Conversion factor — only shown when priceBasis is set and differs from UOM */}
+                            {item.priceBasis && item.priceBasis !== item.uom && (
+                              <div className="mt-1 flex items-center gap-1">
+                                <span className="font-mono text-[9px] text-g400 shrink-0 leading-tight">1&nbsp;{item.uom}&nbsp;=</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  value={item.priceBasisConv || ''}
+                                  onChange={e => updateItem(idx, 'priceBasisConv', Number(e.target.value))}
+                                  placeholder="conv"
+                                  title={`How many ${item.priceBasis} per 1 ${item.uom}`}
+                                  className="flex-1 min-w-0 bg-amber-50 border border-amber-300 rounded-[3px] px-1.5 py-[2px] font-mono text-[11px] text-blk outline-none focus:border-red-mrt transition-colors placeholder:text-g300"
+                                />
+                                <span className="font-mono text-[9px] text-g400 shrink-0">{item.priceBasis}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-[5px] border border-g400 align-middle">
                             <input type="text" value={item.rateAsPerWeight || ''} placeholder="e.g. ₹120/kg" onChange={e => updateItem(idx, 'rateAsPerWeight', e.target.value)}
