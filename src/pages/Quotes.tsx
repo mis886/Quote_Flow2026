@@ -292,6 +292,7 @@ export function Quotes() {
           mode="quote"
           doc={sendModalQuote}
           customer={data.customers.find(c => c.name === sendModalQuote.cust)}
+          siteId={sendModalQuote.siteId}
           settings={data.settings}
           defaultSignatory={data.signatories.find((s: any) => s.is_default)}
           onClose={() => setSendModalQuote(null)}

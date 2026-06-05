@@ -439,6 +439,10 @@ export function NewEnquiry() {
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
                   <input type="email" placeholder="contact@company.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Mobile No.</label>
+                  <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => setPhone(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
+                </div>
               </div>
             </div>
 

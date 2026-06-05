@@ -107,7 +107,13 @@ export default function FollowUps() {
   const today = startOfDay(new Date());
 
   const followUpQueue = useMemo(() => {
-    const activeQuotes = data.quotes.filter(q => q.status !== 'Lost');
+    const activeQuotes = data.quotes.filter(q => {
+      if (q.status === 'Lost' || q.status === 'Won') return false;
+      const fu = data.followups.find(f => f.quote_id === q.id);
+      // Exclude quotes closed as Won/Lost/Rejected — they're done, not pending follow-up
+      if (fu?.status === 'closed' && (fu.outcome === 'Won' || fu.outcome === 'Lost' || fu.outcome === 'Rejected')) return false;
+      return true;
+    });
 
     return activeQuotes.map(quote => {
       const followUp = data.followups.find(f => f.quote_id === quote.id);
@@ -170,9 +176,11 @@ export default function FollowUps() {
   }, [data.quotes, data.followups, searchQuery, filterOwner, queueTab, quickFilter, globalDateRange]);
 
   const allOpen = useMemo(() =>
-    data.quotes.filter(q => q.status !== 'Lost').filter(q => {
+    data.quotes.filter(q => {
+      if (q.status === 'Lost' || q.status === 'Won') return false;
       const f = data.followups.find(fu => fu.quote_id === q.id);
       if ((f?.status ?? 'open') !== 'open') return false;
+      if (f?.outcome === 'Won' || f?.outcome === 'Lost' || f?.outcome === 'Rejected') return false;
       if (globalDateRange && !isInDateRange(q.date, globalDateRange)) return false;
       return true;
     }),
@@ -436,7 +444,11 @@ export default function FollowUps() {
   const ontimeAllPct = useMemo(() => {
     let onT = 0, tot = 0;
     data.quotes
-      .filter(q => q.status !== 'Lost')
+      .filter(q => q.status !== 'Lost' && q.status !== 'Won')
+      .filter(q => {
+        const fu = data.followups.find(f => f.quote_id === q.id);
+        return !(fu?.outcome === 'Won' || fu?.outcome === 'Lost' || fu?.outcome === 'Rejected');
+      })
       .filter(q => !globalDateRange || isInDateRange(q.date, globalDateRange))
       .forEach(q => {
         const fu = data.followups.find(f => f.quote_id === q.id);

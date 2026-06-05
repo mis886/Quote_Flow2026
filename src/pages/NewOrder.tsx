@@ -996,6 +996,7 @@ export function NewOrder() {
           doc={buildOrderData()}
           relatedQuote={relatedQuote}
           customer={customer}
+          siteId={siteId || undefined}
           settings={data.settings}
           defaultSignatory={data.signatories.find((s: any) => s.is_default)}
           onClose={() => setShowEmailModal(false)}
