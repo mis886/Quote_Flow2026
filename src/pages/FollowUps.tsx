@@ -468,79 +468,173 @@ export default function FollowUps() {
     );
   }
 
+  // On-time rate across all logs (for score bar)
+  const ontimeAllPct = useMemo(() => {
+    const allLogs = data.quotes
+      .filter(q => q.status !== 'Lost')
+      .flatMap(q => {
+        const fu = data.followups.find(f => f.quote_id === q.id);
+        return buildFullChain(q, fu);
+      });
+    const withFlag = allLogs.filter((_, i) => i > 0);
+    if (!withFlag.length) return null;
+    // rough: count logs that have a nextDate in the past (logged before their deadline)
+    // For the score bar we just show overall on-time rate from cardOnTimeRate across all quotes
+    let onT = 0, tot = 0;
+    data.quotes.filter(q => q.status !== 'Lost').forEach(q => {
+      const fu = data.followups.find(f => f.quote_id === q.id);
+      const chain = buildFullChain(q, fu);
+      for (let i = 1; i < chain.length; i++) {
+        tot++;
+        if (new Date(chain[i].ts) <= stepDeadline(chain, i)) onT++;
+      }
+    });
+    return tot > 0 ? Math.round(onT / tot * 100) : null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.quotes, data.followups]);
+
   return (
-    <div className="flex h-full bg-cream overflow-hidden">
-      {/* Left Panel: Queue */}
-      <div className="w-[380px] border-r border-g200 flex flex-col bg-white">
-        <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
-        <div className="p-4 border-b border-g200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="font-mono text-[10px] font-bold tracking-[2px] uppercase text-red-mrt mb-1">Queue</div>
-              <h1 className="text-xl font-serif text-blk italic">Command Centre</h1>
-            </div>
-          </div>
+    <div className="flex flex-col h-full bg-cream overflow-hidden">
+      <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
 
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => { setQuickFilter(f => f === 'overdue' ? 'all' : 'overdue'); setSelectedQuoteId(null); }}
-              className={cn(
-                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
-                quickFilter === 'overdue' ? "bg-red-mrt/10 border-red-mrt ring-1 ring-red-mrt/30" : "bg-red-lt border-red-mrt/10 hover:border-red-mrt/30"
-              )}
-            >
-              <div className="text-[10px] uppercase font-bold text-red-mrt opacity-60">Overdue</div>
-              <div className="text-lg font-mono font-bold text-red-mrt leading-none mt-1">{stats.overdue}</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQuickFilter(f => f === 'unscheduled' ? 'all' : 'unscheduled'); setSelectedQuoteId(null); }}
-              className={cn(
-                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all relative",
-                quickFilter === 'unscheduled' ? "bg-orange-100 border-orange-400 ring-1 ring-orange-300" : "bg-orange-50 border-orange-200 hover:border-orange-400"
-              )}
-            >
-              <div className="text-[10px] uppercase font-bold text-orange-600 opacity-80 flex items-center gap-1">
-                {stats.unscheduled > 0 && <AlertTriangle size={10} className="text-orange-500" />}
-                No Next Step
+      {/* ── SCORE BAR ── */}
+      <div className="bg-white border-b border-g200 flex items-stretch shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        {/* Overdue */}
+        <button
+          type="button"
+          onClick={() => { setQuickFilter(f => f === 'overdue' ? 'all' : 'overdue'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          className={cn(
+            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
+            quickFilter === 'overdue' ? "bg-red-lt" : "hover:bg-g50"
+          )}
+        >
+          {quickFilter === 'overdue' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          <div className="w-8 h-8 rounded-[3px] bg-red-lt flex items-center justify-center shrink-0">
+            <AlertTriangle size={15} className="text-red-mrt" />
+          </div>
+          <div className="text-left">
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Overdue</div>
+            <div className="font-serif text-[22px] leading-none text-red-mrt">{stats.overdue}</div>
+          </div>
+        </button>
+
+        {/* Due Today */}
+        <button
+          type="button"
+          onClick={() => { setQuickFilter(f => f === 'today' ? 'all' : 'today'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          className={cn(
+            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
+            quickFilter === 'today' ? "bg-sR/5" : "hover:bg-g50"
+          )}
+        >
+          {quickFilter === 'today' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          <div className="w-8 h-8 rounded-[3px] bg-sR/8 flex items-center justify-center shrink-0">
+            <Clock size={15} className="text-sR" />
+          </div>
+          <div className="text-left">
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Due Today</div>
+            <div className="font-serif text-[22px] leading-none text-sR">{stats.today}</div>
+          </div>
+        </button>
+
+        {/* Upcoming */}
+        <button
+          type="button"
+          onClick={() => { setQuickFilter(f => f === 'upcoming' ? 'all' : 'upcoming'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          className={cn(
+            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
+            quickFilter === 'upcoming' ? "bg-sW/5" : "hover:bg-g50"
+          )}
+        >
+          {quickFilter === 'upcoming' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          <div className="w-8 h-8 rounded-[3px] bg-sW/8 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={15} className="text-sW" />
+          </div>
+          <div className="text-left">
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Upcoming</div>
+            <div className="font-serif text-[22px] leading-none text-sW">{stats.upcoming}</div>
+          </div>
+        </button>
+
+        {/* No Next Step */}
+        <button
+          type="button"
+          onClick={() => { setQuickFilter(f => f === 'unscheduled' ? 'all' : 'unscheduled'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          className={cn(
+            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
+            quickFilter === 'unscheduled' ? "bg-orange-50" : "hover:bg-g50"
+          )}
+        >
+          {quickFilter === 'unscheduled' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          <div className="w-8 h-8 rounded-[3px] bg-orange-50 flex items-center justify-center shrink-0">
+            <AlertTriangle size={15} className="text-orange-500" />
+          </div>
+          <div className="text-left">
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">No Next Step</div>
+            <div className="font-serif text-[22px] leading-none text-orange-600">{stats.unscheduled}</div>
+          </div>
+        </button>
+
+        {/* Total Active */}
+        <button
+          type="button"
+          onClick={() => { setQuickFilter('all'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          className={cn(
+            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
+            quickFilter === 'all' ? "bg-g100" : "hover:bg-g50"
+          )}
+        >
+          {quickFilter === 'all' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          <div className="w-8 h-8 rounded-[3px] bg-g100 flex items-center justify-center shrink-0">
+            <History size={15} className="text-g600" />
+          </div>
+          <div className="text-left">
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Total Active</div>
+            <div className="font-serif text-[22px] leading-none text-blk">{stats.overdue + stats.today + stats.upcoming + stats.unscheduled}</div>
+          </div>
+        </button>
+
+        {/* On-time rate — right side */}
+        <div className="ml-auto flex items-center gap-4 px-6">
+          {ontimeAllPct !== null && (
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">On-Time Rate</span>
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 bg-g150 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-700",
+                      ontimeAllPct >= 70 ? "bg-sW" : ontimeAllPct >= 40 ? "bg-amber-500" : "bg-red-mrt"
+                    )}
+                    style={{ width: `${ontimeAllPct}%` }} /* dynamic % — can't use static Tailwind class */
+                  />
+                </div>
+                <span className={cn(
+                  "font-mono text-[11px] font-bold",
+                  ontimeAllPct >= 70 ? "text-sW" : ontimeAllPct >= 40 ? "text-amber-600" : "text-red-mrt"
+                )}>{ontimeAllPct}%</span>
               </div>
-              <div className="text-lg font-mono font-bold text-orange-600 leading-none mt-1">{stats.unscheduled}</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQuickFilter(f => f === 'today' ? 'all' : 'today'); setSelectedQuoteId(null); }}
-              className={cn(
-                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
-                quickFilter === 'today' ? "bg-sR/10 border-sR ring-1 ring-sR/30" : "bg-sR/5 border-sR/10 hover:border-sR/30"
-              )}
-            >
-              <div className="text-[10px] uppercase font-bold text-sR opacity-60">Today</div>
-              <div className="text-lg font-mono font-bold text-sR leading-none mt-1">{stats.today}</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQuickFilter(f => f === 'upcoming' ? 'all' : 'upcoming'); setSelectedQuoteId(null); }}
-              className={cn(
-                "text-left px-2.5 py-1.5 rounded-[4px] border transition-all",
-                quickFilter === 'upcoming' ? "bg-sW/10 border-sW ring-1 ring-sW/30" : "bg-sW/5 border-sW/10 hover:border-sW/30"
-              )}
-            >
-              <div className="text-[10px] uppercase font-bold text-sW opacity-60">Upcoming</div>
-              <div className="text-lg font-mono font-bold text-sW leading-none mt-1">{stats.upcoming}</div>
-            </button>
-          </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* View tabs */}
-          <div className="flex gap-1 mb-3">
-            <div className="flex gap-1 flex-1 bg-g100 rounded-[4px] p-1">
+      {/* ── MAIN BODY ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+      {/* Left Panel: Queue */}
+      <div className="w-[340px] border-r border-g200 flex flex-col bg-white shrink-0">
+        {/* Left panel header — slim */}
+        <div className="px-3 py-2.5 border-b border-g150 space-y-2">
+          {/* View tabs + Cal */}
+          <div className="flex gap-1.5">
+            <div className="flex gap-0.5 flex-1 bg-g100 rounded-[3px] p-0.5">
               {(['queue', 'board'] as const).map(tab => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => setViewTab(tab)}
                   className={cn(
-                    "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                    "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[2px] transition-colors",
                     viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                   )}
                 >
@@ -553,25 +647,25 @@ export default function FollowUps() {
               onClick={() => setViewTab(v => v === 'calendar' ? 'queue' : 'calendar')}
               title="Calendar view"
               className={cn(
-                "flex items-center gap-1 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[4px] border transition-colors",
+                "flex items-center gap-1 px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] border transition-colors shrink-0",
                 viewTab === 'calendar'
                   ? "bg-red-mrt text-white border-red-mrt"
                   : "bg-g100 text-g500 border-transparent hover:text-blk hover:bg-g200"
               )}
             >
-              <Calendar size={12} />
+              <Calendar size={11} />
               Cal
             </button>
           </div>
 
-          {/* Active / Closed sub-tabs — hidden in calendar view */}
+          {/* Active / Closed — queue view only */}
           {viewTab === 'queue' && (
-            <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
+            <div className="flex gap-0.5 bg-g100 rounded-[3px] p-0.5">
               <button
                 type="button"
                 onClick={() => { setQueueTab('open'); setSelectedQuoteId(null); }}
                 className={cn(
-                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                  "flex-1 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[2px] transition-colors",
                   queueTab === 'open' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                 )}
               >
@@ -581,7 +675,7 @@ export default function FollowUps() {
                 type="button"
                 onClick={() => { setQueueTab('closed'); setSelectedQuoteId(null); }}
                 className={cn(
-                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                  "flex-1 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[2px] transition-colors",
                   queueTab === 'closed' ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                 )}
               >
@@ -590,28 +684,26 @@ export default function FollowUps() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-g400" size={14} />
+          {/* Search + Owner */}
+          <div className="flex gap-1.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-g400" size={13} />
               <input
                 type="text"
-                placeholder="Search quotes or customers..."
-                className="w-full pl-8 pr-3 py-1.5 bg-g50 border border-g200 rounded-[5px] text-[12px] focus:outline-none focus:border-red-mrt/30"
+                placeholder="Search quotes or customers…"
+                className="w-full pl-7 pr-2 py-1.5 bg-g50 border border-g200 rounded-[3px] text-[11.5px] focus:outline-none focus:border-red-mrt/40"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Filter className="text-g400" size={14} />
-              <select
-                title="Filter by owner"
-                className="flex-1 bg-g50 border border-g200 rounded-[4px] px-2 py-1 text-[11px] font-medium"
-                value={filterOwner}
-                onChange={e => setFilterOwner(e.target.value)}
-              >
-                {owners.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
+            <select
+              title="Filter by owner"
+              className="bg-g50 border border-g200 rounded-[3px] px-2 py-1 text-[11px] font-medium appearance-none pr-5"
+              value={filterOwner}
+              onChange={e => setFilterOwner(e.target.value)}
+            >
+              {owners.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           </div>
         </div>
 
@@ -769,198 +861,152 @@ export default function FollowUps() {
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="p-6 bg-white border-b border-g200 shrink-0">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="font-mono text-[13px] font-bold text-sQ bg-sQ/10 px-2 py-0.5 rounded">{selectedItem.quote.id}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-sR text-white text-[9px] font-bold uppercase tracking-wider">{selectedItem.quote.status}</span>
-                    <div className="w-1 h-1 rounded-full bg-g300 mx-1" />
-                    <span className="font-mono text-[11px] text-red-mrt">Ref: {selectedItem.quote.enqRef}</span>
-                    {/* Due date/time display */}
-                    {selectedItem.followUp?.next_date && !isClosedTab && (
-                      <>
-                        <div className="w-1 h-1 rounded-full bg-g300 mx-1" />
-                        <span className={cn(
-                          "flex items-center gap-1 text-[11px] font-medium",
-                          selectedItem.priority === 'overdue' ? 'text-red-mrt' :
-                          selectedItem.priority === 'today' ? 'text-sR' : 'text-g500'
-                        )}>
-                          <Clock size={10} />
-                          Due: {formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)}
-                        </span>
-                      </>
-                    )}
-                    {/* TAT + On-Time badge */}
-                    {(() => {
-                      const tat = tatLabel(selectedItem.followUp);
-                      const pct = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp));
-                      return (
-                        <div className="ml-auto flex items-center gap-2 bg-g50 border border-g200 rounded-[4px] px-2.5 py-1 text-[10px] font-mono">
-                          <span className="text-g500">{tat}</span>
-                          {pct !== null && (
-                            <>
-                              <span className="text-g300">·</span>
-                              <span className={cn(
-                                "font-bold",
-                                pct >= 80 ? "text-emerald-600" : pct >= 60 ? "text-orange-500" : "text-red-mrt"
-                              )}>On-Time: {pct}%</span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {/* Close / Reopen — status action stays in header */}
-                    {isClosedTab ? (
-                      <button
-                        type="button"
-                        onClick={handleReopen}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-g600 bg-white hover:bg-g50 hover:text-blk transition-colors"
-                      >
-                        <RotateCcw size={12} /> Re-open
+            {/* ── DETAIL HEADER ── */}
+            <div className="bg-white border-b border-g200 shrink-0">
+              {/* Top row: ref + badges + action buttons */}
+              <div className="flex items-center gap-3 px-6 pt-4 pb-3 border-b border-g150 flex-wrap">
+                <span className="font-mono text-[12px] font-bold text-red-mrt bg-red-lt border border-red-mrt/20 px-2.5 py-1 rounded-[3px] tracking-wide">{selectedItem.quote.id}</span>
+                {/* SLA badge */}
+                {!isClosedTab && (
+                  <span className={cn(
+                    "font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-2 py-1 rounded-[3px] border",
+                    selectedItem.priority === 'overdue' ? "bg-red-lt text-red-mrt border-red-mrt/20" :
+                    selectedItem.priority === 'today' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                    selectedItem.priority === 'unscheduled' ? "bg-orange-50 text-orange-600 border-orange-200" :
+                    selectedItem.priority === 'upcoming' ? "bg-sW/8 text-sW border-sW/20" :
+                    "bg-g100 text-g500 border-g200"
+                  )}>
+                    {selectedItem.priority === 'overdue' ? 'OVERDUE' :
+                     selectedItem.priority === 'today' ? 'DUE TODAY' :
+                     selectedItem.priority === 'unscheduled' ? 'NO NEXT STEP' :
+                     selectedItem.priority === 'upcoming' ? 'UPCOMING' : 'SENT'}
+                  </span>
+                )}
+                {isClosedTab && (
+                  <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-2 py-1 rounded-[3px] border bg-emerald-50 text-emerald-700 border-emerald-200">CLOSED</span>
+                )}
+                <span className="font-mono text-[11px] text-g500">Ref: {selectedItem.quote.enqRef}</span>
+                {/* action buttons — right side */}
+                <div className="ml-auto flex items-center gap-2">
+                  {isClosedTab ? (
+                    <button type="button" onClick={handleReopen}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
+                      <RotateCcw size={11} /> Re-open
+                    </button>
+                  ) : (
+                    <>
+                      <button type="button" onClick={e => handleMarkWon(selectedItem.quote.id, e)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                        <Trophy size={11} /> WON
                       </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={e => handleMarkLost(selectedItem.quote.id, e)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-red-mrt/40 text-red-mrt bg-white hover:bg-red-lt transition-colors"
-                        >
-                          <XCircle size={12} /> LOST
-                        </button>
-                        <button
-                          type="button"
-                          onClick={e => handleMarkWon(selectedItem.quote.id, e)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                        >
-                          <Trophy size={12} /> WON
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleClose}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-g600 bg-white hover:bg-g50 hover:text-blk transition-colors"
-                        >
-                          <CheckCircle2 size={12} /> Close
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h1 className="text-3xl font-serif text-blk italic truncate">{selectedItem.quote.cust}</h1>
+                      <button type="button" onClick={e => handleMarkLost(selectedItem.quote.id, e)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors">
+                        <XCircle size={11} /> LOST
+                      </button>
+                      <button type="button" onClick={handleClose}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
+                        <CheckCircle2 size={11} /> Close
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer name row */}
+              <div className="flex items-start gap-3 px-6 pt-3 pb-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h1 className="font-serif text-[26px] text-blk italic leading-tight truncate">{selectedItem.quote.cust}</h1>
                     {(() => {
                       const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
                       if (!custRec) return null;
                       return (
-                        <button type="button" title="Edit Customer" onClick={() => navigate(`/customers/new?id=${custRec.id}`)} className="text-g400 hover:text-red-mrt transition-colors p-0.5 shrink-0">
-                          <ExternalLink size={14} />
+                        <button type="button" title="Open customer record" onClick={() => navigate(`/customers/new?id=${custRec.id}`)}
+                          className="text-g400 hover:text-red-mrt transition-colors shrink-0 p-0.5">
+                          <ExternalLink size={13} />
                         </button>
                       );
                     })()}
                   </div>
-                  {/* City / branch under the customer name */}
+                  {/* city + sector */}
                   {(() => {
                     const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
                     const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                    const city = site?.city;
-                    if (!city) return null;
+                    if (!site?.city) return null;
                     return (
-                      <div className="flex items-center gap-1 text-[12px] text-g500 font-medium mb-4">
-                        <MapPin size={11} className="text-g400 shrink-0" />
-                        <span>{city}{site?.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}</span>
+                      <div className="flex items-center gap-3 text-[12px] text-g500 mt-0.5">
+                        <span className="flex items-center gap-1"><MapPin size={10} className="text-g400" />{site.city}{site.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}</span>
+                        {selectedItem.quote.enqRef && <span className="text-g300">·</span>}
+                        <span className="font-mono text-[10px] text-g400">{selectedItem.quote.enqRef}</span>
                       </div>
                     );
                   })()}
-
-                  <div className="flex flex-wrap gap-6 items-center">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-g400 tracking-wider">Value</span>
-                      <span className="font-mono text-[14px] font-bold text-blk">Rs{selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="w-px h-6 bg-g200" />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-g400 tracking-wider">Valid Till</span>
-                      <span className="text-[14px] font-medium text-blk">{fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy')}</span>
-                    </div>
-                    <div className="w-px h-6 bg-g200" />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-g400 tracking-wider">Owner</span>
-                      <div className="flex items-center gap-1.5">
-                        <User size={12} className="text-g400" />
-                        <span className="text-[14px] font-medium text-blk">{selectedItem.followUp?.owner || 'Unassigned'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Contact details strip */}
-                  {(() => {
-                    const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                    const contacts = site?.contacts ?? [];
-                    if (contacts.length === 0) return null;
-                    return (
-                      <div className="mt-3 flex items-center gap-2 flex-wrap">
-                        {contacts.map(ct => (
-                          <div key={ct.id} className="flex items-center gap-2 bg-g50 border border-g200 rounded-[4px] px-3 py-1.5">
-                            <span className="text-[11.5px] font-semibold text-blk">{ct.name}</span>
-                            {ct.role && (
-                              <span className="px-1.5 py-0.5 bg-g200 rounded text-[8px] font-bold uppercase text-g500 tracking-wide">{ct.role}</span>
-                            )}
-                            <div className="w-px h-3 bg-g300" />
-                            {ct.phone && (
-                              <a href={`tel:${ct.phone}`} className="inline-flex items-center gap-1 text-[11px] text-blk hover:text-red-mrt transition-colors">
-                                <Phone size={10} className="text-g400" />{ct.phone}
-                              </a>
-                            )}
-                            {ct.phone && (
-                              <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors">
-                                <MessageCircle size={10} />{ct.phone}
-                              </a>
-                            )}
-                            {ct.email && (
-                              <a href={`mailto:${ct.email}`} className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors">
-                                <Mail size={10} />{ct.email}
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className={cn(
-                  "p-4 rounded-lg flex flex-col items-center justify-center min-w-[120px]",
-                  isClosedTab ? "bg-emerald-50 border border-emerald-100" :
-                  selectedItem.priority === 'overdue' ? "bg-red-lt border border-red-mrt/10" :
-                  selectedItem.priority === 'today' ? "bg-sR/5 border border-sR/10" :
-                  selectedItem.priority === 'unscheduled' ? "bg-orange-50 border border-orange-200" : "bg-g50"
-                )}>
-                  <div className="text-[10px] uppercase font-bold text-g400 mb-1">Status</div>
-                  <div className={cn(
-                    "text-sm font-bold uppercase tracking-wider text-center",
-                    isClosedTab ? "text-emerald-700" :
-                    selectedItem.priority === 'overdue' ? "text-red-mrt" :
-                    selectedItem.priority === 'today' ? "text-sR" :
-                    selectedItem.priority === 'unscheduled' ? "text-orange-600" : "text-g500"
-                  )}>
-                    {isClosedTab ? 'Closed' :
-                      selectedItem.priority === 'unscheduled' ? 'No Next Step' :
-                      selectedItem.priority === 'none' ? 'Not Scheduled' : selectedItem.priority}
-                  </div>
-                  {!isClosedTab && selectedItem.followUp?.next_date && (
-                    <div className="text-[11px] font-medium text-g500 mt-1">
-                      {formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)}
-                    </div>
-                  )}
-                  {!isClosedTab && selectedItem.priority === 'unscheduled' && selectedItem.daysSinceQuote > 0 && (
-                    <div className="text-[11px] font-medium text-orange-500 mt-1">
-                      Silent {selectedItem.daysSinceQuote}d
-                    </div>
-                  )}
                 </div>
               </div>
+
+              {/* KPI strip */}
+              <div className="flex border-t border-g150 mt-2 -mx-0">
+                {[
+                  { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
+                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false },
+                  { label: 'Next Step', value: selectedItem.followUp?.next_date
+                    ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
+                    : 'Not scheduled',
+                    mono: false,
+                    color: selectedItem.priority === 'overdue' ? 'text-red-mrt' : selectedItem.priority === 'today' ? 'text-amber-700' : undefined },
+                  { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
+                  { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
+                  { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
+                    mono: true,
+                    color: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? (p >= 70 ? 'text-sW' : p >= 40 ? 'text-amber-600' : 'text-red-mrt') : undefined; })() },
+                ].map((kpi, i) => (
+                  <div key={i} className="flex-1 px-5 py-2.5 border-r border-g150 last:border-r-0 flex flex-col gap-0.5">
+                    <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g400">{kpi.label}</span>
+                    <span className={cn("text-[13px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[12px]", kpi.color)}>{kpi.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Contacts bar */}
+              {(() => {
+                const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                const contacts = site?.contacts ?? [];
+                if (contacts.length === 0) return null;
+                return (
+                  <div className="flex items-center gap-2 px-6 py-2.5 border-t border-g150 bg-g50 flex-wrap">
+                    {contacts.map(ct => (
+                      <div key={ct.id} className="flex items-center gap-2 bg-white border border-g200 rounded-[3px] px-3 py-1.5 hover:border-g300 hover:shadow-sm transition-all">
+                        <div>
+                          <div className="text-[11.5px] font-semibold text-blk leading-none">{ct.name}</div>
+                          {ct.role && <div className="text-[9px] text-g400 uppercase tracking-wide font-bold mt-0.5">{ct.role}</div>}
+                        </div>
+                        {(ct.phone || ct.email) && <div className="w-px h-5 bg-g200 mx-1" />}
+                        <div className="flex items-center gap-1.5">
+                          {ct.phone && (
+                            <a href={`tel:${ct.phone}`} title={ct.phone}
+                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                              <Phone size={11} />
+                            </a>
+                          )}
+                          {ct.phone && (
+                            <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" title="WhatsApp"
+                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                              <MessageCircle size={11} />
+                            </a>
+                          )}
+                          {ct.email && (
+                            <a href={`mailto:${ct.email}`} title={ct.email}
+                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+                              <Mail size={11} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Content: Timeline (left) + Log Activity panel (right) */}
@@ -1247,6 +1293,7 @@ export default function FollowUps() {
           </>
         )}
       </div>
+      </div>{/* /flex flex-1 overflow-hidden */}
     </div>
   );
 }
