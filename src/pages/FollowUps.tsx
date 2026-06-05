@@ -863,31 +863,59 @@ export default function FollowUps() {
           <>
             {/* ── DETAIL HEADER ── */}
             <div className="bg-white border-b border-g200 shrink-0">
-              {/* Top row: ref + badges + action buttons */}
-              <div className="flex items-center gap-3 px-6 pt-4 pb-3 border-b border-g150 flex-wrap">
-                <span className="font-mono text-[12px] font-bold text-red-mrt bg-red-lt border border-red-mrt/20 px-2.5 py-1 rounded-[3px] tracking-wide">{selectedItem.quote.id}</span>
-                {/* SLA badge */}
-                {!isClosedTab && (
-                  <span className={cn(
-                    "font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-2 py-1 rounded-[3px] border",
-                    selectedItem.priority === 'overdue' ? "bg-red-lt text-red-mrt border-red-mrt/20" :
-                    selectedItem.priority === 'today' ? "bg-amber-50 text-amber-700 border-amber-200" :
-                    selectedItem.priority === 'unscheduled' ? "bg-orange-50 text-orange-600 border-orange-200" :
-                    selectedItem.priority === 'upcoming' ? "bg-sW/8 text-sW border-sW/20" :
-                    "bg-g100 text-g500 border-g200"
-                  )}>
-                    {selectedItem.priority === 'overdue' ? 'OVERDUE' :
-                     selectedItem.priority === 'today' ? 'DUE TODAY' :
-                     selectedItem.priority === 'unscheduled' ? 'NO NEXT STEP' :
-                     selectedItem.priority === 'upcoming' ? 'UPCOMING' : 'SENT'}
-                  </span>
-                )}
-                {isClosedTab && (
-                  <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-2 py-1 rounded-[3px] border bg-emerald-50 text-emerald-700 border-emerald-200">CLOSED</span>
-                )}
-                <span className="font-mono text-[11px] text-g500">Ref: {selectedItem.quote.enqRef}</span>
-                {/* action buttons — right side */}
-                <div className="ml-auto flex items-center gap-2">
+              {/* Top row: customer name + city · ref + badges · action buttons */}
+              <div className="flex items-center gap-4 px-6 pt-4 pb-3 border-b border-g150">
+                {/* Customer identity block */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h1 className="font-serif text-[22px] text-blk italic leading-tight truncate">{selectedItem.quote.cust}</h1>
+                    {(() => {
+                      const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                      if (!custRec) return null;
+                      return (
+                        <button type="button" title="Open customer record" onClick={() => navigate(`/customers/new?id=${custRec.id}`)}
+                          className="text-g400 hover:text-red-mrt transition-colors shrink-0 p-0.5">
+                          <ExternalLink size={13} />
+                        </button>
+                      );
+                    })()}
+                  </div>
+                  {(() => {
+                    const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                    return (
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="font-mono text-[11px] font-bold text-red-mrt bg-red-lt border border-red-mrt/20 px-2 py-0.5 rounded-[3px] tracking-wide">{selectedItem.quote.id}</span>
+                        {!isClosedTab && (
+                          <span className={cn(
+                            "font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-1.5 py-0.5 rounded-[3px] border",
+                            selectedItem.priority === 'overdue' ? "bg-red-lt text-red-mrt border-red-mrt/20" :
+                            selectedItem.priority === 'today' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            selectedItem.priority === 'unscheduled' ? "bg-orange-50 text-orange-600 border-orange-200" :
+                            selectedItem.priority === 'upcoming' ? "bg-sW/8 text-sW border-sW/20" :
+                            "bg-g100 text-g500 border-g200"
+                          )}>
+                            {selectedItem.priority === 'overdue' ? 'OVERDUE' :
+                             selectedItem.priority === 'today' ? 'DUE TODAY' :
+                             selectedItem.priority === 'unscheduled' ? 'NO NEXT STEP' :
+                             selectedItem.priority === 'upcoming' ? 'UPCOMING' : 'SENT'}
+                          </span>
+                        )}
+                        {isClosedTab && (
+                          <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-1.5 py-0.5 rounded-[3px] border bg-emerald-50 text-emerald-700 border-emerald-200">CLOSED</span>
+                        )}
+                        {site?.city && (
+                          <span className="flex items-center gap-1 text-[11px] text-g500">
+                            <MapPin size={9} className="text-g400 shrink-0" />
+                            {site.city}{site.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 shrink-0">
                   {isClosedTab ? (
                     <button type="button" onClick={handleReopen}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
@@ -909,38 +937,6 @@ export default function FollowUps() {
                       </button>
                     </>
                   )}
-                </div>
-              </div>
-
-              {/* Customer name row */}
-              <div className="flex items-start gap-3 px-6 pt-3 pb-1">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h1 className="font-serif text-[26px] text-blk italic leading-tight truncate">{selectedItem.quote.cust}</h1>
-                    {(() => {
-                      const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                      if (!custRec) return null;
-                      return (
-                        <button type="button" title="Open customer record" onClick={() => navigate(`/customers/new?id=${custRec.id}`)}
-                          className="text-g400 hover:text-red-mrt transition-colors shrink-0 p-0.5">
-                          <ExternalLink size={13} />
-                        </button>
-                      );
-                    })()}
-                  </div>
-                  {/* city + sector */}
-                  {(() => {
-                    const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                    if (!site?.city) return null;
-                    return (
-                      <div className="flex items-center gap-3 text-[12px] text-g500 mt-0.5">
-                        <span className="flex items-center gap-1"><MapPin size={10} className="text-g400" />{site.city}{site.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}</span>
-                        {selectedItem.quote.enqRef && <span className="text-g300">·</span>}
-                        <span className="font-mono text-[10px] text-g400">{selectedItem.quote.enqRef}</span>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
 
