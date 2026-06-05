@@ -54,6 +54,9 @@
   --color-p-idle:   #C0C0C0;   /* idle status dots */
 }
 
+/* Progress bar fill driven by --progress-w CSS custom property */
+.progress-fill { width: var(--progress-w, 0%); }
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-cream);

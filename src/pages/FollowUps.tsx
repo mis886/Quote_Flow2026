@@ -431,59 +431,6 @@ export default function FollowUps() {
     return `TAT: ${formatted} ${suffix}`;
   }
 
-  // ── Board view: full-width Kanban (replaces the old Queue list) ──
-  if (viewTab === 'board') {
-    return (
-      <div className="flex flex-col h-full bg-cream overflow-hidden">
-        <DateFilterBanner globalDateRange={globalDateRange} onClear={() => setGlobalDateRange(null)} />
-        <div className="px-4 py-3 border-b border-g200 bg-white flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <div>
-              <div className="font-mono text-[10px] font-bold tracking-[2px] uppercase text-red-mrt mb-0.5">Pipeline</div>
-              <h1 className="text-xl font-serif text-blk italic leading-none">Command Centre</h1>
-            </div>
-            {/* View tabs */}
-            <div className="flex gap-1 bg-g100 rounded-[4px] p-1">
-              {(['queue', 'board', 'calendar'] as const).map(tab => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setViewTab(tab)}
-                  className={cn(
-                    "px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
-                    viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
-                  )}
-                >
-                  {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : 'Calendar'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-g400" size={14} />
-              <input
-                type="text"
-                placeholder="Search customer or ref…"
-                className="w-[220px] pl-8 pr-3 py-1.5 bg-g50 border border-g200 rounded-[5px] text-[12px] focus:outline-none focus:border-red-mrt/30"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <select
-              title="Filter by owner"
-              className="bg-g50 border border-g200 rounded-[4px] px-2 py-1.5 text-[11px] font-medium"
-              value={filterOwner}
-              onChange={e => setFilterOwner(e.target.value)}
-            >
-              {owners.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-        </div>
-        <PipelineBoard ownerFilter={filterOwner} search={searchQuery} />
-      </div>
-    );
-  }
 
   // On-time rate across all logs (for score bar)
   const ontimeAllPct = useMemo(() => {
@@ -610,13 +557,13 @@ export default function FollowUps() {
             <div className="flex flex-col items-end gap-1.5">
               <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">On-Time Rate</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 h-1.5 bg-g150 rounded-full overflow-hidden">
-                  <div
-                    className={cn("h-full rounded-full transition-all duration-700",
-                      ontimeAllPct >= 70 ? "bg-sW" : ontimeAllPct >= 40 ? "bg-amber-500" : "bg-red-mrt"
-                    )}
-                    style={{ width: `${ontimeAllPct}%` }} /* dynamic % — can't use static Tailwind class */
-                  />
+                <div
+                  className="w-20 h-1.5 bg-g150 rounded-full overflow-hidden"
+                  style={{ '--progress-w': `${ontimeAllPct}%` } as React.CSSProperties}
+                >
+                  <div className={cn("progress-fill h-full rounded-full transition-all duration-700",
+                    ontimeAllPct >= 70 ? "bg-sW" : ontimeAllPct >= 40 ? "bg-amber-500" : "bg-red-mrt"
+                  )} />
                 </div>
                 <span className={cn(
                   "font-mono text-[11px] font-bold",
@@ -631,7 +578,13 @@ export default function FollowUps() {
       {/* ── MAIN BODY ── */}
       <div className="flex flex-1 overflow-hidden">
 
-      {/* Left Panel: Queue */}
+      {/* Board view — full width, no left panel */}
+      {viewTab === 'board' && (
+        <PipelineBoard ownerFilter={filterOwner} search={searchQuery} />
+      )}
+
+      {/* Left Panel: Queue / Calendar */}
+      {viewTab !== 'board' && (
       <div className="w-[340px] border-r border-g200 flex flex-col bg-white shrink-0">
         {/* Left panel header — slim */}
         <div className="px-3 py-2.5 border-b border-g150 space-y-2">
@@ -856,8 +809,10 @@ export default function FollowUps() {
         </div>
         )}
       </div>
+      )} {/* /viewTab !== 'board' left panel */}
 
-      {/* Right Panel: Detail & Log Activity */}
+      {/* Right Panel: Detail & Log Activity — hidden in board view */}
+      {viewTab !== 'board' && (
       <div className="flex-1 flex flex-col min-w-0">
         {!selectedItem ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
@@ -1299,6 +1254,7 @@ export default function FollowUps() {
           </>
         )}
       </div>
+      )} {/* /viewTab !== 'board' right panel */}
       </div>{/* /flex flex-1 overflow-hidden */}
     </div>
   );
