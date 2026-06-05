@@ -400,7 +400,7 @@ export function NewEnquiry() {
 
             <div className="bg-white border border-g200 p-[18px_20px]">
               <div className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-[12px] pb-[7px] border-b border-g200">Customer & Contact</div>
-              <div className="grid grid-cols-3 ap-[12px]">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Customer <span className="text-red-mrt">*</span></label>
                   <CustomerSearch
