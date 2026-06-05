@@ -172,9 +172,11 @@ export default function FollowUps() {
   const allOpen = useMemo(() =>
     data.quotes.filter(q => q.status !== 'Lost').filter(q => {
       const f = data.followups.find(fu => fu.quote_id === q.id);
-      return (f?.status ?? 'open') === 'open';
+      if ((f?.status ?? 'open') !== 'open') return false;
+      if (globalDateRange && !isInDateRange(q.date, globalDateRange)) return false;
+      return true;
     }),
-    [data.quotes, data.followups]
+    [data.quotes, data.followups, globalDateRange]
   );
 
   const { days: calDays } = useMemo(() => getOffsetWeekRange(calWeekOffset), [calWeekOffset]);
@@ -188,7 +190,10 @@ export default function FollowUps() {
     const allItems = data.quotes.filter(q => q.status !== 'Lost').map(quote => {
       const followUp = data.followups.find(f => f.quote_id === quote.id);
       return { quote, followUp };
-    }).filter(item => (item.followUp?.status ?? 'open') === 'open');
+    }).filter(item =>
+      (item.followUp?.status ?? 'open') === 'open' &&
+      (!globalDateRange || isInDateRange(item.quote.date, globalDateRange))
+    );
     const map: Record<string, typeof allItems> = {};
     for (const item of allItems) {
       const d = item.followUp?.next_date;
@@ -198,7 +203,7 @@ export default function FollowUps() {
       map[key].push(item);
     }
     return map;
-  }, [data.quotes, data.followups]);
+  }, [data.quotes, data.followups, globalDateRange]);
 
   const todayKey = dateKey(new Date());
 
@@ -467,28 +472,21 @@ export default function FollowUps() {
 
   // On-time rate across all logs (for score bar)
   const ontimeAllPct = useMemo(() => {
-    const allLogs = data.quotes
-      .filter(q => q.status !== 'Lost')
-      .flatMap(q => {
-        const fu = data.followups.find(f => f.quote_id === q.id);
-        return buildFullChain(q, fu);
-      });
-    const withFlag = allLogs.filter((_, i) => i > 0);
-    if (!withFlag.length) return null;
-    // rough: count logs that have a nextDate in the past (logged before their deadline)
-    // For the score bar we just show overall on-time rate from cardOnTimeRate across all quotes
     let onT = 0, tot = 0;
-    data.quotes.filter(q => q.status !== 'Lost').forEach(q => {
-      const fu = data.followups.find(f => f.quote_id === q.id);
-      const chain = buildFullChain(q, fu);
-      for (let i = 1; i < chain.length; i++) {
-        tot++;
-        if (new Date(chain[i].ts) <= stepDeadline(chain, i)) onT++;
-      }
-    });
+    data.quotes
+      .filter(q => q.status !== 'Lost')
+      .filter(q => !globalDateRange || isInDateRange(q.date, globalDateRange))
+      .forEach(q => {
+        const fu = data.followups.find(f => f.quote_id === q.id);
+        const chain = buildFullChain(q, fu);
+        for (let i = 1; i < chain.length; i++) {
+          tot++;
+          if (new Date(chain[i].ts) <= stepDeadline(chain, i)) onT++;
+        }
+      });
     return tot > 0 ? Math.round(onT / tot * 100) : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.quotes, data.followups]);
+  }, [data.quotes, data.followups, globalDateRange]);
 
   return (
     <div className="flex flex-col h-full bg-cream overflow-hidden">
