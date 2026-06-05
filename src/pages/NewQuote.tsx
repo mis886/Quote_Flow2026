@@ -963,10 +963,18 @@ export function NewQuote() {
                       <td className="px-4 py-2 text-blk">{item.desc || <span className="text-g300 italic">No description</span>}</td>
                       <td className="px-4 py-2 text-g500">{item.mat}</td>
                       <td className="px-4 py-2 text-g500 text-right w-24">{item.qty} {item.uom}</td>
-                      <td className="px-4 py-2 font-mono text-right w-28">
+                      <td className="px-4 py-2 font-mono text-right w-36">
                         {item.rateOverride
                           ? <span className="text-red-mrt font-bold">{item.rateText?.trim() || 'Regret'}</span>
-                          : formatINR(item.unitPrice)}
+                          : <span>
+                              {formatINR(item.unitPrice)}
+                              {item.priceBasis && item.priceBasis !== item.uom && (
+                                <span className="block text-[9px] text-g400 font-normal">
+                                  per {item.priceBasis}{item.priceBasisConv ? ` · 1 ${item.uom}=${item.priceBasisConv} ${item.priceBasis}` : ''}
+                                </span>
+                              )}
+                            </span>
+                        }
                       </td>
                       <td className="px-4 py-2 font-mono font-bold text-right w-28 text-blk">{item.rateOverride ? '—' : formatINR(item.total)}</td>
                     </tr>

@@ -531,20 +531,26 @@ export function generatePIPDF(
   y = Math.max(y, ry) + 8;
 
   // ── Items table ──────────────────────────────────────────────────────────
-  // Columns: # / Qty / Particulars / HSN / Rate / Amount
-  const wSno = 12, wQty = 24, wHsn = 24, wRate = 30, wAmt = 34;
-  const wPart = cw - wSno - wQty - wHsn - wRate - wAmt;
+  // Columns: # / Qty / Particulars / HSN / Rate / Per / Amount
+  const wSno = 12, wQty = 24, wHsn = 24, wRate = 30, wPer = 18, wAmt = 34;
+  const wPart = cw - wSno - wQty - wHsn - wRate - wPer - wAmt;
   autoTable(doc, {
     startY: y,
-    head: [['S. No.', 'Quantity', 'Particulars', 'HSN', 'Rate (' + (quote?.curr || 'INR') + ')', 'Amount']],
-    body: order.items.map((i) => [
-      i.seq,
-      i.qty + ' ' + (i.uom || 'nos.'),
-      i.desc + (i.mat ? ' - ' + i.mat : ''),
-      i.hsn || order.hsn || '—',
-      fmtRate(i.agreedRate, sym),
-      fmtAmount(Number(i.qty) * Number(i.agreedRate), sym),
-    ]),
+    head: [['S. No.', 'Quantity', 'Particulars', 'HSN', 'Rate (' + (quote?.curr || 'INR') + ')', 'Per', 'Amount']],
+    body: order.items.map((i) => {
+      const perUnit = (i as any).priceBasis?.trim() || i.uom || 'Each';
+      const conv = Number((i as any).priceBasisConv) || 1;
+      const amount = Number(i.qty) * conv * Number(i.agreedRate);
+      return [
+        i.seq,
+        i.qty + ' ' + (i.uom || 'nos.'),
+        i.desc + (i.mat ? ' - ' + i.mat : ''),
+        i.hsn || order.hsn || '—',
+        fmtRate(i.agreedRate, sym),
+        perUnit,
+        fmtAmount(amount, sym),
+      ];
+    }),
     theme: 'grid',
     headStyles: { fillColor: TRUST_BLUE, textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 9, cellPadding: 1.5, lineColor: HEAD_BORDER, lineWidth: 0.5, halign: 'center' },
     bodyStyles: { fontSize: 9, cellPadding: 1.5, textColor: [30, 30, 30], lineColor: [80, 80, 80], lineWidth: 0.35 },
@@ -554,7 +560,8 @@ export function generatePIPDF(
       2: { cellWidth: wPart },
       3: { cellWidth: wHsn, halign: 'center' },
       4: { cellWidth: wRate, halign: 'right' },
-      5: { cellWidth: wAmt, halign: 'right' },
+      5: { cellWidth: wPer, halign: 'center' },
+      6: { cellWidth: wAmt, halign: 'right' },
     },
     margin: { left: mx, right: mx },
   });
