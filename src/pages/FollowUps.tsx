@@ -94,7 +94,7 @@ export default function FollowUps() {
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
   const [quickFilter, setQuickFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled'>('all');
-  const [viewTab, setViewTab] = useState<'queue' | 'board' | 'thisweek' | 'calendar'>('queue');
+  const [viewTab, setViewTab] = useState<'queue' | 'board' | 'calendar'>('queue');
   const [calWeekOffset, setCalWeekOffset] = useState(0);
 
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
@@ -179,16 +179,6 @@ export default function FollowUps() {
     }),
     [data.quotes, data.followups]
   );
-
-  const thisWeekQueue = useMemo(() => {
-    const { start, end } = getOffsetWeekRange(0);
-    return followUpQueue.filter(item => {
-      const d = item.followUp?.next_date;
-      if (!d) return false;
-      const dt = parseISO(d);
-      return dt >= start && dt <= end;
-    });
-  }, [followUpQueue]);
 
   const { days: calDays } = useMemo(() => getOffsetWeekRange(calWeekOffset), [calWeekOffset]);
 
@@ -437,7 +427,7 @@ export default function FollowUps() {
             </div>
             {/* View tabs */}
             <div className="flex gap-1 bg-g100 rounded-[4px] p-1">
-              {(['queue', 'board', 'thisweek', 'calendar'] as const).map(tab => (
+              {(['queue', 'board', 'calendar'] as const).map(tab => (
                 <button
                   key={tab}
                   type="button"
@@ -447,7 +437,7 @@ export default function FollowUps() {
                     viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
                   )}
                 >
-                  {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
+                  {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : 'Calendar'}
                 </button>
               ))}
             </div>
@@ -542,24 +532,40 @@ export default function FollowUps() {
           </div>
 
           {/* View tabs */}
-          <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
-            {(['queue', 'board', 'thisweek', 'calendar'] as const).map(tab => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setViewTab(tab)}
-                className={cn(
-                  "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
-                  viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
-                )}
-              >
-                {tab === 'queue' ? 'Queue' : tab === 'board' ? 'Board' : tab === 'thisweek' ? 'This Week' : 'Calendar'}
-              </button>
-            ))}
+          <div className="flex gap-1 mb-3">
+            <div className="flex gap-1 flex-1 bg-g100 rounded-[4px] p-1">
+              {(['queue', 'board'] as const).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setViewTab(tab)}
+                  className={cn(
+                    "flex-1 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[3px] transition-colors",
+                    viewTab === tab ? "bg-white text-blk shadow-sm" : "text-g500 hover:text-blk"
+                  )}
+                >
+                  {tab === 'queue' ? 'Queue' : 'Board'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewTab(v => v === 'calendar' ? 'queue' : 'calendar')}
+              title="Calendar view"
+              className={cn(
+                "flex items-center gap-1 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[4px] border transition-colors",
+                viewTab === 'calendar'
+                  ? "bg-red-mrt text-white border-red-mrt"
+                  : "bg-g100 text-g500 border-transparent hover:text-blk hover:bg-g200"
+              )}
+            >
+              <Calendar size={12} />
+              Cal
+            </button>
           </div>
 
           {/* Active / Closed sub-tabs — hidden in calendar view */}
-          {viewTab !== 'calendar' && (
+          {viewTab === 'queue' && (
             <div className="flex gap-1 mb-3 bg-g100 rounded-[4px] p-1">
               <button
                 type="button"
@@ -623,7 +629,7 @@ export default function FollowUps() {
           />
         ) : (
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-          {(viewTab === 'thisweek' ? thisWeekQueue : followUpQueue).map(({ quote, followUp, priority, daysSinceQuote }) => {
+          {followUpQueue.map(({ quote, followUp, priority, daysSinceQuote }) => {
             const fullChain = buildFullChain(quote, followUp);
             const onTimePct = cardOnTimeRate(fullChain);
             const tat = tatLabel(followUp);
@@ -745,13 +751,6 @@ export default function FollowUps() {
             </button>
             );
           })}
-          {viewTab === 'thisweek' && thisWeekQueue.length === 0 && (
-            <div className="p-8 text-center bg-g50 rounded-lg border border-dashed border-g200 mx-2 mt-4">
-              <Calendar className="mx-auto text-g300 mb-2" size={24} />
-              <div className="text-[12px] font-bold text-g500">No follow-ups due this week</div>
-              <div className="text-[10px] text-g400">Check the Board or Calendar for other items</div>
-            </div>
-          )}
         </div>
         )}
       </div>
@@ -964,144 +963,153 @@ export default function FollowUps() {
               </div>
             </div>
 
-            {/* Content: Chat Timeline & Form */}
-            <div className="flex-1 overflow-hidden flex flex-col bg-g50 relative">
-              {/* Nudge when this quote has no next step planned */}
-              {!isClosedTab && selectedItem.priority === 'unscheduled' && (
-                <div className="shrink-0 flex items-center gap-2 px-6 py-2.5 bg-orange-50 border-b border-orange-200">
-                  <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-                  <span className="text-[12px] text-orange-700 font-medium">
-                    No next step planned for this quotation
-                    {selectedItem.daysSinceQuote > 0 ? ` — silent ${selectedItem.daysSinceQuote} day${selectedItem.daysSinceQuote === 1 ? '' : 's'}.` : '.'}
-                    {' '}Log an activity below and set the next follow-up date so it never slips.
-                  </span>
-                </div>
-              )}
-              {/* Chat-bubble activity log */}
-              <div className="flex-1 overflow-y-auto p-6 pb-2">
-                <div className="flex items-center gap-2 mb-4">
-                  <History size={16} className="text-g400" />
-                  <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
-                </div>
+            {/* Content: Timeline (left) + Log Activity panel (right) */}
+            <div className="flex-1 overflow-hidden flex bg-g50">
 
-                {(() => {
-                  // Single source of truth — same chain used for on-time calc and display
-                  const allLogs = buildFullChain(selectedItem.quote, selectedItem.followUp);
-                  return (
-                  <div className="space-y-1">
-                    {(() => {
-                      // On time = done by deadline (customer nextDate if set, else TAT budget)
-                      const wasOnTime = (i: number): boolean | null => {
-                        if (i === 0) return null;
-                        return new Date(allLogs[i].ts) <= stepDeadline(allLogs, i);
-                      };
+              {/* Timeline column */}
+              <div className="flex-1 overflow-hidden flex flex-col min-w-0 border-r border-g200">
+                {/* Nudge when this quote has no next step planned */}
+                {!isClosedTab && selectedItem.priority === 'unscheduled' && (
+                  <div className="shrink-0 flex items-center gap-2 px-6 py-2.5 bg-orange-50 border-b border-orange-200">
+                    <AlertTriangle size={14} className="text-orange-500 shrink-0" />
+                    <span className="text-[12px] text-orange-700 font-medium">
+                      No next step planned for this quotation
+                      {selectedItem.daysSinceQuote > 0 ? ` — silent ${selectedItem.daysSinceQuote} day${selectedItem.daysSinceQuote === 1 ? '' : 's'}.` : '.'}
+                      {' '}Log an activity on the right and set the next follow-up date.
+                    </span>
+                  </div>
+                )}
+                {/* Chat-bubble activity log */}
+                <div className="flex-1 overflow-y-auto p-6 pb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <History size={16} className="text-g400" />
+                    <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
+                  </div>
 
-                      return groupLogsByDay(allLogs).map(({ day, logs: dayLogs }) => (
-                        <div key={day}>
-                          {/* Date divider */}
-                          <div className="flex items-center gap-3 my-3">
-                            <div className="flex-1 h-px bg-g200" />
-                            <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
-                              {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
-                            </span>
-                            <div className="flex-1 h-px bg-g200" />
-                          </div>
+                  {(() => {
+                    const allLogs = buildFullChain(selectedItem.quote, selectedItem.followUp);
+                    return (
+                    <div className="space-y-1">
+                      {(() => {
+                        const wasOnTime = (i: number): boolean | null => {
+                          if (i === 0) return null;
+                          return new Date(allLogs[i].ts) <= stepDeadline(allLogs, i);
+                        };
 
-                          {dayLogs.map((log) => {
-                            const globalIdx = allLogs.indexOf(log);
-                            const cfg = CHANNEL_CONFIG[log.channel] ?? CHANNEL_CONFIG['Called'];
-                            const isSystem = isQuoteSentLog(log.note);
-                            const onTime = wasOnTime(globalIdx);
-                            // Quote Sent is the starting point — always mark ON TIME
-                            const onTimeFinal = isSystem ? true : onTime;
-                            const isLast = globalIdx === allLogs.length - 1;
+                        return groupLogsByDay(allLogs).map(({ day, logs: dayLogs }) => (
+                          <div key={day}>
+                            <div className="flex items-center gap-3 my-3">
+                              <div className="flex-1 h-px bg-g200" />
+                              <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
+                                {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
+                              </span>
+                              <div className="flex-1 h-px bg-g200" />
+                            </div>
 
-                            // "Quote Sent" — prominent system entry
-                            if (isSystem) {
+                            {dayLogs.map((log) => {
+                              const globalIdx = allLogs.indexOf(log);
+                              const cfg = CHANNEL_CONFIG[log.channel] ?? CHANNEL_CONFIG['Called'];
+                              const isSystem = isQuoteSentLog(log.note);
+                              const onTime = wasOnTime(globalIdx);
+                              const onTimeFinal = isSystem ? true : onTime;
+                              const isLast = globalIdx === allLogs.length - 1;
+
+                              if (isSystem) {
+                                return (
+                                  <div key={globalIdx} className="flex gap-3 mb-3">
+                                    <div className="flex flex-col items-center w-7 shrink-0">
+                                      <div className="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[12px]">📄</div>
+                                      {!isLast && <div className="w-px flex-1 bg-g200 mt-1" />}
+                                    </div>
+                                    <div className="flex-1 pb-3">
+                                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                        <span className="text-[12px] font-bold text-blk">Quote Sent</span>
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">ON TIME</span>
+                                        <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                                      </div>
+                                      <p className="text-[12px] text-g600 leading-relaxed">{log.note}</p>
+                                      {log.nextDate && (
+                                        <div className="text-[11px] font-semibold text-sR mt-1">
+                                          → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                        </div>
+                                      )}
+                                      <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div key={globalIdx} className="flex gap-3 mb-3">
                                   <div className="flex flex-col items-center w-7 shrink-0">
-                                    <div className="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[12px]">📄</div>
+                                    <div className={cn("w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[12px]", cfg.bg)}>
+                                      {cfg.icon}
+                                    </div>
                                     {!isLast && <div className="w-px flex-1 bg-g200 mt-1" />}
                                   </div>
                                   <div className="flex-1 pb-3">
                                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                                      <span className="text-[12px] font-bold text-blk">Quote Sent</span>
-                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">ON TIME</span>
+                                      <span className="text-[12px] font-bold text-blk">{log.channel}</span>
+                                      {onTimeFinal !== null && (
+                                        <span className={cn(
+                                          "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                          onTimeFinal ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
+                                        )}>
+                                          {onTimeFinal ? 'ON TIME' : 'LATE'}
+                                        </span>
+                                      )}
                                       <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
                                     </div>
-                                    <p className="text-[12px] text-g600 leading-relaxed">{log.note}</p>
+                                    <p className="text-[12px] text-g700 leading-relaxed whitespace-pre-wrap mb-1">{log.note}</p>
                                     {log.nextDate && (
-                                      <div className="text-[11px] font-semibold text-sR mt-1">
-                                        → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                      <div className="mb-1">
+                                        <div className="text-[11px] font-semibold text-sR">
+                                          → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                        </div>
+                                        {log.nextNote && (
+                                          <div className="text-[10.5px] italic text-g500 pl-2 border-l-2 border-g200 mt-0.5">
+                                            {log.nextNote}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
-                                    <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
+                                    <div className="text-[10px] text-g400">{log.who}</div>
                                   </div>
                                 </div>
                               );
-                            }
-
-                            // Regular follow-up log
-                            return (
-                              <div key={globalIdx} className="flex gap-3 mb-3">
-                                <div className="flex flex-col items-center w-7 shrink-0">
-                                  <div className={cn("w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[12px]", cfg.bg)}>
-                                    {cfg.icon}
-                                  </div>
-                                  {!isLast && <div className="w-px flex-1 bg-g200 mt-1" />}
-                                </div>
-                                <div className="flex-1 pb-3">
-                                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                                    <span className="text-[12px] font-bold text-blk">{log.channel}</span>
-                                    {onTimeFinal !== null && (
-                                      <span className={cn(
-                                        "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
-                                        onTimeFinal ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
-                                      )}>
-                                        {onTimeFinal ? 'ON TIME' : 'LATE'}
-                                      </span>
-                                    )}
-                                    <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
-                                  </div>
-                                  <p className="text-[12px] text-g700 leading-relaxed whitespace-pre-wrap mb-1">{log.note}</p>
-                                  {log.nextDate && (
-                                    <div className="mb-1">
-                                      <div className="text-[11px] font-semibold text-sR">
-                                        → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
-                                      </div>
-                                      {log.nextNote && (
-                                        <div className="text-[10.5px] italic text-g500 pl-2 border-l-2 border-g200 mt-0.5">
-                                          {log.nextNote}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  <div className="text-[10px] text-g400">{log.who}</div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                  );
-                })()}
+                            })}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              {/* Log Activity Form — hidden when viewing closed tab */}
+              {/* Log Activity panel — right side, fixed width, hidden on closed tab */}
               {!isClosedTab && (
-                <form onSubmit={handleLogActivity} className="shrink-0 bg-[#f9fafb] border-t border-g200 p-6 pt-5">
-                  <div className="grid grid-cols-[1fr_1fr] gap-x-12 mb-4">
+                <form onSubmit={handleLogActivity} className="w-[360px] shrink-0 bg-white flex flex-col overflow-hidden">
+                  {/* Panel header */}
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-g150 shrink-0">
+                    <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
+                    <span className="text-[11px] text-g400">
+                      {selectedItem.followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).length
+                        ? `${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length} entr${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length === 1 ? 'y' : 'ies'}`
+                        : ''}
+                    </span>
+                  </div>
+
+                  {/* Scrollable form body */}
+                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
                     {/* Activity Done */}
-                    <div>
-                      <div className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-red-mrt mb-4">Log Activity</div>
-                      <div className="font-mono text-[8px] tracking-[1.5px] uppercase text-g500 font-bold mb-2">Activity Done</div>
-                      <div className="flex gap-2 mb-2">
+                    <div className="space-y-1.5">
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Activity Done</div>
+                      <div className="flex gap-2">
                         <select
                           title="Activity channel"
-                          className="flex-1 bg-white border border-g300 rounded-[3px] px-3 py-2 text-[12px] outline-none focus:border-red-mrt"
+                          className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
                           value={channel}
                           onChange={e => setChannel(e.target.value as any)}
                         >
@@ -1111,27 +1119,30 @@ export default function FollowUps() {
                           <option>Meeting</option>
                           <option>Visit</option>
                         </select>
-                        <div className="w-[120px] bg-white border border-g300 rounded-[3px] px-3 py-2 text-[12px] text-g600 truncate flex items-center">
+                        <div className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12px] text-g600 truncate flex items-center min-w-0">
                           {user?.user_metadata?.full_name || user?.email || 'Unknown'}
                         </div>
                       </div>
+                    </div>
 
+                    {/* Notes */}
+                    <div className="space-y-1.5">
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">What Happened?</div>
                       <textarea
                         required
-                        placeholder="What happened? What did the customer say?"
-                        className="w-full h-[60px] bg-white border border-g300 rounded-[3px] p-3 text-[12px] outline-none focus:border-red-mrt resize-none"
+                        placeholder="What did the customer say? Any commitments made?"
+                        className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[88px]"
                         value={note}
                         onChange={e => setNote(e.target.value)}
                       />
                     </div>
 
-                    {/* Next Step */}
-                    <div>
-                      <div className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500 mb-4 opacity-0">Hidden Header</div>
-                      <div className="font-mono text-[8px] tracking-[1.5px] uppercase text-g500 font-bold mb-2">Next Follow-Up Planned</div>
+                    {/* Next Follow-Up block */}
+                    <div className="bg-g100 border border-g200 rounded-[3px] p-3 space-y-2.5">
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Next Follow-Up Planned</div>
                       <select
                         title="Next follow-up action"
-                        className="w-full bg-white border border-g300 rounded-[3px] px-3 py-2 text-[12px] mb-2 outline-none focus:border-red-mrt"
+                        className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
                         value={nextAction}
                         onChange={e => setNextAction(e.target.value as any)}
                       >
@@ -1142,47 +1153,63 @@ export default function FollowUps() {
                         <option value="Meeting">Meeting</option>
                         <option value="Visit">Visit</option>
                       </select>
-                      <div className="flex gap-2 mb-2">
+                      <div className="flex gap-2">
                         <input
                           type="date"
                           title="Next follow-up date"
-                          placeholder="yyyy-mm-dd"
                           min={format(addDays(new Date(), 1), 'yyyy-MM-dd')}
-                          className="flex-1 bg-white border border-g300 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt"
+                          className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
                           value={nextDate}
                           onChange={e => setNextDate(e.target.value)}
                         />
                         <input
                           type="time"
                           title="Next follow-up time"
-                          placeholder="HH:MM"
-                          className="w-[110px] bg-white border border-g300 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt"
+                          className="w-[100px] bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
                           value={nextTime}
                           onChange={e => setNextTime(e.target.value)}
                         />
                       </div>
-
                       {nextDate && (
                         <textarea
                           value={nextNote}
                           onChange={e => setNextNote(e.target.value)}
                           placeholder="What to do on next follow-up? (optional)"
                           rows={2}
-                          className="w-full bg-white border border-g300 rounded-[3px] px-3 py-1.5 text-[11.5px] outline-none focus:border-red-mrt resize-none"
+                          className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[11.5px] outline-none focus:border-red-mrt focus:bg-white resize-none transition-colors"
                         />
                       )}
+                      <span className="text-[10.5px] text-g400">Leave blank if no next date committed.</span>
                     </div>
+
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  {/* Footer: outcome buttons + PDF + submit */}
+                  <div className="shrink-0 px-5 py-4 border-t border-g150 space-y-2.5">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={e => handleMarkWon(selectedItem.quote.id, e)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                      >
+                        <Trophy size={11} /> Mark Won
+                      </button>
+                      <button
+                        type="button"
+                        onClick={e => handleMarkLost(selectedItem.quote.id, e)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors"
+                      >
+                        <XCircle size={11} /> Mark Lost
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => handleQuotePDF(selectedItem.quote)}
-                        title="Download Quotation PDF"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
                       >
-                        <FileText size={12} /> Quote PDF
+                        <FileText size={11} /> Quote PDF
                       </button>
                       {(() => {
                         const hasOrder = !!data.orders.find(o => o.quoteRef === selectedItem.quote.id);
@@ -1191,27 +1218,26 @@ export default function FollowUps() {
                             type="button"
                             onClick={() => handlePIPDF(selectedItem.quote)}
                             disabled={!hasOrder}
-                            title={hasOrder ? 'Download Proforma Invoice PDF' : 'No order created yet for this quote'}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-g300"
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            <Receipt size={12} /> PI PDF
+                            <Receipt size={11} /> PI PDF
                           </button>
                         );
                       })()}
                       <button
                         type="button"
                         onClick={() => openAttachmentModal('quote', selectedItem.quote.id)}
-                        title="View attachments"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-wider uppercase rounded-[4px] border border-g300 text-blk bg-white hover:bg-g50 hover:border-blk transition-colors"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
                       >
-                        <Paperclip size={12} /> Docs
+                        <Paperclip size={11} /> Docs
                       </button>
                     </div>
+
                     <button
                       type="submit"
-                      className="bg-red-mrt text-white font-mono text-[10px] uppercase font-bold tracking-wider px-6 py-2.5 rounded-[3px] transition-colors hover:bg-red-h active:scale-95 flex items-center gap-1"
+                      className="w-full bg-red-mrt text-white font-mono text-[10px] uppercase font-bold tracking-wider px-6 py-2.5 rounded-[3px] transition-colors hover:bg-red-h active:scale-95 flex items-center justify-center gap-1.5"
                     >
-                      <CheckCircle2 size={12} />
+                      <CheckCircle2 size={13} />
                       Log Activity
                     </button>
                   </div>
