@@ -120,8 +120,8 @@ export function DetailPanel() {
               <div className="text-g500 font-mono text-[10.5px] font-bold tracking-wider pt-0.5">EMAIL</div>
               <div className="text-red-mrt">{enq.email || '—'}</div>
 
-              <div className="text-g500 font-mono text-[10.5px] font-bold tracking-wider pt-0.5">ASSIGNED</div>
-              <div className="text-blk">{enq.assigned}</div>
+              <div className="text-g500 font-mono text-[10.5px] font-bold tracking-wider pt-0.5">SUBMITTED BY</div>
+              <div className="text-blk">{enq.doer || enq.assigned || '—'}</div>
 
               {enq.qRef && (
                 <>

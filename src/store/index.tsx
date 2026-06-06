@@ -170,6 +170,7 @@ const mapEnquiryToDB = (e: any) => {
   if ('urg' in e) obj.urg = e.urg;
   if ('status' in e) obj.status = e.status;
   if ('assigned' in e) obj.assigned = e.assigned;
+  if ('doer' in e) obj.doer = e.doer;
   if ('notes' in e) obj.notes = e.notes;
   if ('items' in e) obj.items = e.items;
   if ('attachments' in e) obj.attachments = e.attachments;

@@ -93,6 +93,7 @@ export interface Enquiry {
   urg: Urgency;
   status: EnqStatus;
   assigned: string;
+  doer?: string;
   notes: string;
   ageH: number;
   qRef: string | null;

@@ -14,7 +14,7 @@ export function NewEnquiry() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id');
-  const { data, addEnquiry, updateEnquiry, addCustomer } = useAppStore();
+  const { data, addEnquiry, updateEnquiry, addCustomer, user } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
 
   // ── Unsaved-changes guard ──
@@ -183,9 +183,10 @@ export function NewEnquiry() {
         }
       }
     } else {
-      const primarySite = sites.find(s => s.isPrimary) || sites[0];
-      if (primarySite) {
-        setSiteId(primarySite.id);
+      // Only auto-fill when there is exactly one site — if multiple exist the
+      // doer must pick manually to avoid mismatched entries.
+      if (sites.length === 1) {
+        setSiteId(sites[0].id);
       }
     }
   }, [custName, siteId, contactId, data.customers]);
@@ -306,6 +307,7 @@ export function NewEnquiry() {
         urg: urgency,
         status: editId ? (data.enquiries.find(x => x.id === editId)?.status || 'New') : 'New',
         assigned,
+        doer: editId ? (data.enquiries.find(x => x.id === editId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
         notes,
         ageH: editId ? (data.enquiries.find(x => x.id === editId)?.ageH || 0) : 0,
         qRef: editId ? (data.enquiries.find(x => x.id === editId)?.qRef || null) : null,
@@ -412,16 +414,28 @@ export function NewEnquiry() {
                   {errors.custName && <div className="text-red-mrt text-[10px] mt-1 font-medium">{errors.custName}</div>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
-                  <select 
-                    value={siteId} 
-                    onChange={e => { setSiteId(e.target.value); setContactId(''); }}
-                    disabled={!custName}
-                    className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select Site...</option>
-                    {(data.customers.find(c => c.name === custName)?.sites ?? []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.city})</option>)}
-                  </select>
+                  {(() => {
+                    const custSites = data.customers.find(c => c.name === custName)?.sites ?? [];
+                    const mustPick = custName && custSites.length > 1 && !siteId;
+                    return (
+                      <>
+                        <label className="block text-[10px] font-bold tracking-[0.5px] uppercase mb-[4px] flex items-center gap-1.5">
+                          <span className={mustPick ? 'text-red-mrt' : 'text-g600'}>Site / Branch</span>
+                          {mustPick && <span className="text-[9px] font-bold text-red-mrt">— Select required</span>}
+                        </label>
+                        <select
+                          title="Site / Branch"
+                          value={siteId}
+                          onChange={e => { setSiteId(e.target.value); setContactId(''); }}
+                          disabled={!custName}
+                          className={`w-full font-sans text-[13px] text-blk bg-white rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed border ${mustPick ? 'border-red-mrt ring-[3px] ring-red-lt' : 'border-g300'}`}
+                        >
+                          <option value="">{custSites.length > 1 ? 'Select Site / Branch...' : 'Select Site...'}</option>
+                          {custSites.map(s => <option key={s.id} value={s.id}>{s.name} ({s.city})</option>)}
+                        </select>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
