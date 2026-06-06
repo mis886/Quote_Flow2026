@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { Badge, Button, SourceIcon, DateFilterBanner } from '../components/ui';
 import { Search, Plus, Calendar, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { calculateAgeHours, fmtIST, isInDateRange } from '../lib/utils';
+import { calculateAgeHours, fmtIST, isInDateRange, siteLabel } from '../lib/utils';
 import { EnqStatus, Urgency } from '../lib/types';
 
 export function Enquiries() {
@@ -182,14 +182,8 @@ export function Enquiries() {
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-red-mrt">{e.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">{fmtIST(d, 'dd MMM HH:mm')}</td>
                         <td className="px-[13px] py-[10px] align-middle">
-                          <div className="font-semibold">
-                            {e.cust}
-                            {(() => {
-                              const cust = data.customers.find(c => c.name === e.cust);
-                              const site = cust?.sites?.find(s => s.id === e.siteId) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
-                              return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
-                            })()}
-                          </div>
+                          <div className="font-semibold">{e.cust}</div>
+                          {(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <div className="text-[11px] text-g500 font-normal">{sl}</div> : null; })()}
                           <div className="text-[11px] text-g500">{e.contact}</div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">

@@ -1,6 +1,22 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { OrderAdjustment } from './types';
+import type { OrderAdjustment, Customer } from './types';
+
+/**
+ * Returns a display label for a site — "City — Branch" or just whichever part exists.
+ * Pass the customer record + the siteId stored on the doc (quote/order/enquiry).
+ */
+export function siteLabel(customer: Customer | undefined, siteId: string | undefined | null): string {
+  if (!customer) return '';
+  const site = (siteId && customer.sites.find(s => s.id === siteId))
+    || customer.sites.find(s => s.isPrimary)
+    || customer.sites[0];
+  if (!site) return '';
+  const city = site.city?.trim() || '';
+  const branch = (site.name?.trim() && site.name.trim() !== customer.name.trim()) ? site.name.trim() : '';
+  if (city && branch) return `${city} — ${branch}`;
+  return city || branch || site.state?.trim() || '';
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

@@ -702,8 +702,8 @@ export default function FollowUps() {
             const tat = tatLabel(followUp);
             const isSelected = selectedQuoteId === quote.id || (selectedItem && selectedItem.quote.id === quote.id);
             const custRec = data.customers.find(c => c.name === quote.cust);
-            const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-            const city = site?.city;
+            const site = custRec?.sites.find(s => s.id === quote.siteId) ?? custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+            const locationLabel = [site?.city, site?.name && site.name !== quote.cust ? site.name : ''].filter(Boolean).join(' — ') || site?.state || '';
             const value = quote.items.reduce((a, i) => a + i.total, 0);
             const lastLog = followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).slice(-1)[0];
             const followUpStage = followUp?.stage ?? quote.status;
@@ -742,13 +742,13 @@ export default function FollowUps() {
                 </span>
               </div>
 
-              {/* Customer name + city */}
+              {/* Customer name + location */}
               <div className="px-3 pt-1">
                 <div className="text-[13px] font-bold text-blk leading-snug truncate">{quote.cust}</div>
-                {city && (
+                {locationLabel && (
                   <div className="flex items-center gap-0.5 text-[10px] text-g400 mt-0.5">
                     <MapPin size={9} className="shrink-0" />
-                    <span className="truncate">{city}</span>
+                    <span className="truncate">{locationLabel}</span>
                   </div>
                 )}
               </div>
@@ -859,7 +859,8 @@ export default function FollowUps() {
                   </div>
                   {(() => {
                     const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                    const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                    const site = custRec?.sites.find(s => s.id === selectedItem.quote.siteId) ?? custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                    const detailLocation = [site?.city, site?.name && site.name !== custRec?.name ? site.name : ''].filter(Boolean).join(' — ') || site?.state || '';
                     return (
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="font-mono text-[11px] font-bold text-red-mrt bg-red-lt border border-red-mrt/20 px-2 py-0.5 rounded-[3px] tracking-wide">{selectedItem.quote.id}</span>
@@ -881,10 +882,10 @@ export default function FollowUps() {
                         {isClosedTab && (
                           <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-1.5 py-0.5 rounded-[3px] border bg-emerald-50 text-emerald-700 border-emerald-200">CLOSED</span>
                         )}
-                        {site?.city && (
+                        {detailLocation && (
                           <span className="flex items-center gap-1 text-[11px] text-g500">
                             <MapPin size={9} className="text-g400 shrink-0" />
-                            {site.city}{site.name && site.name !== custRec?.name ? ` — ${site.name}` : ''}
+                            {detailLocation}
                           </span>
                         )}
                       </div>
@@ -943,7 +944,7 @@ export default function FollowUps() {
               {/* Contacts bar */}
               {(() => {
                 const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                const site = custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                const site = custRec?.sites.find(s => s.id === selectedItem.quote.siteId) ?? custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
                 const contacts = site?.contacts ?? [];
                 if (contacts.length === 0) return null;
                 return (

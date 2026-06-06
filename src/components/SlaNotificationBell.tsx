@@ -3,12 +3,13 @@ import { Bell, AlertTriangle, Clock, ChevronRight, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isBefore, isToday, parseISO } from 'date-fns';
 import { useAppStore } from '../store';
-import { cn, fmtIST } from '../lib/utils';
+import { cn, fmtIST, siteLabel } from '../lib/utils';
 import { Highlighter } from './ui/highlighter';
 
 type AlertItem = {
   quoteId: string;
   cust: string;
+  siteId?: string | null;
   owner: string;
   nextDate: string;
   nextTime?: string | null;
@@ -57,6 +58,7 @@ export function SlaNotificationBell() {
         return [{
           quoteId: q.id,
           cust: q.cust,
+          siteId: q.siteId,
           owner: fu.owner || 'Unassigned',
           nextDate: fu.next_date,
           nextTime: fu.next_time,
@@ -191,6 +193,10 @@ export function SlaNotificationBell() {
                         {a.cust}
                       </Highlighter>
                     </div>
+                    {(() => {
+                      const sl = siteLabel(data.customers.find(c => c.name === a.cust), a.siteId);
+                      return sl ? <div className="text-[10px] text-g400 truncate">{sl}</div> : null;
+                    })()}
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-g500">
                         {a.priority === 'overdue' ? (

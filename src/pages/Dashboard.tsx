@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { formatINR, cn, getThisWeekRange, localDateStr } from '../lib/utils';
+import { formatINR, cn, getThisWeekRange, localDateStr, siteLabel } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight, Calendar, ChevronLeft } from 'lucide-react';
@@ -993,6 +993,7 @@ export function Dashboard() {
                             <div>
                               <div className="font-mono text-[10px] font-bold text-red-mrt tracking-wider mb-0.5">{e.id}</div>
                               <div className="text-[13px] font-bold text-blk">{e.cust}</div>
+                              {(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <div className="text-[10px] text-g400">{sl}</div> : null; })()}
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1023,7 +1024,10 @@ export function Dashboard() {
                   {data.enquiries.slice(0, 5).map(e => (
                     <div key={e.id} className="flex items-center p-[9px_16px] border-b border-g100 last:border-0 cursor-pointer hover:bg-g50 transition-colors overflow-hidden" onClick={() => openDetailPanel('enquiry', e.id)}>
                       <div className="w-[120px] font-mono text-[11px] font-bold text-red-mrt shrink-0 tracking-wider truncate pr-2">{e.id}</div>
-                      <div className="font-bold text-[13px] flex-1 truncate pr-3">{e.cust}</div>
+                      <div className="flex-1 min-w-0 pr-3">
+                        <div className="font-bold text-[13px] truncate">{e.cust}</div>
+                        {(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <div className="text-[10px] text-g400 truncate">{sl}</div> : null; })()}
+                      </div>
                       <div className="flex items-center justify-end shrink-0 w-[190px] gap-2.5">
                         <span className="font-mono text-[10px] text-g400 bg-g50">{e.items.length} items</span> {/*border border-g200 px-1.5 py-0.5 rounded-full*/}
                         <div className="w-[68px] flex justify-center">
@@ -1065,7 +1069,10 @@ export function Dashboard() {
                       return (
                         <div key={q.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 items-center px-[16px] py-[8px] border-b border-g100 last:border-0 hover:bg-g50 cursor-pointer transition-colors" onClick={() => openDetailPanel('quote', q.id)}>
                           <div className="font-mono text-[10.5px] font-bold text-red-mrt truncate">{q.id}</div>
-                          <div className="text-[12px] font-medium text-blk truncate">{q.cust}</div>
+                          <div className="min-w-0">
+                            <div className="text-[12px] font-medium text-blk truncate">{q.cust}</div>
+                            {(() => { const sl = siteLabel(data.customers.find(c => c.name === q.cust), (q as any).siteId); return sl ? <div className="text-[10px] text-g400 truncate">{sl}</div> : null; })()}
+                          </div>
                           <div className="font-mono text-[11px] font-bold text-blk text-right whitespace-nowrap">{formatINR(val)}</div>
                           <div className="font-mono text-[10px] text-g400 text-right whitespace-nowrap">{new Date(q.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</div>
                         </div>

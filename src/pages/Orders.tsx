@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Loader2, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, fmtIST, isInDateRange, resolveAdjustments, maxItemGstRate } from '../lib/utils';
+import { formatINR, fmtIST, isInDateRange, resolveAdjustments, maxItemGstRate, siteLabel } from '../lib/utils';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { exportOrderToSheets, buildSheetsPayload } from '../lib/sheets';
 import { getS3SignedUrl } from '../lib/s3';
@@ -195,15 +195,9 @@ export function Orders() {
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sW">{o.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-sQ">{o.quoteRef}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle font-semibold">
-                          {o.cust}
-                          {(() => {
-                            const enq = data.enquiries.find(e => e.id === o.enqRef);
-                            const cust = data.customers.find(c => c.name === o.cust);
-                            const effSiteId = (o as any).siteId || enq?.siteId;
-                            const site = (effSiteId && cust?.sites?.find(s => s.id === effSiteId)) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
-                            return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
-                          })()}
+                        <td className="px-[13px] py-[10px] align-middle">
+                          <div className="font-semibold">{o.cust}</div>
+                          {(() => { const sl = siteLabel(data.customers.find(c => c.name === o.cust), (o as any).siteId || data.enquiries.find(e => e.id === o.enqRef)?.siteId); return sl ? <div className="text-[11px] text-g500">{sl}</div> : null; })()}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle font-mono text-[11px] font-bold text-g700">
                           <div className="flex items-center gap-1.5">

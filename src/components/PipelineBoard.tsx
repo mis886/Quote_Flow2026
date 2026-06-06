@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseISO, isToday } from 'date-fns';
 import { useAppStore } from '../store';
-import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth } from '../lib/utils';
+import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth, siteLabel } from '../lib/utils';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import {
   BOARD_LANES,
@@ -126,11 +126,8 @@ export default function PipelineBoard({
   // back to the customer's primary/first site (PROCESS_MAP §6.4).
   const siteNameFor = (custName: string, siteId?: string): string | undefined => {
     const cust = data.customers.find(c => c.name === custName);
-    if (!cust?.sites?.length) return undefined;
-    const site = (siteId && cust.sites.find(s => s.id === siteId))
-      || cust.sites.find(s => s.isPrimary)
-      || cust.sites[0];
-    return site?.name || undefined;
+    const label = siteLabel(cust, siteId);
+    return label || undefined;
   };
 
   const lanes = useMemo(() => {

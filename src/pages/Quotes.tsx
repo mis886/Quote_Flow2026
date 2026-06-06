@@ -4,7 +4,7 @@ import { Badge, Button, DateFilterBanner } from '../components/ui';
 import { Search, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { QuoteStatus, Quote } from '../lib/types';
-import { formatINR, fmtIST, isInDateRange } from '../lib/utils';
+import { formatINR, fmtIST, isInDateRange, siteLabel } from '../lib/utils';
 import { generateQuotePDF } from '../lib/pdfGenerator';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { FollowUpSendPrompt } from '../components/FollowUpSendPrompt';
@@ -170,15 +170,9 @@ export function Quotes() {
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sQ">{q.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-red-mrt">{q.enqRef}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle font-semibold">
-                          {q.cust}
-                          {(() => {
-                            const enq = data.enquiries.find(e => e.id === q.enqRef);
-                            const cust = data.customers.find(c => c.name === q.cust);
-                            const effSiteId = (q as any).siteId || enq?.siteId;
-                            const site = (effSiteId && cust?.sites?.find(s => s.id === effSiteId)) || cust?.sites?.find(s => s.isPrimary) || cust?.sites?.[0];
-                            return site?.name ? <span className="text-g500 font-normal"> — {site.name}</span> : null;
-                          })()}
+                        <td className="px-[13px] py-[10px] align-middle">
+                          <div className="font-semibold">{q.cust}</div>
+                          {(() => { const sl = siteLabel(data.customers.find(c => c.name === q.cust), (q as any).siteId || data.enquiries.find(e => e.id === q.enqRef)?.siteId); return sl ? <div className="text-[11px] text-g500">{sl}</div> : null; })()}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
                           {q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy') : '--'}
