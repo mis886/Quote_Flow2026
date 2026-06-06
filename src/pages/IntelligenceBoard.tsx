@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, X, ExternalLink } from 'lucide-react';
+import { Lock, Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Customer, Contact, CustomerTier, Quote, Order, Enquiry, FollowUpLog } from '../lib/types';
 import { formatINR, fmtIST } from '../lib/utils';
@@ -194,129 +194,6 @@ function PinGate({ correctPin, onUnlock }: { correctPin: string; onUnlock: () =>
   );
 }
 
-// ── Quote Detail Drawer ───────────────────────────────────────────────────────
-
-function QuoteDetailDrawer({ quote, onClose }: { quote: Quote; onClose: () => void }) {
-  const navigate = useNavigate();
-  const subTotal  = (quote.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
-  const gstTotal  = (quote.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
-  const grandTotal = subTotal + gstTotal;
-  const curr = quote.curr ?? 'INR';
-  const sym  = curr === 'INR' ? '₹' : curr;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/30 z-[998]" onClick={onClose} />
-
-      {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-[580px] bg-white shadow-2xl z-[999] flex flex-col animate-in slide-in-from-right duration-200">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-g200 shrink-0">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[13px] font-bold text-blk">{quote.id}</span>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${STATUS_BADGE[quote.status] ?? STATUS_BADGE.Draft}`}>{quote.status}</span>
-              </div>
-              <div className="text-[11px] text-g400 mt-0.5">
-                {quote.cust}{quote.date ? ` · ${fmtIST(new Date(quote.date), 'dd MMM yyyy')}` : ''}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(`/quotes/new?id=${quote.id}`)}
-              title="Edit quote"
-              className="h-7 inline-flex items-center gap-1.5 px-2.5 border border-g200 rounded-[3px] text-[10px] font-medium text-g600 hover:bg-g50 transition-colors"
-            >
-              <ExternalLink size={10} /> Edit
-            </button>
-            <button type="button" onClick={onClose} title="Close" className="p-1.5 rounded-[3px] text-g400 hover:bg-g100 transition-colors">
-              <X size={15} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-
-          {/* Line items table */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[12px]">
-              <thead className="bg-g100">
-                <tr>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border-b border-g200 w-8">#</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border-b border-g200">Description</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border-b border-g200 w-24">Material</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-left border-b border-g200 w-16">HSN</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border-b border-g200 w-14">Qty</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border-b border-g200 w-14">UOM</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-right border-b border-g200 w-24">Unit Rate</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-center border-b border-g200 w-14">GST%</th>
-                  <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-3 py-1.5 text-right border-b border-g200 w-24">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(quote.items ?? []).map((item, i) => (
-                  <tr key={i} className="hover:bg-g50/50">
-                    <td className="px-3 py-[6px] border-b border-g200 font-mono text-g400 text-[11px]">{i + 1}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-blk">{item.desc || <span className="text-g300 italic">—</span>}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-g500">{item.mat || '—'}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 font-mono text-[11px] text-g500">{(item as any).hsn || '—'}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-center font-mono text-[11px] text-blk">{item.qty}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-center text-[11px] text-g500">{item.uom}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-right font-mono text-[11px] text-blk">{sym}{(item.unitPrice ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-center font-mono text-[11px] text-g500">{item.gst ?? 0}%</td>
-                    <td className="px-3 py-[6px] border-b border-g200 text-right font-mono text-[12px] font-semibold text-blk">{formatINR(item.total ?? 0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-g50/50">
-                  <td colSpan={8} className="px-3 py-2 text-right text-[11px] text-g500">Subtotal (before tax)</td>
-                  <td className="px-3 py-2 text-right font-mono text-[12px] font-bold text-blk">{formatINR(subTotal)}</td>
-                </tr>
-                <tr className="bg-g50/50">
-                  <td colSpan={8} className="px-3 py-2 text-right text-[11px] text-g500">GST Total</td>
-                  <td className="px-3 py-2 text-right font-mono text-[12px] font-bold text-blk">{formatINR(gstTotal)}</td>
-                </tr>
-                <tr className="bg-[#1e293b]">
-                  <td colSpan={8} className="px-3 py-2.5 text-right text-[12px] font-bold text-white">Grand Total</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-[13px] font-bold text-white">{formatINR(grandTotal)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* Meta info */}
-          <div className="p-4 grid grid-cols-2 gap-3">
-            {[
-              { label: 'Currency',     value: curr },
-              { label: 'Valid Until',  value: quote.validity ? fmtIST(new Date(quote.validity), 'dd MMM yyyy') : '—' },
-              { label: 'Payment',      value: (quote as any).pay || '—' },
-              { label: 'Delivery',     value: (quote as any).delivery || '—' },
-            ].map(f => (
-              <div key={f.label} className="bg-g50 rounded-[3px] px-3 py-2">
-                <div className="text-[9px] font-bold tracking-[1px] uppercase text-g400 mb-0.5">{f.label}</div>
-                <div className="text-[12px] text-blk">{f.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ── Customer Detail panel ─────────────────────────────────────────────────────
 
 function CustomerDetail({ stats, allFollowups }: {
@@ -325,7 +202,7 @@ function CustomerDetail({ stats, allFollowups }: {
 }) {
   const navigate = useNavigate();
   const { customer: c, enqs, quotes, orders, winRate, pipeline, wonRev, vsAvg } = stats;
-  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const contact = getPrimaryContact(c);
   const revTrend = useRevTrend(orders);
   const maxRev = Math.max(...revTrend.map(r => r.value), 1);
@@ -457,17 +334,77 @@ function CustomerDetail({ stats, allFollowups }: {
               {quotes.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(q => {
                 const total = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
                 const desc = (q.items ?? [])[0]?.desc ?? '';
+                const isExpanded = expandedQuote === q.id;
+                const subTotal  = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
+                const gstTotal  = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                const grandTotal = subTotal + gstTotal;
                 return (
-                  <button key={q.id} type="button" title={`View ${q.id}`} onClick={() => setSelectedQuote(q)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 transition-colors text-left cursor-pointer">
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
-                    <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
-                    <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
-                    <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(total)}</span>
-                    <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                    <span className="text-[10px] text-g400 w-16 text-right shrink-0">{q.date ? fmtIST(new Date(q.date), 'dd MMM') : '—'}</span>
-                    <ChevronRight size={12} className="text-g300 shrink-0" />
-                  </button>
+                  <div key={q.id}>
+                    <button type="button" title={`Toggle ${q.id}`} onClick={() => setExpandedQuote(isExpanded ? null : q.id)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left cursor-pointer',
+                        isExpanded ? 'bg-blue-50' : 'hover:bg-blue-50'
+                      )}>
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
+                      <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
+                      <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
+                      <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(total)}</span>
+                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
+                      <span className="text-[10px] text-g400 w-16 text-right shrink-0">{q.date ? fmtIST(new Date(q.date), 'dd MMM') : '—'}</span>
+                      <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
+                    </button>
+
+                    {isExpanded && (
+                      <div className="bg-blue-50/30 border-t border-blue-100 px-4 py-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-blue-600">Line Items — {q.id}</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/quotes/new?id=${q.id}`)}
+                            title="Edit quote"
+                            className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                          >
+                            <ExternalLink size={9} /> Edit
+                          </button>
+                        </div>
+                        <div className="bg-white border border-g200 rounded-[3px] overflow-x-auto">
+                          <table className="w-full border-collapse text-[11px]">
+                            <thead className="bg-g100">
+                              <tr>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200 w-6">#</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Description</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Material</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">Qty</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">UOM</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Unit Rate</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">GST%</th>
+                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(q.items ?? []).map((item, i) => (
+                                <tr key={i} className="hover:bg-g50/50">
+                                  <td className="px-2.5 py-1.5 border-b border-g100 font-mono text-g400">{i + 1}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-blk">{item.desc || <span className="text-g300 italic">—</span>}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-g500">{item.mat || '—'}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-blk">{item.qty}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center text-g500">{item.uom}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono text-blk">{formatINR(item.unitPrice ?? 0)}</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-g500">{item.gst ?? 0}%</td>
+                                  <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono font-semibold text-blk">{formatINR(item.total ?? 0)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex justify-end gap-5 items-center pt-2">
+                          <span className="text-[10px] text-g600">Sub-Total: <strong className="text-blk font-bold font-mono">{formatINR(subTotal)}</strong></span>
+                          <span className="text-[10px] text-g600">GST: <strong className="text-blk font-bold font-mono">{formatINR(gstTotal)}</strong></span>
+                          <span className="text-[11px] text-red-mrt font-bold font-mono tracking-tight">Grand: {formatINR(grandTotal)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -506,9 +443,6 @@ function CustomerDetail({ stats, allFollowups }: {
         </div>
 
       </div>
-      {selectedQuote && (
-        <QuoteDetailDrawer quote={selectedQuote} onClose={() => setSelectedQuote(null)} />
-      )}
     </div>
   );
 }
