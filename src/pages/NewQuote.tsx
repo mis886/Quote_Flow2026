@@ -36,6 +36,11 @@ export function NewQuote() {
   const navigate = useNavigate();
   const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory } = useAppStore();
 
+  // Linked enquiry reference. Seeded from the URL when converting an enquiry,
+  // and re-hydrated from the saved quote when editing — so editing never wipes
+  // the original enqRef. Always written through on save.
+  const [linkedEnqRef, setLinkedEnqRef] = useState<string>(enqRef || '');
+
   // ── Unsaved-changes guard ──
   // `dirty` flips on first edit, clears on a successful save; while dirty,
   // refreshing / closing / leaving the page warns before discarding edits.
@@ -118,6 +123,7 @@ export function NewQuote() {
     if (editId) {
       const q = data.quotes.find(x => x.id === editId);
       if (q) {
+        if (q.enqRef) setLinkedEnqRef(q.enqRef);
         setQuoteId(q.id); setDate(q.date); setValidity(q.validity || '');
         setCustName(q.cust); setInco(q.inco || 'EXW - Ex Works');
         setCurr(q.curr || 'INR'); setPay(q.pay || '30 days');
@@ -343,7 +349,7 @@ export function NewQuote() {
   };
 
   const buildQuoteData = (statusOverride?: QuoteStatus): Quote => ({
-    id: quoteId, enqRef: enqRef || '', cust: custName, date, validity,
+    id: quoteId, enqRef: linkedEnqRef || enqRef || '', cust: custName, date, validity,
     siteId: siteId || undefined,
     // Stays Draft until actually sent (email module / manual). Convert-to-order
     // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
@@ -365,9 +371,14 @@ export function NewQuote() {
     const qData = buildQuoteData(statusOverride);
     if (editId) {
       await updateQuote(editId, qData);
+      // Re-establish the enquiry back-link if it was ever lost.
+      if (qData.enqRef) {
+        const enq = data.enquiries.find(e => e.id === qData.enqRef);
+        if (enq && enq.qRef !== qData.id) await updateEnquiry(qData.enqRef, { qRef: qData.id });
+      }
     } else {
       await addQuote(qData);
-      if (enqRef) await updateEnquiry(enqRef, { status: 'Quoted', qRef: quoteId });
+      if (qData.enqRef) await updateEnquiry(qData.enqRef, { status: 'Quoted', qRef: quoteId });
     }
     if (!data.customers.find(c => c.name.toLowerCase() === custName.toLowerCase())) {
       await addCustomer({ id: generateId('CUST', data.customers.map(c => c.id)), code: generateId('CUS', data.customers.map(c => c.code)), name: custName, seg: 'General', gstin: '', inco: 'Ex-Works', curr: 'INR', pay: '30 days', sites: [] });

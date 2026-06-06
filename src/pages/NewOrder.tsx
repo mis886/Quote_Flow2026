@@ -37,6 +37,12 @@ export function NewOrder() {
   const navigate = useNavigate();
   const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp } = useAppStore();
 
+  // Linked quote / enquiry references. Seeded from the URL when converting a
+  // quote, and re-hydrated from the saved order when editing — so editing never
+  // wipes the original references. Always written through on save.
+  const [linkedQuoteRef, setLinkedQuoteRef] = useState<string>(quoteRef || '');
+  const [linkedEnqRef, setLinkedEnqRef] = useState<string>('');
+
   const descSuggestions = useMemo(() =>
     [...new Set([
       ...data.enquiries.flatMap(e => e.items.map(i => i.desc)),
@@ -122,6 +128,9 @@ export function NewOrder() {
       const o = data.orders.find(ord => ord.id === editOrderId);
       if (o) {
         hydratedKey.current = key;             // mark hydrated only once data is present
+        if (o.quoteRef) setLinkedQuoteRef(o.quoteRef);
+        if (o.enqRef) setLinkedEnqRef(o.enqRef);
+        else if (o.quoteRef) { const q = data.quotes.find(x => x.id === o.quoteRef); if (q?.enqRef) setLinkedEnqRef(q.enqRef); }
         setOrderId(o.id); setPoNo(o.poNo); setPoDate(o.poDate); setDlvDate(o.dlvDate);
         setCustName(o.cust); setAuthName(o.authorizedPerson?.name || '');
         setAuthDesignation(o.authorizedPerson?.designation || ''); setAuthPhone(o.authorizedPerson?.phone || '');
@@ -145,6 +154,8 @@ export function NewOrder() {
       const q = data.quotes.find(e => e.id === quoteRef);
       if (q) {
         hydratedKey.current = key;             // hydrate from quote only once
+        setLinkedQuoteRef(q.id);
+        if (q.enqRef) setLinkedEnqRef(q.enqRef);
         setOrderId(generateId('ORD', data.orders.map(o => o.id)));
         setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
         if ((q as any).siteId) setSiteId((q as any).siteId);
@@ -260,9 +271,12 @@ export function NewOrder() {
     return Object.keys(e).length === 0;
   };
 
-  const buildOrderData = (): Order => ({
-    id: orderId, quoteRef: quoteRef || '',
-    enqRef: quoteRef ? (data.quotes.find(q => q.id === quoteRef)?.enqRef || '') : '',
+  const buildOrderData = (): Order => {
+    const effQuoteRef = linkedQuoteRef || quoteRef || '';
+    const effEnqRef = linkedEnqRef || (effQuoteRef ? (data.quotes.find(q => q.id === effQuoteRef)?.enqRef || '') : '');
+    return {
+    id: orderId, quoteRef: effQuoteRef,
+    enqRef: effEnqRef,
     cust: custName, siteId: siteId || undefined, poNo, poDate, dlvDate,
     status: editOrderId ? orderStatus : 'Processing',
     value: grandTotal,
@@ -279,7 +293,8 @@ export function NewOrder() {
     pan: pan || undefined,
     hsn: defaultHsn || undefined,
     shipToAddress: shipAddr || undefined,
-  });
+    };
+  };
 
   // Persist the order (with PO upload if any). Returns the orderPayload used,
   // so callers like Generate-PI can pass the same object straight to the PDF.
