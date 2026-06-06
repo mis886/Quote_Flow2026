@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { isBefore, isToday, parseISO } from 'date-fns';
 import { useAppStore } from '../store';
 import { cn, fmtIST } from '../lib/utils';
+import { Highlighter } from './ui/highlighter';
 
 type AlertItem = {
   quoteId: string;
@@ -114,12 +115,18 @@ export function SlaNotificationBell() {
               <div className="flex items-center gap-3 mt-0.5">
                 {overdueCount > 0 && (
                   <span className="text-[11px] font-bold text-red-mrt flex items-center gap-1">
-                    <AlertTriangle size={10} /> {overdueCount} overdue
+                    <AlertTriangle size={10} />
+                    <Highlighter action="highlight" color="#ef4444">
+                      {overdueCount} overdue
+                    </Highlighter>
                   </span>
                 )}
                 {todayCount > 0 && (
                   <span className="text-[11px] font-bold text-amber-600 flex items-center gap-1">
-                    <Clock size={10} /> {todayCount} due today
+                    <Clock size={10} />
+                    <Highlighter action="highlight" color="#f59e0b">
+                      {todayCount} due today
+                    </Highlighter>
                   </span>
                 )}
                 {total === 0 && (
@@ -179,13 +186,18 @@ export function SlaNotificationBell() {
                           : 'Due today'}
                       </span>
                     </div>
-                    <div className="text-[12px] font-semibold text-blk truncate">{a.cust}</div>
+                    <div className="text-[12px] font-semibold text-blk truncate">
+                      <Highlighter action="underline" color={a.priority === 'overdue' ? '#ef4444' : '#f59e0b'}>
+                        {a.cust}
+                      </Highlighter>
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-g500">
-                        {a.priority === 'overdue'
-                          ? `Was due ${fmtIST(parseISO(a.nextDate), 'dd MMM')}`
-                          : `Due today${a.nextTime ? ` at ${a.nextTime}` : ''}`
-                        }
+                        {a.priority === 'overdue' ? (
+                          <>Was due <Highlighter action="highlight" color="#ef4444" className="text-[10px] font-bold text-red-mrt">{fmtIST(parseISO(a.nextDate), 'dd MMM')}</Highlighter></>
+                        ) : (
+                          <>Due <Highlighter action="highlight" color="#f59e0b" className="text-[10px] font-bold text-amber-700">today{a.nextTime ? ` at ${a.nextTime}` : ''}</Highlighter></>
+                        )}
                       </span>
                       <span className="text-g300">·</span>
                       <span className="text-[10px] text-g500">{a.owner}</span>
