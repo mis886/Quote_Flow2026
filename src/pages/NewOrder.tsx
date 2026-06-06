@@ -35,7 +35,7 @@ export function NewOrder() {
   const quoteRef = searchParams.get('quoteRef');
   const editOrderId = searchParams.get('orderId');
   const navigate = useNavigate();
-  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp } = useAppStore();
+  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp, user } = useAppStore();
 
   // Linked quote / enquiry references. Seeded from the URL when converting a
   // quote, and re-hydrated from the saved order when editing — so editing never
@@ -188,7 +188,7 @@ export function NewOrder() {
         if (contactId) { const ct = contacts.find((c: any) => c.id === contactId); if (ct) { setContact(ct.name); setEmail(ct.email); } }
         else { const pc = contacts.find((ct: any) => ct.isPrimary) || contacts[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }
       }
-    } else { const ps = sites.find((s: any) => s.isPrimary) || sites[0]; if (ps) setSiteId(ps.id); }
+    } else { if (sites.length === 1) setSiteId(sites[0].id); }
   }, [custName, siteId, contactId, data.customers, editOrderId, quoteRef]);
 
   // T&C from delivery terms
@@ -293,6 +293,8 @@ export function NewOrder() {
     pan: pan || undefined,
     hsn: defaultHsn || undefined,
     shipToAddress: shipAddr || undefined,
+    // Preserve original doer on edit; stamp submitter email on new
+    doer: editOrderId ? (data.orders.find(o => o.id === editOrderId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
     };
   };
 

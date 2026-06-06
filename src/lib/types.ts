@@ -124,6 +124,7 @@ export interface Quote {
   terms?: string;
   unitId?: string;
   custEnquiryDocNo?: string;
+  doer?: string;
 }
 
 export interface Order {
@@ -165,6 +166,7 @@ export interface Order {
   hsn?: string;
   shipToAddress?: string;
   sheetsExportedAt?: string;
+  doer?: string;
 }
 
 export interface CompanyUnit {

@@ -229,6 +229,7 @@ const mapEnquiryToDB = (e: any) => {
     if ('unitId' in q) obj.unit_id = q.unitId || null;
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
     if ('notes' in q) obj.notes = q.notes ?? [];
+    if ('doer' in q) obj.doer = q.doer;
 
     return obj;
   };
@@ -320,6 +321,7 @@ const mapEnquiryToDB = (e: any) => {
     if ('customPoint' in o) obj.custom_point = o.customPoint || null;
     if ('pan' in o) obj.pan = o.pan || null;
     if ('hsn' in o) obj.hsn = o.hsn || null;
+    if ('doer' in o) obj.doer = o.doer;
 
     return obj;
   };

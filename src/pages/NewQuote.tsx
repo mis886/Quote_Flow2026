@@ -34,7 +34,7 @@ export function NewQuote() {
   const enqRef = searchParams.get('enqRef');
   const editId = searchParams.get('id');
   const navigate = useNavigate();
-  const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory } = useAppStore();
+  const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory, user } = useAppStore();
 
   // Linked enquiry reference. Seeded from the URL when converting an enquiry,
   // and re-hydrated from the saved quote when editing — so editing never wipes
@@ -361,6 +361,8 @@ export function NewQuote() {
     inco: inco === 'OVERRIDE' ? customInco : inco,
     unitId: unitId || undefined,
     custEnquiryDocNo: custEnquiryDocNo.trim() || undefined,
+    // Preserve original doer on edit; stamp submitter email on new
+    doer: editId ? (data.quotes.find(q => q.id === editId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
   });
 
   // Persist the quote (without PDF). Returns the qData used, so callers can
