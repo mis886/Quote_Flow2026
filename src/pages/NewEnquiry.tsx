@@ -54,7 +54,7 @@ export function NewEnquiry() {
   const [enquiryDocs, setEnquiryDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
   const [drawingDocs, setDrawingDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
   
-  const [assigned, setAssigned] = useState('Support');
+  const [assigned, setAssigned] = useState('Akki');
   const [reqDate, setReqDate] = useState(localDateStr(new Date(Date.now() + 86400000)));
   const [notes, setNotes] = useState('');
   
@@ -128,8 +128,7 @@ export function NewEnquiry() {
         setContact(e.contact || '');
         setEmail(e.email || '');
         setUrgency(e.urg);
-        const validAssignees = ['Support', 'Sales Team', 'Technical'];
-        setAssigned(validAssignees.includes(e.assigned) ? e.assigned : 'Support');
+        setAssigned(e.assigned || 'Akki');
         setNotes(e.notes || '');
         setItems(e.items);
         
