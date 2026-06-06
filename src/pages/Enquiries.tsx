@@ -210,6 +210,7 @@ export function Enquiries() {
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>
                           <div className="flex gap-1.5">
                             <Button size="sm" variant="secondary" onClick={() => navigate(`/enquiries/new?id=${e.id}`)}>Edit</Button>
+                            <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openDetailPanel('enquiry', e.id); }}>Detail</Button>
                             {!e.qRef && <Button size="sm" variant="ghost" onClick={(ev) => { ev.stopPropagation(); navigate(`/quotes/new?enqRef=${e.id}`); }}>Quote</Button>}
                             <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openAttachmentModal('enquiry', e.id); }}>Docs</Button>
                           </div>

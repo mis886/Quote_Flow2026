@@ -145,19 +145,31 @@ export function DetailPanel() {
               <ChevronDown size={12} className={`transition-transform duration-200 ${showLineItems ? 'rotate-180' : ''}`} />
             </button>
             {showLineItems && (
-              <div className="border border-g200 rounded divide-y divide-g100 text-[12px]">
-                {enq.items.map((it, i) => (
-                  <div key={i} className="p-3 bg-g50 flex justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="font-sans font-medium text-blk">{it.desc}</div>
-                      {it.mat && <div className="text-g500 mt-0.5">Material: {it.mat}</div>}
-                      {it.drwg && <div className="text-g400 mt-0.5 font-mono text-[10px]">Dwg: {it.drwg}</div>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-blk">{it.qty} {it.uom}</div>
-                    </div>
-                  </div>
-                ))}
+              <div className="bg-g100/50 border border-g200 p-2 text-black">
+                <table className="w-full text-left text-[11.5px]">
+                  <thead className="text-[10px] font-mono text-g500 border-b border-g200">
+                    <tr>
+                      <th className="pb-1.5 font-bold">#</th>
+                      <th className="pb-1.5 font-bold">DESCRIPTION</th>
+                      <th className="pb-1.5 font-bold">MATERIAL</th>
+                      <th className="pb-1.5 font-bold">QTY</th>
+                      <th className="pb-1.5 font-bold">UOM</th>
+                      <th className="pb-1.5 font-bold">DWG</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enq.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-g200/50 last:border-0 hover:bg-white transition-colors">
+                        <td className="py-2 text-g500 font-mono">{it.seq}</td>
+                        <td className="py-2 font-medium">{it.desc}</td>
+                        <td className="py-2 text-g600">{it.mat || '—'}</td>
+                        <td className="py-2 font-bold">{it.qty}</td>
+                        <td className="py-2 text-g500">{it.uom}</td>
+                        <td className="py-2 text-g500">{it.drwg || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
