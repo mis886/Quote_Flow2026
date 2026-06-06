@@ -7,12 +7,13 @@ import type { GlobalDateRange } from '../store';
 type Preset = GlobalDateRange['preset'];
 
 const PRESETS: { key: Preset; label: string }[] = [
-  { key: 'today',        label: 'Today'        },
-  { key: 'yesterday',    label: 'Yesterday'     },
-  { key: 'this-week',    label: 'This Week'     },
-  { key: 'this-month',   label: 'This Month'    },
-  { key: 'this-quarter', label: 'This Quarter'  },
-  { key: 'this-year',    label: 'This Year'     },
+  { key: 'today',         label: 'Today'         },
+  { key: 'yesterday',     label: 'Yesterday'     },
+  { key: 'last-7-days',   label: 'Last 7 Days'   },
+  { key: 'this-week',     label: 'This Week'     },
+  { key: 'this-month',    label: 'This Month'    },
+  { key: 'this-quarter',  label: 'This Quarter'  },
+  { key: 'this-year',     label: 'This Year'     },
 ];
 
 function fmtDate(iso: string) {

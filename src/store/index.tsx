@@ -9,7 +9,7 @@ import { User } from '@supabase/supabase-js';
 export interface GlobalDateRange {
   startDate: string;
   endDate: string;
-  preset: 'today' | 'yesterday' | 'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'custom';
+  preset: 'today' | 'yesterday' | 'last-7-days' | 'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'custom';
 }
 
 interface AppContextType {

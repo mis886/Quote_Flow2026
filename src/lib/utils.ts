@@ -294,6 +294,11 @@ export function resolveDateRange(preset: string): { startDate: string; endDate: 
     const s = iso(y);
     return { startDate: s, endDate: s };
   }
+  if (preset === 'last-7-days') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 6);
+    return { startDate: iso(start), endDate: iso(now) };
+  }
   if (preset === 'this-week') {
     const { start, end } = getThisWeekRange();
     return { startDate: iso(start), endDate: iso(end) };

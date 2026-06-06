@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../store';
 import { Badge, Button, DateFilterBanner } from '../components/ui';
-import { Search, Loader2, Mail } from 'lucide-react';
+import { Search, Loader2, Mail, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatINR, fmtIST, isInDateRange, resolveAdjustments, maxItemGstRate, siteLabel } from '../lib/utils';
 import { generatePIPDF } from '../lib/pdfGenerator';
@@ -18,6 +18,15 @@ export function Orders() {
   const [tab, setTab] = useState<'All' | 'Processing' | 'Delivered'>('All');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [downloadingPOId, setDownloadingPOId] = useState<string | null>(null);
+  const [siteQuery, setSiteQuery] = useState('');
+  const [siteDebounced, setSiteDebounced] = useState('');
+  const [sortCol, setSortCol] = useState('poDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSiteDebounced(siteQuery), 250);
+    return () => clearTimeout(t);
+  }, [siteQuery]);
   const [sendModalOrder, setSendModalOrder] = useState<Order | null>(null);
   const [exportingSheets, setExportingSheets] = useState<string | null>(null);
   const [sheetsToast, setSheetsToast] = useState<{type: "ok"|"warn"|"err"; msg: string} | null>(null);
@@ -68,22 +77,40 @@ export function Orders() {
     setGlobalSearchQuery(search);
   };
 
-  const filteredOrders = data.orders.filter(o => {
-    if (tab !== 'All' && o.status !== tab) return false;
-
-    if (globalSearchQuery) {
-      const q = globalSearchQuery.toLowerCase();
-      const match = o.cust.toLowerCase().includes(q) ||
-                    o.id.toLowerCase().includes(q) ||
-                    o.poNo.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-
-    // Global date range filter (PO date)
-    if (!isInDateRange(o.poDate, globalDateRange)) return false;
-
-    return true;
-  });
+  const filteredOrders = useMemo(() => {
+    const qs = globalSearchQuery.toLowerCase();
+    const sq = siteDebounced.toLowerCase();
+    const list = data.orders.filter(o => {
+      if (tab !== 'All' && o.status !== tab) return false;
+      if (qs) {
+        const match = o.cust.toLowerCase().includes(qs) || o.id.toLowerCase().includes(qs) || o.poNo.toLowerCase().includes(qs);
+        if (!match) return false;
+      }
+      if (!isInDateRange(o.poDate, globalDateRange)) return false;
+      if (sq) {
+        const cust = data.customers.find(c => c.name === o.cust);
+        const sl = siteLabel(cust, (o as any).siteId) || '';
+        const site = (cust?.sites ?? []).find((s: any) => s.id === (o as any).siteId);
+        const city = (site as any)?.city || '';
+        if (!sl.toLowerCase().includes(sq) && !city.toLowerCase().includes(sq)) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      let av: any, bv: any;
+      if (sortCol === 'poDate') { av = a.poDate; bv = b.poDate; }
+      else if (sortCol === 'cust') { av = a.cust.toLowerCase(); bv = b.cust.toLowerCase(); }
+      else if (sortCol === 'status') { av = a.status; bv = b.status; }
+      else if (sortCol === 'value') { av = a.items.reduce((s, i) => s + i.total, 0); bv = b.items.reduce((s, i) => s + i.total, 0); }
+      else if (sortCol === 'items') { av = a.items.length; bv = b.items.length; }
+      else if (sortCol === 'dlvDate') { av = a.dlvDate || ''; bv = b.dlvDate || ''; }
+      else { av = a.poDate; bv = b.poDate; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [data.orders, data.customers, globalSearchQuery, siteDebounced, tab, globalDateRange, sortCol, sortDir]);
 
   const TabSelect = ({ current, label, count }: { current: string, label: string, count?: number }) => {
     const isActive = tab === current;
@@ -94,6 +121,25 @@ export function Orders() {
       >
         {label} {count !== undefined && `(${count})`}
       </div>
+    );
+  };
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+  const SortTh = ({ col, children, right }: { col: string; children: React.ReactNode; right?: boolean }) => {
+    const active = sortCol === col;
+    return (
+      <th
+        className={`font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] whitespace-nowrap border-b border-g200 cursor-pointer select-none hover:text-blk group ${right ? 'text-right' : 'text-left'}`}
+        onClick={() => toggleSort(col)}
+      >
+        <span className="inline-flex items-center gap-1">
+          {children}
+          {active ? (sortDir === 'asc' ? <ChevronUp size={10} className="text-red-mrt" /> : <ChevronDown size={10} className="text-red-mrt" />) : <ChevronsUpDown size={10} className="text-g300 group-hover:text-g400" />}
+        </span>
+      </th>
     );
   };
 
@@ -155,6 +201,17 @@ export function Orders() {
           />
         </div>
 
+        <div className="flex items-center gap-1.5 bg-white border border-g200 rounded px-2 h-7 min-w-[140px] transition-colors focus-within:border-red-mrt focus-within:ring-2 focus-within:ring-red-lt">
+          <Search size={11} className="text-g400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Site / city..."
+            value={siteQuery}
+            onChange={e => setSiteQuery(e.target.value)}
+            className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"
+          />
+        </div>
+
         <div className="ml-auto font-mono text-[10px] text-g500">
           {filteredOrders.length} order(s)
         </div>
@@ -167,13 +224,13 @@ export function Orders() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Order No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote Ref</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer - Site/Branch</th>
+                <SortTh col="cust">Customer - Site/Branch</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">PO Number</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">PO Date</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Items</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-right whitespace-nowrap border-b border-g200">Order Value</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Delivery By</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Status</th>
+                <SortTh col="poDate">PO Date</SortTh>
+                <SortTh col="items">Items</SortTh>
+                <SortTh col="value" right>Order Value</SortTh>
+                <SortTh col="dlvDate">Delivery By</SortTh>
+                <SortTh col="status">Status</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Actions</th>
               </tr>
             </thead>

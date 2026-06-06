@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../store';
 import { Badge, Button, DateFilterBanner } from '../components/ui';
-import { Search, Plus, Send } from 'lucide-react';
+import { Search, Plus, Send, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { QuoteStatus, Quote } from '../lib/types';
 import { formatINR, fmtIST, isInDateRange, siteLabel } from '../lib/utils';
@@ -17,6 +17,15 @@ export function Quotes() {
   const [custFilter, setCustFilter] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [poReceivedIds, setPoReceivedIds] = useState<Set<string>>(new Set());
+  const [siteQuery, setSiteQuery] = useState('');
+  const [siteDebounced, setSiteDebounced] = useState('');
+  const [sortCol, setSortCol] = useState('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSiteDebounced(siteQuery), 250);
+    return () => clearTimeout(t);
+  }, [siteQuery]);
 
   useEffect(() => {
     supabase.from('po_submissions').select('quote_id').then(({ data: rows }) => {
@@ -28,24 +37,42 @@ export function Quotes() {
     setGlobalSearchQuery(search);
   };
 
-  const filteredQuotes = data.quotes.filter(q => {
-    if (tab !== 'All' && q.status !== tab) return false;
-
-    if (globalSearchQuery) {
-      const qs = globalSearchQuery.toLowerCase();
-      const match = q.cust.toLowerCase().includes(qs) || 
-                    q.id.toLowerCase().includes(qs) || 
-                    q.items.some(i => i.desc.toLowerCase().includes(qs));
-      if (!match) return false;
-    }
-
-    if (custFilter && q.cust !== custFilter) return false;
-
-    // Global date range filter (quote date)
-    if (!isInDateRange(q.date, globalDateRange)) return false;
-
-    return true;
-  });
+  const filteredQuotes = useMemo(() => {
+    const qs = globalSearchQuery.toLowerCase();
+    const sq = siteDebounced.toLowerCase();
+    const list = data.quotes.filter(q => {
+      if (tab !== 'All' && q.status !== tab) return false;
+      if (qs) {
+        const match = q.cust.toLowerCase().includes(qs) || q.id.toLowerCase().includes(qs) ||
+          q.items.some(i => i.desc.toLowerCase().includes(qs));
+        if (!match) return false;
+      }
+      if (custFilter && q.cust !== custFilter) return false;
+      if (!isInDateRange(q.date, globalDateRange)) return false;
+      if (sq) {
+        const sl = siteLabel(data.customers.find(c => c.name === q.cust), (q as any).siteId) || '';
+        const cust = data.customers.find(c => c.name === q.cust);
+        const site = (cust?.sites ?? []).find((s: any) => s.id === (q as any).siteId);
+        const city = (site as any)?.city || '';
+        if (!sl.toLowerCase().includes(sq) && !city.toLowerCase().includes(sq)) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      let av: any, bv: any;
+      if (sortCol === 'date') { av = a.date; bv = b.date; }
+      else if (sortCol === 'cust') { av = a.cust.toLowerCase(); bv = b.cust.toLowerCase(); }
+      else if (sortCol === 'status') { av = a.status; bv = b.status; }
+      else if (sortCol === 'value') { av = a.items.reduce((s, i) => s + i.total, 0); bv = b.items.reduce((s, i) => s + i.total, 0); }
+      else if (sortCol === 'items') { av = a.items.length; bv = b.items.length; }
+      else if (sortCol === 'validity') { av = a.validity; bv = b.validity; }
+      else { av = a.date; bv = b.date; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [data.quotes, data.customers, globalSearchQuery, siteDebounced, tab, custFilter, globalDateRange, sortCol, sortDir]);
 
   const statusCounts = {
     Draft: data.quotes.filter(q => q.status === 'Draft').length,
@@ -67,6 +94,25 @@ export function Quotes() {
       >
         {label} {count !== undefined && `(${count})`}
       </div>
+    );
+  };
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+  const SortTh = ({ col, children, right }: { col: string; children: React.ReactNode; right?: boolean }) => {
+    const active = sortCol === col;
+    return (
+      <th
+        className={`font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] whitespace-nowrap border-b border-g200 cursor-pointer select-none hover:text-blk group ${right ? 'text-right' : 'text-left'}`}
+        onClick={() => toggleSort(col)}
+      >
+        <span className="inline-flex items-center gap-1">
+          {children}
+          {active ? (sortDir === 'asc' ? <ChevronUp size={10} className="text-red-mrt" /> : <ChevronDown size={10} className="text-red-mrt" />) : <ChevronsUpDown size={10} className="text-g300 group-hover:text-g400" />}
+        </span>
+      </th>
     );
   };
 
@@ -126,6 +172,17 @@ export function Quotes() {
           {customers.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
+        <div className="flex items-center gap-1.5 bg-white border border-g200 rounded px-2 h-7 min-w-[140px] transition-colors focus-within:border-red-mrt focus-within:ring-2 focus-within:ring-red-lt">
+          <Search size={11} className="text-g400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Site / city..."
+            value={siteQuery}
+            onChange={e => setSiteQuery(e.target.value)}
+            className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"
+          />
+        </div>
+
         <div className="ml-auto font-mono text-[10px] text-g500">
           {filteredQuotes.length} quotes
         </div>
@@ -138,13 +195,13 @@ export function Quotes() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">ENQ Ref</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Customer - Site/Branch</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Date</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Items</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-right whitespace-nowrap border-b border-g200">Value (excl. GST)</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-right whitespace-nowrap border-b border-g200">Grand Total</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Status</th>
-                <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Valid Until</th>
+                <SortTh col="cust">Customer - Site/Branch</SortTh>
+                <SortTh col="date">Date</SortTh>
+                <SortTh col="items">Items</SortTh>
+                <SortTh col="value" right>Value (excl. GST)</SortTh>
+                <SortTh col="value" right>Grand Total</SortTh>
+                <SortTh col="status">Status</SortTh>
+                <SortTh col="validity">Valid Until</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Actions</th>
               </tr>
             </thead>
