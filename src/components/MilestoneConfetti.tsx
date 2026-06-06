@@ -69,7 +69,7 @@ function markShown(key: string) {
 }
 
 export function MilestoneConfetti() {
-  const { data } = useAppStore();
+  const { data, loading } = useAppStore();
   const [active, setActive] = useState<Milestone | null>(null);
   const [recycle, setRecycle] = useState(true);
   const [toastVisible, setToastVisible] = useState(false);
@@ -86,16 +86,25 @@ export function MilestoneConfetti() {
   }, []);
 
   useEffect(() => {
-    if (data.enquiries.length === 0 && data.quotes.length === 0) return;
+    // Wait until data has finished loading from Supabase
+    if (loading) return;
     if (evaluated.current) return;
     evaluated.current = true;
 
+    // Mirror exactly what the Dashboard KPI cards show:
+    // - sentQuotes  = all quotes ever sent (Sent + Won + Lost) — matches "Quotes Sent" KPI
+    // - totalQuoteValue = sum of ALL quotes (sub + GST) — matches "Quote Value" KPI (all-time)
+    // - wonQuotes   = quotes with status Won
+    // - wonValue    = sum of won quote items (sub + GST)
+    const qVal = (quotes: typeof data.quotes) =>
+      quotes.reduce((a, q) => a + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
+
     const stats: MilestoneStats = {
       totalEnquiries: data.enquiries.length,
-      sentQuotes: data.quotes.filter(q => ['Sent', 'Won', 'Lost'].includes(q.status)).length,
-      wonQuotes: data.quotes.filter(q => q.status === 'Won').length,
-      totalQuoteValue: data.quotes.reduce((a, q) => a + q.items.reduce((s, i) => s + i.total + i.total * i.gst / 100, 0), 0),
-      wonValue: data.quotes.filter(q => q.status === 'Won').reduce((a, q) => a + q.items.reduce((s, i) => s + i.total + i.total * i.gst / 100, 0), 0),
+      sentQuotes:     data.quotes.filter(q => q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost').length,
+      wonQuotes:      data.quotes.filter(q => q.status === 'Won').length,
+      totalQuoteValue: qVal(data.quotes),
+      wonValue:        qVal(data.quotes.filter(q => q.status === 'Won')),
     };
 
     const due = MILESTONES.filter(m => m.check(stats) && !wasShownRecently(m.key));
@@ -117,7 +126,7 @@ export function MilestoneConfetti() {
     }, 1000));
 
     return () => timers.current.forEach(clearTimeout);
-  }, [data.enquiries.length, data.quotes.length]);
+  }, [loading, data.enquiries.length, data.quotes.length]);
 
   if (!active) return null;
 

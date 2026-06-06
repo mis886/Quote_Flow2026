@@ -1267,18 +1267,19 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   const maxCount = Math.max(...stages.map(s => s.count), 1);
 
   // Milestones to badge on a stage (key = stage label, value = threshold)
-  const STAGE_MILESTONES: Record<string, { threshold: number; label: string }[]> = {
-    'Quoted':        [{ threshold: 10, label: '10 Quotes' }, { threshold: 50, label: '50 Quotes' }, { threshold: 100, label: '100 Quotes' }, { threshold: 250, label: '250 Quotes' }],
-    'Open Enquiries':[{ threshold: 10, label: '10 Enqs' },  { threshold: 50, label: '50 Enqs' },   { threshold: 100, label: '100 Enqs' },  { threshold: 500, label: '500 Enqs' }],
-    'Won':           [{ threshold: 1,  label: 'First Win!' }, { threshold: 10, label: '10 Won' },  { threshold: 50, label: '50 Won' }],
-    'Active Orders': [{ threshold: 5,  label: '5 Orders' }, { threshold: 10, label: '10 Orders' }],
+  // Thresholds match confetti milestones exactly — same numbers user sees celebrated
+  const totalSentQuotes = data.quotes.filter((q: any) => q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost').length;
+  const STAGE_MILESTONES: Record<string, { threshold: number; label: string; count: number }[]> = {
+    'Negotiating':   [{ threshold: 10, label: '10 Sent', count: totalSentQuotes }, { threshold: 50, label: '50 Sent', count: totalSentQuotes }, { threshold: 100, label: '100 Sent 🚀', count: totalSentQuotes }, { threshold: 250, label: '250 Sent 🔥', count: totalSentQuotes }],
+    'Open Enquiries':[{ threshold: 10, label: '10 Enqs', count: openEnqs.length }, { threshold: 50, label: '50 Enqs', count: openEnqs.length }, { threshold: 100, label: '100 Enqs 🎯', count: openEnqs.length }, { threshold: 500, label: '500 Enqs 🏆', count: openEnqs.length }],
+    'Won':           [{ threshold: 1,  label: 'First Win! 🎉', count: wonQts.length }, { threshold: 10, label: '10 Won 🏅', count: wonQts.length }, { threshold: 50, label: '50 Won 🥇', count: wonQts.length }],
+    'Active Orders': [{ threshold: 5,  label: '5 Active', count: activeOrds.length }, { threshold: 10, label: '10 Active', count: activeOrds.length }],
   };
 
-  function getStageBadge(label: string, count: number) {
+  function getStageBadge(label: string) {
     const milestones = STAGE_MILESTONES[label];
     if (!milestones) return null;
-    // highest threshold achieved
-    const hit = [...milestones].reverse().find(m => count >= m.threshold);
+    const hit = [...milestones].reverse().find(m => m.count >= m.threshold);
     return hit ?? null;
   }
 
@@ -1291,7 +1292,7 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
       <div className="flex items-stretch">
         {stages.map((s, idx) => {
           const barPct = Math.max(12, Math.round((s.count / maxCount) * 100));
-          const badge = getStageBadge(s.label, s.count);
+          const badge = getStageBadge(s.label);
           return (
             <button
               key={s.label}
