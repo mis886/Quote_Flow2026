@@ -52,6 +52,8 @@ export function NewEnquiry() {
   const [phone, setPhone] = useState('');
   // True when the user has typed contact/email/phone manually — suppresses auto-fill
   const [contactManual, setContactManual] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const contactRef = useRef<HTMLDivElement>(null);
   
   const [enquiryDocs, setEnquiryDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
   const [drawingDocs, setDrawingDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
@@ -434,17 +436,52 @@ export function NewEnquiry() {
                     );
                   })()}
                 </div>
-                <div>
+                <div ref={contactRef} className="relative">
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
-                  <select
-                    value={contactId}
-                    onChange={e => { setContactManual(false); setContactId(e.target.value); }}
-                    disabled={!siteId}
-                    className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select Contact...</option>
-                    {((data.customers.find(c => c.name === custName)?.sites ?? []).find(s => s.id === siteId)?.contacts ?? []).map(ct => <option key={ct.id} value={ct.id}>{ct.name} - {ct.role}</option>)}
-                  </select>
+                  {(() => {
+                    const siteContacts = ((data.customers.find(c => c.name === custName)?.sites ?? []).find(s => s.id === siteId)?.contacts ?? []) as any[];
+                    const filtered = siteContacts.filter(ct => !contact || ct.name.toLowerCase().includes(contact.toLowerCase()));
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          placeholder={siteId ? 'Type or search contact...' : 'Select site first'}
+                          value={contact}
+                          disabled={!siteId}
+                          onChange={e => { setContact(e.target.value); setContactId(''); setContactManual(true); setContactOpen(true); }}
+                          onFocus={() => { if (siteId) setContactOpen(true); }}
+                          onBlur={() => setTimeout(() => setContactOpen(false), 150)}
+                          className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt disabled:bg-g50 disabled:cursor-not-allowed"
+                        />
+                        {contactOpen && siteContacts.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-white border border-g200 rounded-[4px] shadow-lg max-h-[160px] overflow-y-auto">
+                            {filtered.length === 0 ? (
+                              <div className="px-3 py-2 text-[11px] text-g400 italic">No match — name will be saved as typed</div>
+                            ) : (
+                              filtered.map((ct: any) => (
+                                <button
+                                  key={ct.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setContactId(ct.id);
+                                    setContact(ct.name);
+                                    setEmail(ct.email || '');
+                                    setPhone(ct.phone || '');
+                                    setContactManual(false);
+                                    setContactOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2"
+                                >
+                                  <span className="font-medium text-blk">{ct.name}</span>
+                                  {ct.role && <span className="text-[10px] text-g400 font-mono">{ct.role}</span>}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
@@ -520,7 +557,7 @@ export function NewEnquiry() {
               <div className="grid grid-cols-2 gap-[12px]">
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Assigned To</label>
-                  <select value={assigned} onChange={e => setAssigned(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt">
+                  <select title="Assigned To" value={assigned} onChange={e => setAssigned(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt">
                     <option>Support</option><option>Sales Team</option><option>Technical</option>
                   </select>
                 </div>
