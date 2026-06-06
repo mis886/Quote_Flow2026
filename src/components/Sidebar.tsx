@@ -41,7 +41,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
   return (
     <aside className={cn(
-      "bg-dark flex flex-col border-r border-white/5 transition-all duration-200 shrink-0 overflow-hidden",
+      "bg-dark flex flex-col border-r border-white/5 transition-all duration-300 shrink-0 overflow-hidden h-full",
       collapsed ? "w-0 min-w-0" : "w-[220px] min-w-[220px]"
     )}>
       <div className="bg-white border-b border-g200 px-4 py-3.5 flex items-center gap-3">

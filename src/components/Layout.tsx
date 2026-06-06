@@ -47,7 +47,7 @@ export function Layout() {
         />
       )}
       <div ref={sidebarRef} onMouseLeave={collapsed ? undefined : handleSidebarLeave}
-        className={cn("transition-all duration-300 shrink-0", collapsed ? "w-0 min-w-0" : "w-[220px] min-w-[220px]")}
+        className={cn("transition-all duration-300 shrink-0 h-full", collapsed ? "w-0 min-w-0" : "w-[220px] min-w-[220px]")}
       >
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
       </div>
