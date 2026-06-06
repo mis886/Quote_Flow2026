@@ -79,6 +79,7 @@ export function NewQuote() {
   const [contactId, setContactId] = useState('');
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
+  const [contactManual, setContactManual] = useState(false);
   const [inco, setInco] = useState('EXW - Ex Works');
   const [customInco, setCustomInco] = useState('');
   const [curr, setCurr] = useState('INR');
@@ -150,6 +151,8 @@ export function NewQuote() {
       if (enq) {
         setCustName(enq.cust); if (enq.siteId) setSiteId(enq.siteId); if (enq.contactId) setContactId(enq.contactId);
         setContact(enq.contact); setEmail(enq.email);
+        // If the enquiry had no contactId the details were typed manually — preserve them
+        setContactManual(!enq.contactId && !!(enq.contact || enq.email));
         const cr = data.customers.find(c => c.name === enq.cust);
         if (cr) { setInco(cr.inco || 'EXW - Ex Works'); setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
         setItems(enq.items.map((i, idx) => ({ ...i, seq: idx + 1, hsn: '40169930', unitPrice: 0, gst: 18, total: 0 })));
@@ -179,11 +182,13 @@ export function NewQuote() {
       const site = sites.find(s => s.id === siteId);
       if (site) {
         const contacts = site.contacts ?? [];
-        if (contactId) { const ct = contacts.find(c => c.id === contactId); if (ct) { setContact(ct.name); setEmail(ct.email); } }
-        else { const pc = contacts.find(ct => ct.isPrimary) || contacts[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }
+        if (contactId && !contactManual) {
+          const ct = contacts.find(c => c.id === contactId);
+          if (ct) { setContact(ct.name); setEmail(ct.email); }
+        }
       }
-    } else { const ps = sites.find(s => s.isPrimary) || sites[0]; if (ps) setSiteId(ps.id); }
-  }, [custName, siteId, contactId, data.customers, editId]);
+    } else { if (sites.length === 1) setSiteId(sites[0].id); }
+  }, [custName, siteId, contactId, contactManual, data.customers, editId]);
 
   // T&C auto-fill from incoterms
   useEffect(() => {
@@ -344,6 +349,9 @@ export function NewQuote() {
     const e: Record<string, string> = {};
     if (!custName) e.custName = 'Customer is required';
     if (items.some(i => !i.desc || Number(i.qty) <= 0)) e.items = 'All items need a description and quantity > 0';
+    // ENQ ref is compulsory when this quote was converted from an enquiry.
+    // Without it the attachment chain (ENQ → Quote → Order) is broken.
+    if (enqRef && !linkedEnqRef) e.enqRef = 'Enquiry reference is missing — cannot save without it';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -351,6 +359,9 @@ export function NewQuote() {
   const buildQuoteData = (statusOverride?: QuoteStatus): Quote => ({
     id: quoteId, enqRef: linkedEnqRef || enqRef || '', cust: custName, date, validity,
     siteId: siteId || undefined,
+    contactId: contactId || undefined,
+    contact: contact || undefined,
+    email: email || undefined,
     // Stays Draft until actually sent (email module / manual). Convert-to-order
     // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
     status: statusOverride ?? quoteStatus,
@@ -507,9 +518,23 @@ export function NewQuote() {
                 <div className="font-mono text-[8px] font-bold tracking-[2px] uppercase text-white/40 mb-0.5">Quote Ref</div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[15px] font-bold text-white">{quoteId}</span>
-                  {enqRef && <span className="font-mono text-[9px] text-white/40 border-l border-white/10 pl-2">ENQ: {enqRef}</span>}
+                  {(linkedEnqRef || enqRef) && (
+                    <span className="font-mono text-[9px] text-white/40 border-l border-white/10 pl-2">ENQ: {linkedEnqRef || enqRef}</span>
+                  )}
                 </div>
               </div>
+              {/* ENQ Ref — shown as required field when converting from enquiry */}
+              {enqRef && (
+                <div>
+                  <label className="block text-[10px] font-bold tracking-[0.5px] uppercase mb-[3px] text-g500">
+                    ENQ Reference <span className="text-red-mrt">*</span>
+                  </label>
+                  <div className={`font-mono text-[13px] font-bold px-[10px] py-[7px] rounded-[3px] border ${errors.enqRef ? 'border-red-mrt bg-red-lt text-red-mrt' : 'border-g200 bg-g50 text-blk'}`}>
+                    {linkedEnqRef || <span className="text-red-mrt">MISSING</span>}
+                  </div>
+                  {errors.enqRef && <p className="text-red-mrt text-[10px] mt-1">{errors.enqRef}</p>}
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[3px]">Date of Issue</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
@@ -538,28 +563,28 @@ export function NewQuote() {
                     <CustomerSearch
                       customers={data.customers}
                       value={custName}
-                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setErrors({ ...errors, custName: '' }); }}
+                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
                       error={!!errors.custName}
                     />
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
-                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Site...</option>
                       {(data.customers.find(c => c.name === custName)?.sites ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` (${s.city})` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
-                    <select value={contactId} onChange={e => setContactId(e.target.value)} disabled={!siteId} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={contactId} onChange={e => { setContactManual(false); setContactId(e.target.value); }} disabled={!siteId} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Contact...</option>
                       {((data.customers.find(c => c.name === custName)?.sites ?? []).find((s: any) => s.id === siteId)?.contacts ?? []).map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` – ${ct.role}` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
-                    <input type="email" placeholder="contact@company.com" value={email} onChange={e => setEmail(e.target.value)}
+                    <input type="email" placeholder="contact@company.com" value={email} onChange={e => { setContactManual(true); setEmail(e.target.value); }}
                       className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                   </div>
                 </div>

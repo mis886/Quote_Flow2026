@@ -107,6 +107,9 @@ export interface Quote {
   enqRef: string;
   cust: string;
   siteId?: string;
+  contactId?: string;
+  contact?: string;
+  email?: string;
   date: string;
   validity: string;
   status: QuoteStatus;

@@ -68,6 +68,7 @@ export function NewOrder() {
   const [shipAddr, setShipAddr] = useState('');
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
+  const [contactManual, setContactManual] = useState(false);
   const [custName, setCustName] = useState('');
   const [siteId, setSiteId] = useState('');
   const [contactId, setContactId] = useState('');
@@ -159,6 +160,11 @@ export function NewOrder() {
         setOrderId(generateId('ORD', data.orders.map(o => o.id)));
         setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
         if ((q as any).siteId) setSiteId((q as any).siteId);
+        if ((q as any).contactId) setContactId((q as any).contactId);
+        if ((q as any).contact) setContact((q as any).contact);
+        if ((q as any).email) setEmail((q as any).email);
+        // Preserve manual contact if quote had no contactId
+        setContactManual(!(q as any).contactId && !!((q as any).contact || (q as any).email));
         setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
         setCustomTerms(parseQuoteTerms(q.terms));
         setItems(q.items.map(i => ({ ...i, agreedRate: i.unitPrice, remarks: '' })));
@@ -185,11 +191,13 @@ export function NewOrder() {
       if (site) {
         if (!editOrderId && !quoteRef) setShipAddr((site as any).dispatchAddress || site.address || (site as any).fullAddress || '');
         const contacts = site.contacts ?? [];
-        if (contactId) { const ct = contacts.find((c: any) => c.id === contactId); if (ct) { setContact(ct.name); setEmail(ct.email); } }
-        else { const pc = contacts.find((ct: any) => ct.isPrimary) || contacts[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }
+        if (contactId && !contactManual) {
+          const ct = contacts.find((c: any) => c.id === contactId);
+          if (ct) { setContact(ct.name); setEmail(ct.email); }
+        }
       }
     } else { if (sites.length === 1) setSiteId(sites[0].id); }
-  }, [custName, siteId, contactId, data.customers, editOrderId, quoteRef]);
+  }, [custName, siteId, contactId, contactManual, data.customers, editOrderId, quoteRef]);
 
   // T&C from delivery terms
   useEffect(() => {
@@ -267,6 +275,9 @@ export function NewOrder() {
     if (!poNo.trim()) e.poNo = 'PO Number is required';
     if (!custName) e.custName = 'Customer is required';
     if (items.some(i => !i.desc || Number(i.qty) <= 0)) e.items = 'All items need a description and quantity > 0';
+    // Quote ref is compulsory when this order was converted from a quote.
+    // Without it the attachment chain (ENQ → Quote → Order) is broken.
+    if (quoteRef && !linkedQuoteRef) e.quoteRef = 'Quote reference is missing — cannot save without it';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -452,9 +463,32 @@ export function NewOrder() {
                 <div className="font-mono text-[8px] font-bold tracking-[2px] uppercase text-white/40 mb-0.5">Order No.</div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[15px] font-bold text-white">{orderId}</span>
-                  {quoteRef && <span className="font-mono text-[9px] text-white/40 border-l border-white/10 pl-2">{quoteRef}</span>}
+                  {(linkedQuoteRef || quoteRef) && (
+                    <span className="font-mono text-[9px] text-white/40 border-l border-white/10 pl-2">{linkedQuoteRef || quoteRef}</span>
+                  )}
                 </div>
               </div>
+              {/* Quote Ref — shown as required field when converting from a quote */}
+              {quoteRef && (
+                <div>
+                  <label className="block text-[10px] font-bold tracking-[0.5px] uppercase mb-[3px] text-g500">
+                    Quote Reference <span className="text-red-mrt">*</span>
+                  </label>
+                  <div className={`font-mono text-[13px] font-bold px-[10px] py-[7px] rounded-[3px] border ${errors.quoteRef ? 'border-red-mrt bg-red-lt text-red-mrt' : 'border-g200 bg-g50 text-blk'}`}>
+                    {linkedQuoteRef || <span className="text-red-mrt">MISSING</span>}
+                  </div>
+                  {errors.quoteRef && <p className="text-red-mrt text-[10px] mt-1">{errors.quoteRef}</p>}
+                </div>
+              )}
+              {/* ENQ Ref — read-only, traced from the quote */}
+              {linkedEnqRef && (
+                <div>
+                  <label className="block text-[10px] font-bold tracking-[0.5px] uppercase mb-[3px] text-g500">ENQ Reference</label>
+                  <div className="font-mono text-[13px] font-bold px-[10px] py-[7px] rounded-[3px] border border-g200 bg-g50 text-blk">
+                    {linkedEnqRef}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] font-bold text-g500 uppercase tracking-[0.5px] mb-[3px]">PO Number <span className="text-red-mrt">*</span></label>
                 <input type="text" value={poNo} placeholder="Customer PO reference"
@@ -501,28 +535,28 @@ export function NewOrder() {
                     <CustomerSearch
                       customers={data.customers}
                       value={custName}
-                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setErrors({ ...errors, custName: '' }); }}
+                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
                       error={!!errors.custName}
                     />
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
-                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Site...</option>
                       {(data.customers.find(c => c.name === custName)?.sites ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` (${s.city})` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
-                    <select value={contactId} onChange={e => setContactId(e.target.value)} disabled={!siteId} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={contactId} onChange={e => { setContactManual(false); setContactId(e.target.value); }} disabled={!siteId} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Contact...</option>
                       {((data.customers.find(c => c.name === custName)?.sites ?? []).find((s: any) => s.id === siteId)?.contacts ?? []).map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}{ct.role ? ` – ${ct.role}` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
-                    <input type="email" placeholder="contact@company.com" value={email} onChange={e => setEmail(e.target.value)}
+                    <input type="email" placeholder="contact@company.com" value={email} onChange={e => { setContactManual(true); setEmail(e.target.value); }}
                       className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                   </div>
                 </div>

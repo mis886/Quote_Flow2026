@@ -192,6 +192,7 @@ const mapEnquiryToDB = (e: any) => {
     const obj: any = { ...q };
     obj.enqRef = q.enq_ref;
     if (q.site_id) obj.siteId = q.site_id;
+    if (q.contact_id) obj.contactId = q.contact_id;
     if (q.unit_id) obj.unitId = q.unit_id;
     if (q.cust_enquiry_doc_no) obj.custEnquiryDocNo = q.cust_enquiry_doc_no;
     if ('authorized_person' in q) {
@@ -200,6 +201,7 @@ const mapEnquiryToDB = (e: any) => {
     }
     delete obj.enq_ref;
     delete obj.site_id;
+    delete obj.contact_id;
     delete obj.unit_id;
     delete obj.cust_enquiry_doc_no;
     return obj;
@@ -225,6 +227,10 @@ const mapEnquiryToDB = (e: any) => {
 
     if ('siteId' in q) obj.site_id = q.siteId || null;
     else if ('site_id' in q) obj.site_id = q.site_id || null;
+
+    if ('contactId' in q) obj.contact_id = q.contactId || null;
+    if ('contact' in q) obj.contact = q.contact || null;
+    if ('email' in q) obj.email = q.email || null;
 
     if ('unitId' in q) obj.unit_id = q.unitId || null;
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
