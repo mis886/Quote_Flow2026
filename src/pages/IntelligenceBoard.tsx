@@ -202,7 +202,7 @@ function CustomerDetail({ stats, allFollowups }: {
   allFollowups: ReturnType<typeof useAppStore>['data']['followups'];
 }) {
   const navigate = useNavigate();
-  const { data } = useAppStore();
+  const { data, openAttachmentModal } = useAppStore();
   const { customer: c, enqs, quotes, orders, winRate, pipeline, wonRev, vsAvg } = stats;
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const contact = getPrimaryContact(c);
@@ -376,17 +376,15 @@ function CustomerDetail({ stats, allFollowups }: {
                             >
                               <FileText size={9} /> PDF
                             </button>
-                            {/* Docs — jump to enquiry attachments */}
-                            {q.enqRef && (
-                              <button
-                                type="button"
-                                title="View enquiry documents"
-                                onClick={() => navigate(`/enquiries?q=${q.enqRef}`)}
-                                className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
-                              >
-                                <Paperclip size={9} /> Docs
-                              </button>
-                            )}
+                            {/* Docs — open quote attachment dialog */}
+                            <button
+                              type="button"
+                              title="View quote documents"
+                              onClick={() => openAttachmentModal('quote', q.id)}
+                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                            >
+                              <Paperclip size={9} /> Docs
+                            </button>
                             {/* Edit */}
                             <button
                               type="button"
