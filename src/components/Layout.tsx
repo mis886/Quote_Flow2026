@@ -4,6 +4,7 @@ import { Topbar } from './Topbar';
 import { DetailPanel } from './DetailPanel';
 import { AttachmentModal } from './AttachmentModal';
 import { AppTour } from './AppTour';
+import { MilestoneConfetti } from './MilestoneConfetti';
 import { useAppStore } from '../store';
 import { Loader2 } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export function Layout() {
         onClose={closeAttachmentModal}
       />
       <AppTour />
+      <MilestoneConfetti />
     </div>
   );
 }
