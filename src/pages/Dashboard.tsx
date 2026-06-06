@@ -1256,45 +1256,91 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   const activeOrds = data.orders.filter((o: any) => o.status === 'Processing');
 
   const stages = [
-    { label: 'Open Enquiries', count: openEnqs.length,   val: 0,                  color: 'text-blue-600',    bar: 'bg-blue-500',    barHex: '#3b82f6', bgHex: '#eff6ff', path: '/enquiries' },
-    { label: 'Quoted',         count: quotedEnqs.length, val: quoteVal(data.quotes.filter((q: any) => quotedEnqs.some((e: any) => e.id === q.enqRef))), color: 'text-purple-600', bar: 'bg-purple-500', barHex: '#a855f7', bgHex: '#faf5ff', path: '/quotes' },
-    { label: 'Negotiating',    count: sentQts.length,    val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  barHex: '#f97316', bgHex: '#fff7ed', path: '/quotes' },
-    { label: 'Won',            count: wonQts.length,     val: quoteVal(wonQts),   color: 'text-emerald-600', bar: 'bg-emerald-500', barHex: '#10b981', bgHex: '#ecfdf5', path: '/quotes' },
-    { label: 'Lost',           count: lostEnqs.length + lostQts.length, val: quoteVal(lostQts), color: 'text-red-600', bar: 'bg-red-500', barHex: '#ef4444', bgHex: '#fef2f2', path: '/enquiries' },
-    { label: 'Active Orders',  count: activeOrds.length, val: 0,                  color: 'text-teal-600',    bar: 'bg-teal-500',    barHex: '#14b8a6', bgHex: '#f0fdfa', path: '/orders' },
+    { label: 'Open Enquiries', count: openEnqs.length,   val: 0,                  color: 'text-blue-600',    bar: 'bg-blue-500',    hover: 'group-hover:bg-blue-50',    badge: 'text-blue-700 bg-blue-50 border-blue-200',    path: '/enquiries' },
+    { label: 'Quoted',         count: quotedEnqs.length, val: quoteVal(data.quotes.filter((q: any) => quotedEnqs.some((e: any) => e.id === q.enqRef))), color: 'text-purple-600', bar: 'bg-purple-500', hover: 'group-hover:bg-purple-50', badge: 'text-purple-700 bg-purple-50 border-purple-200', path: '/quotes' },
+    { label: 'Negotiating',    count: sentQts.length,    val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  hover: 'group-hover:bg-orange-50',  badge: 'text-orange-700 bg-orange-50 border-orange-200', path: '/quotes' },
+    { label: 'Won',            count: wonQts.length,     val: quoteVal(wonQts),   color: 'text-emerald-600', bar: 'bg-emerald-500', hover: 'group-hover:bg-emerald-50', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', path: '/quotes' },
+    { label: 'Lost',           count: lostEnqs.length + lostQts.length, val: quoteVal(lostQts), color: 'text-red-600', bar: 'bg-red-500', hover: 'group-hover:bg-red-50', badge: 'text-red-700 bg-red-50 border-red-200', path: '/enquiries' },
+    { label: 'Active Orders',  count: activeOrds.length, val: 0,                  color: 'text-teal-600',    bar: 'bg-teal-500',    hover: 'group-hover:bg-teal-50',    badge: 'text-teal-700 bg-teal-50 border-teal-200',    path: '/orders' },
   ];
 
   const maxCount = Math.max(...stages.map(s => s.count), 1);
+
+  // Milestones to badge on a stage (key = stage label, value = threshold)
+  const STAGE_MILESTONES: Record<string, { threshold: number; label: string }[]> = {
+    'Quoted':        [{ threshold: 10, label: '10 Quotes' }, { threshold: 50, label: '50 Quotes' }, { threshold: 100, label: '100 Quotes' }, { threshold: 250, label: '250 Quotes' }],
+    'Open Enquiries':[{ threshold: 10, label: '10 Enqs' },  { threshold: 50, label: '50 Enqs' },   { threshold: 100, label: '100 Enqs' },  { threshold: 500, label: '500 Enqs' }],
+    'Won':           [{ threshold: 1,  label: 'First Win!' }, { threshold: 10, label: '10 Won' },  { threshold: 50, label: '50 Won' }],
+    'Active Orders': [{ threshold: 5,  label: '5 Orders' }, { threshold: 10, label: '10 Orders' }],
+  };
+
+  function getStageBadge(label: string, count: number) {
+    const milestones = STAGE_MILESTONES[label];
+    if (!milestones) return null;
+    // highest threshold achieved
+    const hit = [...milestones].reverse().find(m => count >= m.threshold);
+    return hit ?? null;
+  }
 
   return (
     <div className="bg-white border border-g200 rounded-[6px] overflow-hidden shadow-sm mb-3">
       <div className="p-[10px_16px] border-b border-g200 flex items-center justify-between">
         <span className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500">Sales Journey Pipeline</span>
-        <span className="font-mono text-[9px] text-g400 tracking-[1px]">Click stage to filter</span>
+        <span className="font-mono text-[9px] text-g400 tracking-[1px]">Click a stage to filter</span>
       </div>
-      <div className="flex items-stretch divide-x divide-g100">
-        {stages.map((s, idx) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => navigate(s.path)}
-            className="flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 cursor-pointer transition-colors group focus:outline-none relative hover:bg-[var(--stage-bg)]"
-            style={{ '--stage-bg': s.bgHex } as React.CSSProperties}
-          >
-            <div className="w-full flex justify-center mb-1">
-              <div
-                className={`${s.bar} rounded-sm transition-all duration-300 opacity-80 group-hover:opacity-100`}
-                style={{ height: '4px', width: `${Math.max(20, (s.count / maxCount) * 100)}%` }}
-              />
-            </div>
-            <span className={`font-mono text-[9px] font-bold tracking-[1.5px] uppercase ${s.color}`}>{s.label}</span>
-            <span className="font-serif text-[20px] text-blk leading-none font-bold">{s.count}</span>
-            <span className={`font-mono text-[10px] font-bold ${s.color}`}>{fmt(s.val)}</span>
-            {idx < stages.length - 1 && (
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 text-g300 text-[10px] font-bold select-none pointer-events-none">›</div>
-            )}
-          </button>
-        ))}
+      <div className="flex items-stretch">
+        {stages.map((s, idx) => {
+          const barPct = Math.max(12, Math.round((s.count / maxCount) * 100));
+          const badge = getStageBadge(s.label, s.count);
+          return (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => navigate(s.path)}
+              className={`flex-1 flex flex-col items-end gap-0 focus:outline-none relative group overflow-hidden transition-colors duration-150 ${s.hover}`}
+            >
+              {/* Hover tint overlay (handled by button bg transition above) */}
+              <div className="absolute inset-0 pointer-events-none" />
+
+              {/* Divider arrow between stages */}
+              {idx < stages.length - 1 && (
+                <div className="absolute right-0 top-0 bottom-0 w-px bg-g100 z-10" />
+              )}
+
+              {/* Content */}
+              <div className="relative z-10 w-full flex flex-col items-center px-2 pt-3 pb-3 gap-1">
+                {/* Bar */}
+                <div className="w-full flex items-end justify-center h-[28px] mb-1">
+                  <div
+                    className={`${s.bar} rounded-t-sm w-[60%] transition-all duration-500 opacity-70 group-hover:opacity-100 pipeline-bar`}
+                    style={{ '--bar-h': `${Math.max(4, barPct * 0.28)}px` } as React.CSSProperties}
+                  />
+                </div>
+
+                {/* Label */}
+                <span className={`font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase ${s.color} leading-none`}>{s.label}</span>
+
+                {/* Count */}
+                <span className="font-serif text-[22px] text-blk leading-none font-bold mt-0.5">{s.count}</span>
+
+                {/* Value */}
+                <span className={`font-mono text-[10px] font-semibold ${s.val > 0 ? s.color : 'text-g300'}`}>
+                  {s.val > 0 ? fmt(s.val) : '—'}
+                </span>
+
+                {/* Milestone badge */}
+                {badge && (
+                  <span className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-[8px] font-bold border ${s.badge}`}>
+                    🏆 {badge.label}
+                  </span>
+                )}
+              </div>
+
+              {/* Bottom accent bar — shows on hover */}
+              <div className={`absolute bottom-0 left-0 right-0 h-[3px] ${s.bar} opacity-0 group-hover:opacity-100 transition-opacity duration-150`} />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
