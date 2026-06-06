@@ -6,6 +6,7 @@ import { OrderItem, Order, AuthorizedSignatory, OrderStatus, OrderAdjustment, Or
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 import { generatePIPDF } from '../lib/pdfGenerator';
+import { downloadPIDOCX } from '../lib/quoteDocx';
 import { uploadToS3 } from '../lib/s3';
 import { Upload } from 'lucide-react';
 import { SendEmailModal } from '../components/SendEmailModal';
@@ -338,6 +339,24 @@ export function NewOrder() {
       generatePIPDF(payload, qt, data.customers.find(c => c.name === custName), data.settings, sig, true, unit, bank);
     } catch (err) {
       setErrors({ global: `Failed to generate PI: ${(err as any)?.message || 'Check connection'}` });
+    } finally { setIsSaving(false); }
+  };
+
+  const handleGeneratePIDOCX = async () => {
+    setIsSaving(true);
+    try {
+      const payload = await persistOrder();
+      if (!payload) return;
+      setDirty(false);
+      const qt = quoteRef ? data.quotes.find(q => q.id === quoteRef) : undefined;
+      const unit = unitId ? data.units.find(u => u.id === unitId) : data.units.find(u => u.is_default);
+      const bank = bankAccountId ? data.bankAccounts.find(b => b.id === bankAccountId)
+        : data.bankAccounts.find(b => b.unit_id === unit?.id && b.is_default);
+      const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+      const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
+      await downloadPIDOCX(payload, qt, data.customers.find(c => c.name === custName), data.settings, sig, unit, bank);
+    } catch (err) {
+      setErrors({ global: `Failed to generate DOCX: ${(err as any)?.message || 'Check connection'}` });
     } finally { setIsSaving(false); }
   };
 
@@ -1014,6 +1033,11 @@ export function NewOrder() {
                 className="bg-red-mrt text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-red-h hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">
                 <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M14 4h-3V3a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v1H2v2h12V4zM7 3h2v1H7V3zM2 7v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H2zm3 7H4V8h1v6zm3 0H7V8h1v6zm3 0h-1V8h1v6z"/></svg>
                 {isSaving ? 'Working...' : 'Generate PI'}
+              </button>
+              <button type="button" onClick={handleGeneratePIDOCX} disabled={isSaving}
+                className="bg-blue-600 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M14 4h-3V3a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v1H2v2h12V4zM7 3h2v1H7V3zM2 7v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H2zm3 7H4V8h1v6zm3 0H7V8h1v6zm3 0h-1V8h1v6z"/></svg>
+                {isSaving ? 'Working...' : 'PI as DOCX'}
               </button>
               <button type="button" onClick={() => setShowEmailModal(true)} disabled={isSaving}
                 className="bg-blk text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-g700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">

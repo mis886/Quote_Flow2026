@@ -9,7 +9,6 @@ import { CustomerSearch } from '../components/CustomerSearch';
 import { uploadToS3 } from '../lib/s3';
 import { parseRfqPdf } from '../lib/rfqParser';
 import { RfqMapDialog } from '../components/RfqMapDialog';
-import { downloadEnquiryPDF, downloadEnquiryDOCX } from '../lib/enquiryExport';
 
 export function NewEnquiry() {
   const navigate = useNavigate();
@@ -717,40 +716,6 @@ export function NewEnquiry() {
           {isSaving ? 'Uploading...' : 'Save & Create Quote'}
         </Button>
         <Button variant="secondary" onClick={() => { if (confirmLeave()) navigate('/enquiries'); }} disabled={isSaving}>Cancel</Button>
-
-        {/* Download buttons — only show when enquiry has a valid ID */}
-        {enqId && (
-          <>
-            <div className="w-px h-5 bg-g300 mx-1" />
-            <button
-              type="button"
-              title="Download as PDF"
-              onClick={() => downloadEnquiryPDF({
-                id: enqId, recv: new Date(date).toISOString(), src, cust: custName,
-                custEnqDocNo, siteId, contactId, contact, email, urg: urgency,
-                status: 'New', assigned, notes, ageH: 0, qRef: null, items,
-              })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g700 bg-white hover:bg-g50 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-              PDF
-            </button>
-            <button
-              type="button"
-              title="Download as DOCX"
-              onClick={() => downloadEnquiryDOCX({
-                id: enqId, recv: new Date(date).toISOString(), src, cust: custName,
-                custEnqDocNo, siteId, contactId, contact, email, urg: urgency,
-                status: 'New', assigned, notes, ageH: 0, qRef: null, items,
-              })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-              DOCX
-            </button>
-          </>
-        )}
-
         <div className="ml-auto text-[11px] text-g500">Fields marked <span className="text-red-mrt">*</span> required</div>
         {errors.global && <div className="ml-4 text-red-mrt text-[11px] font-bold">{errors.global}</div>}
       </div>

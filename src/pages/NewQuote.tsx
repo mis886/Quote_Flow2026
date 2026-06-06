@@ -6,6 +6,7 @@ import { QuoteItem, Quote, AuthorizedSignatory, QuoteStatus } from '../lib/types
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 import { generateQuotePDF } from '../lib/pdfGenerator';
+import { downloadQuoteDOCX } from '../lib/quoteDocx';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { Copy, Upload, X, AlertCircle } from 'lucide-react';
 
@@ -385,19 +386,35 @@ export function NewQuote() {
     } finally { setIsSaving(false); }
   };
 
-  // Generate PDF: persist + download. Stays on the page so doer can review.
+  // Generate PDF: persist + download.
   const handleGeneratePDF = async () => {
     setIsSaving(true);
     try {
       const qData = await persistQuote();
       if (!qData) return;
-      setDirty(false);   // persisted — no longer unsaved
+      setDirty(false);
       const unit = unitId ? data.units.find(u => u.id === unitId) : data.units.find(u => u.is_default);
       const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
       const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
       generateQuotePDF(qData, data.customers.find(c => c.name === custName), data.settings, sig, true, unit);
     } catch {
       setErrors({ global: 'Failed to generate PDF. Please check your connection.' });
+    } finally { setIsSaving(false); }
+  };
+
+  // Generate DOCX: persist + download.
+  const handleGenerateDOCX = async () => {
+    setIsSaving(true);
+    try {
+      const qData = await persistQuote();
+      if (!qData) return;
+      setDirty(false);
+      const unit = unitId ? data.units.find(u => u.id === unitId) : data.units.find(u => u.is_default);
+      const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+      const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
+      await downloadQuoteDOCX(qData, data.customers.find(c => c.name === custName), data.settings, sig, unit);
+    } catch {
+      setErrors({ global: 'Failed to generate DOCX. Please check your connection.' });
     } finally { setIsSaving(false); }
   };
 
@@ -1033,10 +1050,15 @@ export function NewQuote() {
             </button>
           ) : (
             <>
-              <button type="button" onClick={() => handleSave()} disabled={isSaving}
+              <button type="button" onClick={handleGeneratePDF} disabled={isSaving}
                 className="bg-red-mrt text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-red-h disabled:opacity-50 flex items-center gap-2">
                 <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
                 {isSaving ? 'Saving...' : 'Save & PDF'}
+              </button>
+              <button type="button" onClick={handleGenerateDOCX} disabled={isSaving}
+                className="bg-blue-600 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
+                {isSaving ? 'Saving...' : 'Save & DOCX'}
               </button>
               <button type="button" onClick={() => setShowEmailModal(true)} disabled={isSaving}
                 className="bg-blk text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-g700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">
