@@ -192,11 +192,8 @@ export function SlaNotificationBell() {
                       <Highlighter action="underline" color={a.priority === 'overdue' ? '#ef4444' : '#f59e0b'}>
                         {a.cust}
                       </Highlighter>
+                      {(() => { const sl = siteLabel(data.customers.find(c => c.name === a.cust), a.siteId); return sl ? <span className="font-normal text-g400"> — {sl}</span> : null; })()}
                     </div>
-                    {(() => {
-                      const sl = siteLabel(data.customers.find(c => c.name === a.cust), a.siteId);
-                      return sl ? <div className="text-[10px] text-g400 truncate">{sl}</div> : null;
-                    })()}
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-g500">
                         {a.priority === 'overdue' ? (

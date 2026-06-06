@@ -182,8 +182,7 @@ export function Enquiries() {
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-red-mrt">{e.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">{fmtIST(d, 'dd MMM HH:mm')}</td>
                         <td className="px-[13px] py-[10px] align-middle">
-                          <div className="font-semibold">{e.cust}</div>
-                          {(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <div className="text-[11px] text-g500 font-normal">{sl}</div> : null; })()}
+                          <div className="font-semibold">{e.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <span className="font-normal text-g500"> — {sl}</span> : null; })()}</div>
                           <div className="text-[11px] text-g500">{e.contact}</div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">

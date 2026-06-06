@@ -196,8 +196,7 @@ export function Orders() {
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sW">{o.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-sQ">{o.quoteRef}</span></td>
                         <td className="px-[13px] py-[10px] align-middle">
-                          <div className="font-semibold">{o.cust}</div>
-                          {(() => { const sl = siteLabel(data.customers.find(c => c.name === o.cust), (o as any).siteId || data.enquiries.find(e => e.id === o.enqRef)?.siteId); return sl ? <div className="text-[11px] text-g500">{sl}</div> : null; })()}
+                          <div className="font-semibold">{o.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === o.cust), (o as any).siteId || data.enquiries.find(e => e.id === o.enqRef)?.siteId); return sl ? <span className="font-normal text-g500"> — {sl}</span> : null; })()}</div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle font-mono text-[11px] font-bold text-g700">
                           <div className="flex items-center gap-1.5">
