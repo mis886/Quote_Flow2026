@@ -1297,47 +1297,23 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
               key={s.label}
               type="button"
               onClick={() => navigate(s.path)}
-              className={`flex-1 flex flex-col items-end gap-0 focus:outline-none relative group overflow-hidden transition-colors duration-150 ${s.hover}`}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 px-3 cursor-pointer transition-colors group focus:outline-none relative ${s.hover}`}
             >
-              {/* Hover tint overlay (handled by button bg transition above) */}
-              <div className="absolute inset-0 pointer-events-none" />
-
-              {/* Divider arrow between stages */}
-              {idx < stages.length - 1 && (
-                <div className="absolute right-0 top-0 bottom-0 w-px bg-g100 z-10" />
-              )}
-
-              {/* Content */}
-              <div className="relative z-10 w-full flex flex-col items-center px-2 pt-3 pb-3 gap-1">
-                {/* Bar */}
-                <div className="w-full flex items-end justify-center h-[28px] mb-1">
-                  <div
-                    className={`${s.bar} rounded-t-sm w-[60%] transition-all duration-500 opacity-70 group-hover:opacity-100 pipeline-bar`}
-                    style={{ '--bar-h': `${Math.max(4, barPct * 0.28)}px` } as React.CSSProperties}
-                  />
-                </div>
-
-                {/* Label */}
-                <span className={`font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase ${s.color} leading-none`}>{s.label}</span>
-
-                {/* Count */}
-                <span className="font-serif text-[22px] text-blk leading-none font-bold mt-0.5">{s.count}</span>
-
-                {/* Value */}
-                <span className={`font-mono text-[10px] font-semibold ${s.val > 0 ? s.color : 'text-g300'}`}>
-                  {s.val > 0 ? fmt(s.val) : '—'}
-                </span>
-
-                {/* Milestone badge */}
-                {badge && (
-                  <span className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-[8px] font-bold border ${s.badge}`}>
-                    🏆 {badge.label}
-                  </span>
-                )}
+              <div className="w-full flex justify-center mb-1">
+                <div className={`${s.bar} rounded-sm transition-all duration-300 opacity-80 group-hover:opacity-100 pipeline-bar`}
+                  style={{ '--bar-h': '4px', '--bar-w': `${Math.max(20, barPct)}%` } as React.CSSProperties} />
               </div>
-
-              {/* Bottom accent bar — shows on hover */}
-              <div className={`absolute bottom-0 left-0 right-0 h-[3px] ${s.bar} opacity-0 group-hover:opacity-100 transition-opacity duration-150`} />
+              <span className={`font-mono text-[9px] font-bold tracking-[1.5px] uppercase ${s.color}`}>{s.label}</span>
+              <span className="font-serif text-[20px] text-blk leading-none font-bold">{s.count}</span>
+              <span className={`font-mono text-[10px] font-bold ${s.color}`}>{fmt(s.val)}</span>
+              {badge && (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-[8px] font-bold border ${s.badge}`}>
+                  🏆 {badge.label}
+                </span>
+              )}
+              {idx < stages.length - 1 && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 text-g300 text-[10px] font-bold select-none pointer-events-none">›</div>
+              )}
             </button>
           );
         })}
