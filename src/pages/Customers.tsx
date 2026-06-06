@@ -948,11 +948,11 @@ export function Customers() {
                     </td>
 
                     {/* Primary contact */}
-                    <td className="px-[13px] py-[11px] align-middle">
+                    <td className="px-[13px] py-[11px] align-middle max-w-[170px]">
                       {contact ? (
-                        <div>
-                          <div className="font-medium text-blk">{contact.name}</div>
-                          <div className="text-[10.5px] text-g400 font-mono">{contact.email}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-blk truncate">{contact.name}</div>
+                          {contact.email && <div className="text-[10.5px] text-g400 font-mono truncate" title={contact.email}>{contact.email}</div>}
                         </div>
                       ) : <span className="text-g300">—</span>}
                     </td>
