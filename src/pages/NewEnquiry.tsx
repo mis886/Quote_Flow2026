@@ -50,6 +50,8 @@ export function NewEnquiry() {
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  // True when the user has typed contact/email/phone manually — suppresses auto-fill
+  const [contactManual, setContactManual] = useState(false);
   
   const [enquiryDocs, setEnquiryDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
   const [drawingDocs, setDrawingDocs] = useState<{ id: string, fileName: string, file: File | null }[]>([]);
@@ -127,6 +129,7 @@ export function NewEnquiry() {
         setContactId(e.contactId || '');
         setContact(e.contact || '');
         setEmail(e.email || '');
+        setContactManual(false);
         setUrgency(e.urg);
         setAssigned(e.assigned || 'Akki');
         setNotes(e.notes || '');
@@ -165,20 +168,14 @@ export function NewEnquiry() {
       const site = sites.find(s => s.id === siteId);
       if (site) {
         const contacts = site.contacts ?? [];
-        if (contactId) {
+        // Only auto-fill when user selected a contact from the dropdown — never
+        // auto-pick primary/first contact, as that overwrites manually typed values.
+        if (contactId && !contactManual) {
           const c = contacts.find(ct => ct.id === contactId);
           if (c) {
             setContact(c.name);
             setEmail(c.email);
             setPhone(c.phone || '');
-          }
-        } else {
-          const primaryCont = contacts.find(ct => ct.isPrimary) || contacts[0];
-          if (primaryCont) {
-            setContactId(primaryCont.id);
-            setContact(primaryCont.name);
-            setEmail(primaryCont.email);
-            setPhone(primaryCont.phone || '');
           }
         }
       }
@@ -189,7 +186,7 @@ export function NewEnquiry() {
         setSiteId(sites[0].id);
       }
     }
-  }, [custName, siteId, contactId, data.customers]);
+  }, [custName, siteId, contactId, contactManual, data.customers]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'enquiry' | 'drawing') => {
     if (e.target.files) {
@@ -408,7 +405,7 @@ export function NewEnquiry() {
                   <CustomerSearch
                     customers={data.customers}
                     value={custName}
-                    onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setErrors({...errors, custName: ''}); }}
+                    onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); setErrors({...errors, custName: ''}); }}
                     error={!!errors.custName}
                   />
                   {errors.custName && <div className="text-red-mrt text-[10px] mt-1 font-medium">{errors.custName}</div>}
@@ -426,7 +423,7 @@ export function NewEnquiry() {
                         <select
                           title="Site / Branch"
                           value={siteId}
-                          onChange={e => { setSiteId(e.target.value); setContactId(''); }}
+                          onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); }}
                           disabled={!custName}
                           className={`w-full font-sans text-[13px] text-blk bg-white rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed border ${mustPick ? 'border-red-mrt ring-[3px] ring-red-lt' : 'border-g300'}`}
                         >
@@ -439,9 +436,9 @@ export function NewEnquiry() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
-                  <select 
-                    value={contactId} 
-                    onChange={e => setContactId(e.target.value)}
+                  <select
+                    value={contactId}
+                    onChange={e => { setContactManual(false); setContactId(e.target.value); }}
                     disabled={!siteId}
                     className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed"
                   >
@@ -451,11 +448,11 @@ export function NewEnquiry() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
-                  <input type="email" placeholder="contact@company.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
+                  <input type="email" placeholder="contact@company.com" value={email} onChange={e => { setContactManual(true); setEmail(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Mobile No.</label>
-                  <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => setPhone(e.target.value)} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
+                  <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => { setContactManual(true); setPhone(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                 </div>
               </div>
             </div>
