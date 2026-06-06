@@ -1030,14 +1030,14 @@ export function NewOrder() {
                 {isSaving ? 'Saving...' : (editOrderId ? 'Save Amendments' : 'Save Order')}
               </button>
               <button type="button" onClick={handleGeneratePI} disabled={isSaving}
-                className="bg-red-mrt text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-red-h hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">
-                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M14 4h-3V3a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v1H2v2h12V4zM7 3h2v1H7V3zM2 7v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H2zm3 7H4V8h1v6zm3 0H7V8h1v6zm3 0h-1V8h1v6z"/></svg>
-                {isSaving ? 'Working...' : 'Generate PI'}
+                className="bg-g700 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blk disabled:opacity-50 flex items-center gap-2">
+                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
+                {isSaving ? 'Working...' : 'PDF'}
               </button>
               <button type="button" onClick={handleGeneratePIDOCX} disabled={isSaving}
                 className="bg-blue-600 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M14 4h-3V3a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v1H2v2h12V4zM7 3h2v1H7V3zM2 7v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H2zm3 7H4V8h1v6zm3 0H7V8h1v6zm3 0h-1V8h1v6z"/></svg>
-                {isSaving ? 'Working...' : 'PI as DOCX'}
+                <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
+                {isSaving ? 'Working...' : 'DOCX'}
               </button>
               <button type="button" onClick={() => setShowEmailModal(true)} disabled={isSaving}
                 className="bg-blk text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-g700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">

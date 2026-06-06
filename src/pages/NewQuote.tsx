@@ -386,7 +386,8 @@ export function NewQuote() {
     } finally { setIsSaving(false); }
   };
 
-  // Generate PDF: persist + download.
+
+  // Save + download PDF.
   const handleGeneratePDF = async () => {
     setIsSaving(true);
     try {
@@ -1050,15 +1051,19 @@ export function NewQuote() {
             </button>
           ) : (
             <>
-              <button type="button" onClick={handleGeneratePDF} disabled={isSaving}
+              <button type="button" onClick={() => handleSave()} disabled={isSaving}
                 className="bg-red-mrt text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-red-h disabled:opacity-50 flex items-center gap-2">
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button type="button" onClick={handleGeneratePDF} disabled={isSaving}
+                className="bg-g700 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blk disabled:opacity-50 flex items-center gap-2">
                 <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
-                {isSaving ? 'Saving...' : 'Save & PDF'}
+                {isSaving ? 'Working...' : 'PDF'}
               </button>
               <button type="button" onClick={handleGenerateDOCX} disabled={isSaving}
                 className="bg-blue-600 text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
                 <svg viewBox="0 0 16 16" width="12" height="12" className="fill-current"><path d="M4 2v12h8V6l-4-4H4zm1 1h2v3h2V3h1.172L11 3.828V13H5V3zm2 6v3h2v-3H7z" /></svg>
-                {isSaving ? 'Saving...' : 'Save & DOCX'}
+                {isSaving ? 'Working...' : 'DOCX'}
               </button>
               <button type="button" onClick={() => setShowEmailModal(true)} disabled={isSaving}
                 className="bg-blk text-white font-mono text-[11px] font-bold tracking-widest uppercase px-[20px] py-[10px] rounded-[3px] shadow-sm hover:bg-g700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center gap-2">
