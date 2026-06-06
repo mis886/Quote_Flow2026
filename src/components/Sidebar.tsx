@@ -16,6 +16,7 @@ export function useSidebarCollapse() {
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const location = useLocation();
   const { data, user, logout } = useAppStore();
+  const [logoError, setLogoError] = useState(false);
 
   const newEnqCount = data.enquiries.filter(e => e.status === 'New' || e.status === 'In Review').length;
   const sentQuotesCount = data.quotes.filter(q => q.status === 'Sent').length;
@@ -51,19 +52,16 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <span className="font-serif font-bold text-[13px] text-red-mrt tracking-wide">M</span>
         ) : (
           <>
-            <img
-              src="/mangla-logo.png"
-              alt="Mangla"
-              className="h-8"
-              onError={(e) => {
-                const t = e.currentTarget;
-                t.style.display = 'none';
-                const span = document.createElement('span');
-                span.textContent = 'MANGLA';
-                span.style.cssText = 'font-family:Georgia,serif;font-weight:bold;font-size:15px;color:#D42027;letter-spacing:1px;';
-                t.parentNode?.insertBefore(span, t);
-              }}
-            />
+            {logoError ? (
+              <span className="font-serif font-bold text-[15px] text-red-mrt tracking-wide">MANGLA</span>
+            ) : (
+              <img
+                src="/mangla-logo.png"
+                alt="Mangla"
+                className="h-8"
+                onError={() => setLogoError(true)}
+              />
+            )}
             <div className="w-px h-7 bg-g200" />
             <div className="font-mono text-[8px] font-bold tracking-[2.5px] uppercase text-g500 leading-tight">
               EQ System<br />v2.0
