@@ -889,7 +889,7 @@ export function Customers() {
       {/* Table */}
       <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
         <div className="bg-white border border-g200 overflow-x-auto">
-          <table className="w-full border-collapse text-[12.5px]">
+          <table className="min-w-full border-collapse text-[12.5px]">
             <thead className="bg-g100">
               <tr>
                 {['Company', 'Sites', 'GSTIN', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
