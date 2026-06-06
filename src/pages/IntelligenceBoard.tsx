@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, ExternalLink } from 'lucide-react';
+import { Lock, Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, ExternalLink, FileText, Paperclip } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Customer, Contact, CustomerTier, Quote, Order, Enquiry, FollowUpLog } from '../lib/types';
 import { formatINR, fmtIST } from '../lib/utils';
 import { cn } from '../lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { generateQuotePDF } from '../lib/pdfGenerator';
 
 // ── shared helpers (mirrors Customers.tsx) ────────────────────────────────────
 
@@ -201,6 +202,7 @@ function CustomerDetail({ stats, allFollowups }: {
   allFollowups: ReturnType<typeof useAppStore>['data']['followups'];
 }) {
   const navigate = useNavigate();
+  const { data } = useAppStore();
   const { customer: c, enqs, quotes, orders, winRate, pipeline, wonRev, vsAvg } = stats;
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const contact = getPrimaryContact(c);
@@ -350,7 +352,7 @@ function CustomerDetail({ stats, allFollowups }: {
                       <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
                       <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(total)}</span>
                       <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                      <span className="text-[10px] text-g400 w-16 text-right shrink-0">{q.date ? fmtIST(new Date(q.date), 'dd MMM') : '—'}</span>
+                      <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy, HH:mm') : '—'}</span>
                       <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
                     </button>
 
@@ -358,14 +360,43 @@ function CustomerDetail({ stats, allFollowups }: {
                       <div className="bg-blue-50/30 border-t border-blue-100 px-4 py-3">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-blue-600">Line Items — {q.id}</span>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/quotes/new?id=${q.id}`)}
-                            title="Edit quote"
-                            className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
-                          >
-                            <ExternalLink size={9} /> Edit
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {/* PDF */}
+                            <button
+                              type="button"
+                              title="Download Quote PDF"
+                              onClick={() => {
+                                const cust = data.customers.find(x => x.name === q.cust);
+                                const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
+                                const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+                                const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
+                                generateQuotePDF(q, cust, data.settings, sig, true, unit);
+                              }}
+                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                            >
+                              <FileText size={9} /> PDF
+                            </button>
+                            {/* Docs — jump to enquiry attachments */}
+                            {q.enqRef && (
+                              <button
+                                type="button"
+                                title="View enquiry documents"
+                                onClick={() => navigate(`/enquiries?q=${q.enqRef}`)}
+                                className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                              >
+                                <Paperclip size={9} /> Docs
+                              </button>
+                            )}
+                            {/* Edit */}
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/quotes/new?id=${q.id}`)}
+                              title="Edit quote"
+                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                            >
+                              <ExternalLink size={9} /> Edit
+                            </button>
+                          </div>
                         </div>
                         <div className="bg-white border border-g200 rounded-[3px] overflow-x-auto">
                           <table className="w-full border-collapse text-[11px]">

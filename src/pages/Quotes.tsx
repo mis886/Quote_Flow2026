@@ -6,20 +6,16 @@ import { useNavigate } from 'react-router-dom';
 import { QuoteStatus, Quote } from '../lib/types';
 import { formatINR, fmtIST, isInDateRange, siteLabel } from '../lib/utils';
 import { generateQuotePDF } from '../lib/pdfGenerator';
-import { SendEmailModal } from '../components/SendEmailModal';
-import { FollowUpSendPrompt } from '../components/FollowUpSendPrompt';
 import { supabase } from '../lib/supabase';
 
 export function Quotes() {
   const store = useAppStore();
-  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal, updateQuote } = store;
+  const { data, globalSearchQuery, setGlobalSearchQuery, openDetailPanel, openAttachmentModal, updateQuote, addFollowUpLog } = store;
   const { globalDateRange, setGlobalDateRange } = store as any;
   const navigate = useNavigate();
   const [tab, setTab] = useState<'All' | QuoteStatus>('All');
   const [custFilter, setCustFilter] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [sendModalQuote, setSendModalQuote] = useState<Quote | null>(null);
-  const [promptForQuote, setPromptForQuote] = useState<Quote | null>(null);
   const [poReceivedIds, setPoReceivedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -211,8 +207,13 @@ export function Quotes() {
                             }}>PDF</Button>
                             <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openAttachmentModal('quote', q.id); }}>Docs</Button>
                             {q.status === 'Draft' && (
-                              <Button size="sm" variant="primary" onClick={() => setSendModalQuote(q)} className="gap-1.5">
-                                <Send size={12} /> Send
+                              <Button size="sm" variant="primary" onClick={async (ev) => {
+                                ev.stopPropagation();
+                                const now = new Date().toISOString();
+                                await updateQuote(q.id, { status: 'Sent' });
+                                await addFollowUpLog(q.id, { ts: now, who: 'System', channel: 'Email', note: `Quote sent — ${q.id}` }, null, null, '');
+                              }} className="gap-1.5">
+                                <Send size={12} /> Mark Sent
                               </Button>
                             )}
                             {(q.status === 'Won' || q.status === 'Sent') && (
@@ -280,24 +281,6 @@ export function Quotes() {
         </div>
       </div>
 
-      {sendModalQuote && (
-        <SendEmailModal
-          mode="quote"
-          doc={sendModalQuote}
-          customer={data.customers.find(c => c.name === sendModalQuote.cust)}
-          siteId={sendModalQuote.siteId}
-          settings={data.settings}
-          defaultSignatory={data.signatories.find((s: any) => s.is_default)}
-          onClose={() => setSendModalQuote(null)}
-          onSent={async () => {
-            await updateQuote(sendModalQuote.id, { status: 'Sent' });
-            setPromptForQuote(sendModalQuote);
-            setSendModalQuote(null);
-          }}
-        />
-      )}
-
-      <FollowUpSendPrompt quote={promptForQuote} onClose={() => setPromptForQuote(null)} />
     </div>
   );
 }
