@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import confetti from 'canvas-confetti';
+import ReactConfetti from 'react-confetti';
 import { useAppStore } from '../store';
-import { X } from 'lucide-react';
 
 interface Milestone {
   key: string;
@@ -41,14 +40,18 @@ const MILESTONES: Milestone[] = [
   { key: 'oval_1cr',  emoji: '🤑', tier: 'diamond', label: '₹1 Crore Revenue Won',    sub: 'Crore club! Mangla Rubber is delivering big.',         check: s => s.wonValue >= 10_000_000 },
 ];
 
-const TIER_STYLES = {
-  bronze:  { bg: 'from-[#7c4a1e] to-[#3d1f08]', ring: 'border-amber-700/60',  badge: 'bg-amber-700/30 text-amber-300',   star: '#cd7f32' },
-  silver:  { bg: 'from-[#3a3a4a] to-[#1a1a2e]', ring: 'border-slate-400/60',  badge: 'bg-slate-400/20 text-slate-300',   star: '#c0c0c0' },
-  gold:    { bg: 'from-[#5a3e00] to-[#1a1200]', ring: 'border-yellow-500/60', badge: 'bg-yellow-500/20 text-yellow-300', star: '#FFD700' },
-  diamond: { bg: 'from-[#0d1b3e] to-[#060d1f]', ring: 'border-blue-400/60',   badge: 'bg-blue-400/20 text-blue-200',     star: '#6495C8' },
+// Brand palette — MRT red, gold, dark, white, trust blue
+const BRAND_COLORS = ['#D42027', '#B8181E', '#FFD700', '#FFC107', '#1E1E1E', '#ffffff', '#6495C8', '#4a7ab8'];
+
+// Pieces & gravity per tier
+const TIER_CONFIG = {
+  bronze:  { pieces: 180, gravity: 0.12, duration: 5000 },
+  silver:  { pieces: 250, gravity: 0.10, duration: 6000 },
+  gold:    { pieces: 350, gravity: 0.08, duration: 7000 },
+  diamond: { pieces: 500, gravity: 0.06, duration: 9000 },
 };
 
-const STORAGE_KEY = 'mrt_milestones_v2'; // v2 — fresh key, no stale data from old runs
+const STORAGE_KEY = 'mrt_milestones_v2';
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 function getShown(): Record<string, number> {
@@ -65,44 +68,25 @@ function markShown(key: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
 
-function fireConfetti(tier: Milestone['tier']) {
-  const colors = ['#D42027', '#FFD700', '#ffffff', '#6495C8'];
-  if (tier === 'bronze') {
-    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors });
-  } else if (tier === 'silver') {
-    confetti({ particleCount: 160, spread: 80, origin: { y: 0.55 }, colors });
-  } else if (tier === 'gold') {
-    confetti({ particleCount: 100, angle: 60,  spread: 55, origin: { x: 0 }, colors });
-    setTimeout(() => confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1 }, colors }), 150);
-  } else {
-    const end = Date.now() + 2500;
-    const frame = () => {
-      confetti({ particleCount: 8, angle: 60,  spread: 55, origin: { x: 0 }, colors });
-      confetti({ particleCount: 8, angle: 120, spread: 55, origin: { x: 1 }, colors });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
-  }
-}
-
 export function MilestoneConfetti() {
   const { data } = useAppStore();
-  const [banner, setBanner] = useState<Milestone | null>(null);
-  const [visible, setVisible] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Guard: only evaluate once data has actually loaded (non-empty)
+  const [active, setActive] = useState<Milestone | null>(null);
+  const [recycle, setRecycle] = useState(true);
+  const [toastVisible, setToastVisible] = useState(false);
   const evaluated = useRef(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clear = (t: ReturnType<typeof setTimeout>) => timers.current.push(t);
 
   const dismiss = useCallback(() => {
-    setVisible(false);
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setBanner(null), 400);
+    setRecycle(false);
+    setToastVisible(false);
+    // let confetti finish falling then unmount
+    clear(setTimeout(() => setActive(null), 3000));
   }, []);
 
   useEffect(() => {
-    // Wait until we have real data before evaluating
     if (data.enquiries.length === 0 && data.quotes.length === 0) return;
-    // Only evaluate once per session (re-trigger only if new data arrives after initial load)
     if (evaluated.current) return;
     evaluated.current = true;
 
@@ -114,81 +98,69 @@ export function MilestoneConfetti() {
       wonValue: data.quotes.filter(q => q.status === 'Won').reduce((a, q) => a + q.items.reduce((s, i) => s + i.total + i.total * i.gst / 100, 0), 0),
     };
 
-    // All milestones currently achieved that haven't been shown in the last 24h
     const due = MILESTONES.filter(m => m.check(stats) && !wasShownRecently(m.key));
     if (due.length === 0) return;
 
-    // Show the highest-tier one (last in the list = hardest)
     const top = due[due.length - 1];
-    // Mark all achieved ones as shown so they don't repeat within 24h
     due.forEach(m => markShown(m.key));
 
-    const t = setTimeout(() => {
-      fireConfetti(top.tier);
-      setBanner(top);
-      setVisible(true);
-    }, 1200);
-    return () => clearTimeout(t);
+    clear(setTimeout(() => {
+      setActive(top);
+      setRecycle(true);
+      setToastVisible(true);
+
+      // stop recycling after tier duration — pieces fall off naturally
+      const cfg = TIER_CONFIG[top.tier];
+      clear(setTimeout(() => setRecycle(false), cfg.duration));
+      // fully unmount after pieces gone
+      clear(setTimeout(() => { setActive(null); setToastVisible(false); }, cfg.duration + 3500));
+    }, 1000));
+
+    return () => timers.current.forEach(clearTimeout);
   }, [data.enquiries.length, data.quotes.length]);
 
-  if (!banner) return null;
-  const s = TIER_STYLES[banner.tier];
+  if (!active) return null;
+
+  const cfg = TIER_CONFIG[active.tier];
 
   return (
-    <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-500 ${visible ? 'bg-black/60 backdrop-blur-sm' : 'bg-black/0 pointer-events-none'}`}
-      onClick={dismiss}
-    >
-      {/* Ribbon strips */}
-      {visible && (
-        <>
-          <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-red-mrt via-yellow-400 to-red-mrt animate-pulse pointer-events-none" />
-          <div className="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-r from-red-mrt via-yellow-400 to-red-mrt animate-pulse pointer-events-none" />
-        </>
-      )}
+    <>
+      {/* Full-screen confetti — pointer-events none so UI stays usable */}
+      <div className="fixed inset-0 z-[9990] pointer-events-none">
+        <ReactConfetti
+          width={window.innerWidth}
+          height={window.innerHeight}
+          numberOfPieces={cfg.pieces}
+          gravity={cfg.gravity}
+          initialVelocityX={4}
+          initialVelocityY={6}
+          wind={0}
+          opacity={1}
+          recycle={recycle}
+          colors={BRAND_COLORS}
+        />
+      </div>
 
+      {/* Slim toast — bottom center, clickable to dismiss */}
       <div
-        onClick={e => e.stopPropagation()}
-        className={`relative w-[440px] max-w-[92vw] rounded-2xl bg-gradient-to-b ${s.bg} border-2 ${s.ring} shadow-2xl px-8 py-9 flex flex-col items-center text-center transition-all duration-500 ${visible ? 'scale-100 opacity-100 translate-y-0' : 'scale-75 opacity-0 translate-y-12'}`}
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[9991] transition-all duration-500 ${toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
       >
-        {/* Shimmer top */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent rounded-t-2xl" />
-
-        {/* Close */}
-        <button type="button" onClick={dismiss} title="Dismiss" aria-label="Dismiss"
-          className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/50 hover:text-white transition-colors">
-          <X size={13} />
-        </button>
-
-        {/* Tier badge */}
-        <span className={`font-mono text-[9px] font-bold tracking-[2.5px] uppercase px-3 py-1 rounded-full ${s.badge} mb-5`}>
-          {banner.tier} milestone
-        </span>
-
-        {/* Emoji */}
-        <div className="text-7xl mb-4 drop-shadow-lg select-none leading-none">{banner.emoji}</div>
-
-        {/* Heading */}
-        <div className="text-white font-bold text-[24px] leading-tight mb-2">{banner.label}</div>
-
-        {/* Sub */}
-        <div className="text-white/55 text-[13px] leading-relaxed mb-7 max-w-[320px]">{banner.sub}</div>
-
-        {/* Stars */}
-        <div className="flex items-center gap-1.5 mb-7">
-          {Array.from({ length: banner.tier === 'bronze' ? 1 : banner.tier === 'silver' ? 2 : banner.tier === 'gold' ? 3 : 4 }).map((_, i) => (
-            <svg key={i} width="20" height="20" viewBox="0 0 20 20" fill={s.star}>
-              <path d="M10 1l2.6 5.3 5.9.8-4.3 4.1 1 5.8L10 14.3l-5.2 2.7 1-5.8L1.5 7.1l5.9-.8z" />
-            </svg>
-          ))}
-        </div>
-
-        {/* CTA */}
-        <button type="button" onClick={dismiss}
-          className="px-10 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-bold tracking-widest uppercase transition-colors border border-white/20">
-          Keep Going 🚀
+        <button
+          type="button"
+          onClick={dismiss}
+          className="flex items-center gap-3 bg-dark text-white pl-4 pr-5 py-3 rounded-xl shadow-2xl border border-white/10 hover:border-white/25 transition-colors group"
+        >
+          <span className="text-2xl leading-none select-none">{active.emoji}</span>
+          <div className="text-left">
+            <div className="font-mono text-[8px] font-bold tracking-[2px] uppercase text-white/35 leading-none mb-1">
+              Milestone · {active.tier}
+            </div>
+            <div className="font-semibold text-[14px] leading-tight">{active.label}</div>
+            <div className="text-[11px] text-white/50 mt-0.5">{active.sub}</div>
+          </div>
+          <span className="ml-2 text-white/25 group-hover:text-white/50 text-[11px] font-mono transition-colors">✕</span>
         </button>
       </div>
-    </div>
+    </>
   );
 }
