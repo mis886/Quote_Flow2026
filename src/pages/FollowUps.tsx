@@ -93,7 +93,7 @@ export default function FollowUps() {
   const [filterOwner, setFilterOwner] = useState<string>('All Owners');
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
-  const [quickFilter, setQuickFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'urgent' | 'today' | 'upcoming'>('all');
   const [viewTab, setViewTab] = useState<'queue' | 'board' | 'calendar'>('queue');
   const [calWeekOffset, setCalWeekOffset] = useState(0);
 
@@ -135,9 +135,13 @@ export default function FollowUps() {
         else if (isToday(d)) priority = 'today';
         else priority = 'upcoming';
       } else if (!isClosed) {
-        // Active quote with no next follow-up planned — this is the gap that
-        // lets quotations slip. Surface it loudly instead of silently as "New".
-        priority = 'unscheduled';
+        // Check if quote was sent today — if so, surface as "today" for acknowledgement
+        const sentLog = followUp?.logs?.find((l: any) => l.note?.startsWith('Quote sent —'));
+        if (sentLog && isToday(parseISO(sentLog.ts))) {
+          priority = 'today';
+        } else {
+          priority = 'unscheduled';
+        }
       }
 
       return { quote, followUp, priority, daysSinceQuote };
@@ -146,7 +150,13 @@ export default function FollowUps() {
       if (status !== queueTab) return false;
 
       // Quick-filter from the stat cards (only meaningful on the Active tab).
-      if (queueTab === 'open' && quickFilter !== 'all' && item.priority !== quickFilter) return false;
+      if (queueTab === 'open' && quickFilter !== 'all') {
+        if (quickFilter === 'urgent') {
+          if (item.priority !== 'overdue' && item.priority !== 'unscheduled') return false;
+        } else if (item.priority !== quickFilter) {
+          return false;
+        }
+      }
 
       const matchesSearch =
         item.quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -218,22 +228,30 @@ export default function FollowUps() {
   const selectedItem = followUpQueue.find(item => item.quote.id === selectedQuoteId) || followUpQueue[0];
 
   const stats = {
-    overdue: allOpen.filter(q => {
+    // Overdue + No Next Step merged into one urgent bucket
+    urgent: allOpen.filter(q => {
       const f = data.followups.find(fu => fu.quote_id === q.id);
-      return f?.next_date && isBefore(parseISO(f.next_date), today);
+      if (f?.next_date) return isBefore(parseISO(f.next_date), today);
+      return true; // no next_date = unscheduled
     }).length,
+    // Due today by next_date, plus quotes sent today awaiting acknowledgement
     today: allOpen.filter(q => {
       const f = data.followups.find(fu => fu.quote_id === q.id);
-      return f?.next_date && isToday(parseISO(f.next_date));
+      if (f?.next_date && isToday(parseISO(f.next_date))) return true;
+      // Quote sent today (stage = Sent Quotation, sent log ts is today) → due for acknowledgement
+      if (f?.stage === 'Sent Quotation' || !f) {
+        const sentLog = data.followups.find(fu => fu.quote_id === q.id)?.logs?.find(
+          (l: any) => l.note?.startsWith('Quote sent —')
+        );
+        if (sentLog && isToday(parseISO(sentLog.ts))) return true;
+        // Also catch quotes marked sent today with no followup record yet
+        if (!f && q.status === 'Sent' && isToday(parseISO(q.date))) return true;
+      }
+      return false;
     }).length,
     upcoming: allOpen.filter(q => {
       const f = data.followups.find(fu => fu.quote_id === q.id);
       return f?.next_date && !isBefore(parseISO(f.next_date), today) && !isToday(parseISO(f.next_date));
-    }).length,
-    // Active quotes with no next follow-up planned — the "could be missed" pile.
-    unscheduled: allOpen.filter(q => {
-      const f = data.followups.find(fu => fu.quote_id === q.id);
-      return !f?.next_date;
     }).length,
   };
 
@@ -468,22 +486,22 @@ export default function FollowUps() {
 
       {/* ── SCORE BAR ── */}
       <div className="bg-white border-b border-g200 flex items-stretch shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        {/* Overdue */}
+        {/* Overdue + No Next Step merged */}
         <button
           type="button"
-          onClick={() => { setQuickFilter(f => f === 'overdue' ? 'all' : 'overdue'); setSelectedQuoteId(null); setViewTab('queue'); }}
+          onClick={() => { setQuickFilter(f => f === 'urgent' ? 'all' : 'urgent'); setSelectedQuoteId(null); setViewTab('queue'); }}
           className={cn(
             "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
-            quickFilter === 'overdue' ? "bg-red-lt" : "hover:bg-g50"
+            quickFilter === 'urgent' ? "bg-red-lt" : "hover:bg-g50"
           )}
         >
-          {quickFilter === 'overdue' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
+          {quickFilter === 'urgent' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
           <div className="w-8 h-8 rounded-[3px] bg-red-lt flex items-center justify-center shrink-0">
             <AlertTriangle size={15} className="text-red-mrt" />
           </div>
           <div className="text-left">
-            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Overdue</div>
-            <div className="font-serif text-[22px] leading-none text-red-mrt">{stats.overdue}</div>
+            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Needs Attention</div>
+            <div className="font-serif text-[22px] leading-none text-red-mrt">{stats.urgent}</div>
           </div>
         </button>
 
@@ -525,25 +543,6 @@ export default function FollowUps() {
           </div>
         </button>
 
-        {/* No Next Step */}
-        <button
-          type="button"
-          onClick={() => { setQuickFilter(f => f === 'unscheduled' ? 'all' : 'unscheduled'); setSelectedQuoteId(null); setViewTab('queue'); }}
-          className={cn(
-            "flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors relative border-r border-g200",
-            quickFilter === 'unscheduled' ? "bg-orange-50" : "hover:bg-g50"
-          )}
-        >
-          {quickFilter === 'unscheduled' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-red-mrt rounded-t-full" />}
-          <div className="w-8 h-8 rounded-[3px] bg-orange-50 flex items-center justify-center shrink-0">
-            <AlertTriangle size={15} className="text-orange-500" />
-          </div>
-          <div className="text-left">
-            <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">No Next Step</div>
-            <div className="font-serif text-[22px] leading-none text-orange-600">{stats.unscheduled}</div>
-          </div>
-        </button>
-
         {/* Total Active */}
         <button
           type="button"
@@ -559,7 +558,7 @@ export default function FollowUps() {
           </div>
           <div className="text-left">
             <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 mb-0.5">Total Active</div>
-            <div className="font-serif text-[22px] leading-none text-blk">{stats.overdue + stats.today + stats.upcoming + stats.unscheduled}</div>
+            <div className="font-serif text-[22px] leading-none text-blk">{stats.urgent + stats.today + stats.upcoming}</div>
           </div>
         </button>
 
