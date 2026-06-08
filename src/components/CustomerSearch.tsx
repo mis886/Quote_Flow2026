@@ -44,17 +44,18 @@ export function CustomerSearch({ customers, value, onChange, error, placeholder 
   // Reset active index when filtered list changes
   useEffect(() => { setActiveIdx(0); }, [filtered.length]);
 
-  // Close on outside click
+  // Close when focus leaves the container entirely (doesn't swallow the next element's click)
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: FocusEvent) => {
+      if (!el.contains(e.relatedTarget as Node | null)) {
         setOpen(false);
-        // If user typed but didn't pick, restore last confirmed value
         setQuery(value);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    el.addEventListener('focusout', handler);
+    return () => el.removeEventListener('focusout', handler);
   }, [value]);
 
   const pick = (name: string) => {
