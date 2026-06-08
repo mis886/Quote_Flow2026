@@ -887,13 +887,13 @@ export function Customers() {
       </div>
 
       {/* Table */}
-      <div className="px-6 pb-7 pt-[14px] flex-1 overflow-y-auto">
-        <div className="bg-white border border-g200 overflow-x-auto">
+      <div className="px-6 pb-7 pt-[14px] flex-1 min-h-0 flex flex-col">
+        <div className="bg-white border border-g200 overflow-auto flex-1 min-h-0">
           <table className="min-w-full border-collapse text-[12.5px]">
-            <thead className="bg-g100">
+            <thead>
               <tr>
                 {['Company', 'Sites', 'GSTIN', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
-                  <th key={h} className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">{h}</th>
+                  <th key={h} className="sticky top-0 z-10 bg-g100 font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200 shadow-[0_1px_0_0_theme(colors.g200)]">{h}</th>
                 ))}
               </tr>
             </thead>

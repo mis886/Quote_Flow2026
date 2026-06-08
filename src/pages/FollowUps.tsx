@@ -1477,7 +1477,10 @@ function SuggestionStrip({
   const countdown = useCountdown(nextDue);
 
   return (
-    <div className="mb-4">
+    <div className={cn(
+      'rounded-lg border px-3 pt-2.5 pb-2 mb-4',
+      isOverdue ? 'bg-red-50 border-red-200' : 'bg-indigo-50/60 border-indigo-100',
+    )}>
       {/* Merged header: Activity History label + countdown + chips */}
       <div className="flex items-center gap-2 mb-2">
         <History size={14} className="text-g400 shrink-0" />
