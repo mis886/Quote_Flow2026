@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store';
-import { format, isBefore, isToday, parseISO, startOfDay, addDays } from 'date-fns';
+import { format, isBefore, isToday, parseISO, startOfDay, addDays, addHours } from 'date-fns';
 import {
   Phone,
   Mail,
@@ -413,6 +413,7 @@ export default function FollowUps() {
       channel,
       note,
       nextDate: nextDate || undefined,
+      nextTime: nextDate ? (nextTime || undefined) : undefined,
       nextChannel: nextAction,
       nextNote: nextDate ? (nextNote.trim() || undefined) : undefined,
     };
@@ -1235,7 +1236,7 @@ export default function FollowUps() {
                                       {log.nextDate && (
                                         <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
                                           <Calendar size={10} className="text-amber-600 shrink-0" />
-                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                       )}
                                       <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
@@ -1270,7 +1271,7 @@ export default function FollowUps() {
                                       <div className="mb-1.5">
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
                                           <Calendar size={10} className="text-amber-600 shrink-0" />
-                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                         {log.nextNote && (
                                           <div className="text-[10.5px] italic text-slate-500 pl-2 border-l-2 border-amber-200 mt-1">
@@ -1362,11 +1363,46 @@ export default function FollowUps() {
                         <option value="Meeting">Meeting</option>
                         <option value="Visit">Visit</option>
                       </select>
+                      {/* Quick "remind in" chips — same-day reschedules for no-answer / out-of-coverage */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: '+2 hrs', hrs: 2 },
+                          { label: '+3 hrs', hrs: 3 },
+                          { label: '+4 hrs', hrs: 4 },
+                          { label: 'In 1 hr', hrs: 1 },
+                        ].map(q => (
+                          <button
+                            key={q.label}
+                            type="button"
+                            title={`Remind ${q.label.toLowerCase()} from now`}
+                            onClick={() => {
+                              const t = addHours(new Date(), q.hrs);
+                              setNextDate(format(t, 'yyyy-MM-dd'));
+                              setNextTime(format(t, 'HH:mm'));
+                              if (!nextAction) setNextAction('Called');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+                          >
+                            <Clock size={10} />{q.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          title="Remind tomorrow morning"
+                          onClick={() => {
+                            setNextDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
+                            setNextTime('09:30');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+                        >
+                          <Calendar size={10} />Tomorrow AM
+                        </button>
+                      </div>
                       <div className="flex gap-2">
                         <input
                           type="date"
                           title="Next follow-up date"
-                          min={format(addDays(new Date(), 1), 'yyyy-MM-dd')}
+                          min={format(new Date(), 'yyyy-MM-dd')}
                           className="flex-1 bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
                           value={nextDate}
                           onChange={e => setNextDate(e.target.value)}
@@ -1388,7 +1424,7 @@ export default function FollowUps() {
                           className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[11.5px] outline-none focus:border-red-mrt focus:bg-white resize-none transition-colors"
                         />
                       )}
-                      <span className="text-[10.5px] text-g400">Leave blank if no next date committed.</span>
+                      <span className="text-[10.5px] text-g400">No answer / out of coverage? Tap a chip to retry in a few hours — same day is allowed.</span>
                     </div>
 
                   </div>

@@ -229,6 +229,7 @@ export interface FollowUpLog {
   channel: 'Called' | 'WhatsApp' | 'Email' | 'Meeting' | 'Visit';
   note: string;
   nextDate?: string;
+  nextTime?: string;
   nextChannel?: string;
   nextNote?: string;
 }
