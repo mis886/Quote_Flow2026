@@ -217,6 +217,121 @@ export function Dashboard() {
   const openPipeWeekDelta  = openQuotes.filter(q => inLast(q.date, 7)).length;
   const openPipeMonthDelta = openQuotes.filter(q => inLast(q.date, 30)).length;
 
+  // ── Real-time tips derived from live data ─────────────────────────────────
+  const SLA_H_TIPS: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
+
+  const e2qTips = useMemo((): string[] => {
+    const tips: string[] = [];
+    const unquoted = data.enquiries.filter(e => !e.qRef && (e.status === 'New' || e.status === 'In Review'));
+    if (unquoted.length > 0) {
+      const oldest = unquoted.reduce((a, b) => (a.ageH > b.ageH ? a : b));
+      const age = oldest.ageH >= 24 ? `${Math.floor(oldest.ageH / 24)}d ${Math.round(oldest.ageH % 24)}h` : `${oldest.ageH.toFixed(0)}h`;
+      tips.push(`${unquoted.length} open enq${unquoted.length === 1 ? 'uiry' : 'uiries'} still unquoted — oldest is ${oldest.cust} at ${age}`);
+    }
+    const slaBreached = data.enquiries.filter(e => !e.qRef && (e.status === 'New' || e.status === 'In Review') && e.ageH > (SLA_H_TIPS[e.urg] ?? 48));
+    if (slaBreached.length > 0)
+      tips.push(`${slaBreached.length} enq${slaBreached.length === 1 ? 'uiry' : 'uiries'} past SLA target — quote immediately`);
+    // Slowest customer by avg E2Q hours (built directly from enquiry records)
+    const custE2q: Record<string, number[]> = {};
+    for (const enq of data.enquiries) {
+      if (!enq.qRef || !enq.recv) continue;
+      const quote = data.quotes.find(q => q.id === enq.qRef);
+      if (!quote?.date) continue;
+      const h = (new Date(quote.date).getTime() - new Date(enq.recv).getTime()) / 3_600_000;
+      if (h < 0) continue;
+      if (!custE2q[enq.cust]) custE2q[enq.cust] = [];
+      custE2q[enq.cust].push(h);
+    }
+    const custAvgs = Object.entries(custE2q)
+      .map(([c, hs]) => ({ c, avg: hs.reduce((a, b) => a + b, 0) / hs.length }))
+      .sort((a, b) => b.avg - a.avg);
+    if (custAvgs.length > 0 && custAvgs[0].avg > 24)
+      tips.push(`Slowest to quote: ${custAvgs[0].c} avg ${custAvgs[0].avg.toFixed(1)}h — prioritise their next enquiry`);
+    if (tips.length === 0)
+      tips.push(`Current avg ${avgE2Q}h — target under 24h for all urgency levels`);
+    return tips.slice(0, 3);
+  }, [data.enquiries, data.quotes, avgE2Q]);
+
+  const pipelineTips = useMemo((): string[] => {
+    const tips: string[] = [];
+    const stale7 = openQuotes.filter(q => !inLast(q.date, 7));
+    if (stale7.length > 0)
+      tips.push(`${stale7.length} quote${stale7.length === 1 ? '' : 's'} sent over 7 days ago with no PO — follow up today`);
+    const noFollowup = openQuotes.filter(q => {
+      const fu = data.followups.find(f => f.quote_id === q.id);
+      return !fu || !fu.logs || fu.logs.length === 0;
+    });
+    if (noFollowup.length > 0)
+      tips.push(`${noFollowup.length} sent quote${noFollowup.length === 1 ? '' : 's'} with zero follow-up logged`);
+    // Biggest open quote
+    const biggestOpen = openQuotes.reduce((best, q) => {
+      const v = q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0);
+      return v > best.v ? { q, v } : best;
+    }, { q: null as typeof openQuotes[0] | null, v: 0 });
+    if (biggestOpen.q && biggestOpen.v > 0)
+      tips.push(`Biggest open quote: ${biggestOpen.q.cust} — ${formatINR(biggestOpen.v)} — call them first`);
+    if (tips.length === 0)
+      tips.push(`Pipeline healthy at ${formatINR(openPipeVal)} across ${openQuotes.length} quotes`);
+    return tips.slice(0, 3);
+  }, [openQuotes, data.followups, openPipeVal]);
+
+  const q2oTips = useMemo((): string[] => {
+    const tips: string[] = [];
+    const lostQt = data.quotes.filter(q => q.status === 'Lost');
+    if (lostQt.length > 0) {
+      const lostVal = lostQt.reduce((s, q) => s + q.items.reduce((a, i) => a + i.total + (i.total * i.gst / 100), 0), 0);
+      tips.push(`${lostQt.length} lost quote${lostQt.length === 1 ? '' : 's'} worth ${formatINR(lostVal)} — review for pricing patterns`);
+    }
+    const draftCount = data.quotes.filter(q => q.status === 'Draft').length;
+    if (draftCount > 0)
+      tips.push(`${draftCount} draft quote${draftCount === 1 ? '' : 's'} never sent — send or discard to keep rate accurate`);
+    if (q2oRate < 20 && quotesInPeriod.length > 3)
+      tips.push(`${q2oRate}% conversion is below 20% — schedule follow-ups within 24h of sending`);
+    else if (q2oRate >= 50)
+      tips.push(`Strong ${q2oRate}% conversion — keep following up quickly after sending`);
+    if (tips.length === 0)
+      tips.push(`${wonQuotesInPeriod.length} wins from ${quotesInPeriod.length} quotes this period`);
+    return tips.slice(0, 3);
+  }, [data.quotes, q2oRate, quotesInPeriod, wonQuotesInPeriod]);
+
+  const quotesSentTips = useMemo((): string[] => {
+    const tips: string[] = [];
+    const draftOld = data.quotes.filter(q => q.status === 'Draft' && q.date && (now - new Date(q.date).getTime()) > 2 * DAY);
+    if (draftOld.length > 0)
+      tips.push(`${draftOld.length} draft${draftOld.length === 1 ? '' : 's'} sitting for 2+ days — review and send or delete`);
+    if (quotesSentMonthDelta > 0)
+      tips.push(`+${quotesSentMonthDelta} vs last month — momentum is up, keep quoting fast`);
+    else if (quotesSentMonthDelta < 0)
+      tips.push(`${quotesSentMonthDelta} vs last month — ${Math.abs(quotesSentMonthDelta)} fewer quotes sent than last month`);
+    const unlinked = data.enquiries.filter(e => e.qRef == null && (e.status === 'New' || e.status === 'In Review' || e.status === 'Quoted'));
+    if (unlinked.length > 0)
+      tips.push(`${unlinked.length} enquir${unlinked.length === 1 ? 'y' : 'ies'} not yet linked to a quote`);
+    if (tips.length === 0)
+      tips.push(`${quotesInPeriod.length} quotes sent this period — on track`);
+    return tips.slice(0, 3);
+  }, [data.quotes, data.enquiries, quotesSentMonthDelta, quotesInPeriod]);
+
+  const quoteValTips = useMemo((): string[] => {
+    const tips: string[] = [];
+    if (quoteValMonthDelta > 0)
+      tips.push(`+${quoteValMonthDelta}L vs last month — value is growing`);
+    else if (quoteValMonthDelta < 0)
+      tips.push(`${quoteValMonthDelta}L vs last month — check if smaller orders or fewer high-value quotes`);
+    // Customer with highest open value
+    if (openCustData.length > 0)
+      tips.push(`Top open quote customer: ${openCustData[0].cust} — ${formatINR(openCustData[0].val)} awaiting PO`);
+    // Average items per quote this period
+    const avgItems = quotesInPeriod.length
+      ? (quotesInPeriod.reduce((s, q) => s + q.items.length, 0) / quotesInPeriod.length).toFixed(1)
+      : null;
+    if (avgItems && parseFloat(avgItems) < 2)
+      tips.push(`Avg ${avgItems} items per quote — add accessories/services to increase basket value`);
+    if (tips.length === 0)
+      tips.push(`${formatINR(quoteValInPeriod)} quoted this period`);
+    return tips.slice(0, 3);
+  }, [quoteValMonthDelta, openCustData, quotesInPeriod, quoteValInPeriod]);
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const today = new Date();
   const formattedDate = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -885,11 +1000,7 @@ export function Dashboard() {
             )}
             color="blue"
             icon={<Clock size={16} strokeWidth={2} />}
-            tips={[
-              'Quote within 4h for Hot, 24h for Urgent enquiries',
-              'Use saved line items to fill quotes faster',
-              'Assign enquiries immediately on receipt',
-            ]}
+            tips={e2qTips}
           />
           <StatCard
             label="Open Pipeline"
@@ -902,11 +1013,7 @@ export function Dashboard() {
             ]}
             color="purple"
             icon={<IndianRupee size={16} strokeWidth={2} />}
-            tips={[
-              'Follow up on Sent quotes older than 7 days',
-              'Log every customer call to track engagement',
-              'Parked quotes still count — revisit them monthly',
-            ]}
+            tips={pipelineTips}
           />
           <StatCard
             label="Q→O Conversion"
@@ -920,11 +1027,7 @@ export function Dashboard() {
             )}
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
-            tips={[
-              'Schedule a follow-up the day after sending a quote',
-              'Address objections early — log notes on each quote',
-              'Review Lost quotes to spot pricing or spec patterns',
-            ]}
+            tips={q2oTips}
           />
           <StatCard
             label="Quotes Sent"
@@ -938,11 +1041,7 @@ export function Dashboard() {
             )}
             color="orange"
             icon={<FileSignature size={16} strokeWidth={2} />}
-            tips={[
-              'Reduce Draft quotes — send or discard within 48h',
-              'Copy recurring items from previous quotes',
-              'Link every quote back to its enquiry for full traceability',
-            ]}
+            tips={quotesSentTips}
           />
           <StatCard
             label="Quote Value"
@@ -956,11 +1055,7 @@ export function Dashboard() {
             )}
             color="red"
             icon={<IndianRupee size={16} strokeWidth={2} />}
-            tips={[
-              'Target larger-basket enquiries from Gold-tier customers',
-              'Include all accessories and services in each line item',
-              'Review unit prices quarterly against market rates',
-            ]}
+            tips={quoteValTips}
           />
         </div>
 
