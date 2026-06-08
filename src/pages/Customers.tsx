@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Button } from '../components/ui';
 import { DuplicateReviewPanel } from '../components/DuplicateReviewPanel';
-import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck, Wand2, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Upload, Loader2, X, Phone, Mail, MessageCircle, Star, Package, ChevronRight, MapPin, Copy, Truck, Wand2, CheckCircle2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Customer, Contact, CustomerTier, FollowUpLog } from '../lib/types';
 import { formatINR, fmtIST, generateId } from '../lib/utils';
@@ -617,6 +617,39 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
   );
 }
 
+// ── Table columns / sorting ───────────────────────────────────────────────────
+
+type SortKey = 'name' | 'sites' | 'gstin' | 'contact' | 'seg' | 'turnover' | 'inco' | 'rating' | 'nextOrder';
+
+interface ColDef { label: string; sortKey: SortKey | null; }
+const COLUMNS: ColDef[] = [
+  { label: 'Company',         sortKey: 'name' },
+  { label: 'Sites',           sortKey: 'sites' },
+  { label: 'GSTIN',           sortKey: 'gstin' },
+  { label: 'Primary Contact', sortKey: 'contact' },
+  { label: 'Industry',        sortKey: 'seg' },
+  { label: 'Turnover',        sortKey: 'turnover' },
+  { label: 'Incoterms',       sortKey: 'inco' },
+  { label: 'Rating',          sortKey: 'rating' },
+  { label: 'Next Order',      sortKey: 'nextOrder' },
+  { label: 'Actions',         sortKey: null },
+];
+
+// Returns a comparable value for a given customer + sort key.
+function sortValue(c: Customer, key: SortKey): string | number {
+  switch (key) {
+    case 'name':      return c.name?.toLowerCase() ?? '';
+    case 'sites':     return c.sites.length;
+    case 'gstin':     return (c.gstin?.trim() || c.sites.find(s => s.isPrimary)?.gstin?.trim() || c.sites[0]?.gstin?.trim() || '').toLowerCase();
+    case 'contact':   return getPrimaryContact(c)?.name?.toLowerCase() ?? '';
+    case 'seg':       return c.seg?.toLowerCase() ?? '';
+    case 'turnover':  return c.turnover ?? 0;
+    case 'inco':      return c.inco?.toLowerCase() ?? '';
+    case 'rating':    return computeRating(c);
+    case 'nextOrder': return (c.nextOrders ?? [])[0]?.toLowerCase() ?? '';
+  }
+}
+
 // ── Main Customers page ───────────────────────────────────────────────────────
 
 export function Customers() {
@@ -637,6 +670,12 @@ export function Customers() {
   const [bulkFixes, setBulkFixes] = useState<SiteFix[] | null>(null);
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkDone, setBulkDone] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -814,7 +853,14 @@ export function Customers() {
     if (segFilter && c.seg !== segFilter) return false;
     if (tierFilter && (c.tier ?? 'New') !== tierFilter) return false;
     return true;
-  }).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  }).sort((a, b) => {
+    const va = sortValue(a, sortKey);
+    const vb = sortValue(b, sortKey);
+    let cmp: number;
+    if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+    else cmp = String(va).localeCompare(String(vb), 'en', { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   const segments = Array.from(new Set(data.customers.map(c => c.seg).filter(Boolean))).sort();
 
@@ -892,9 +938,25 @@ export function Customers() {
           <table className="min-w-full border-collapse text-[12.5px]">
             <thead>
               <tr>
-                {['Company', 'Sites', 'GSTIN', 'Primary Contact', 'Industry', 'Turnover', 'Incoterms', 'Rating', 'Next Order', 'Actions'].map(h => (
-                  <th key={h} className="sticky top-0 z-10 bg-g100 font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200 shadow-[0_1px_0_0_theme(colors.g200)]">{h}</th>
-                ))}
+                {COLUMNS.map(col => {
+                  const active = col.sortKey && sortKey === col.sortKey;
+                  return (
+                    <th
+                      key={col.label}
+                      onClick={col.sortKey ? () => toggleSort(col.sortKey!) : undefined}
+                      className={`sticky top-0 z-10 bg-g100 font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200 shadow-[0_1px_0_0_theme(colors.g200)] ${col.sortKey ? 'cursor-pointer select-none hover:bg-g200 transition-colors' : ''} ${active ? 'text-red-mrt' : 'text-g500'}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {col.label}
+                        {col.sortKey && (
+                          active
+                            ? (sortDir === 'asc' ? <ChevronUp size={11} className="stroke-[2.5]" /> : <ChevronDown size={11} className="stroke-[2.5]" />)
+                            : <ChevronsUpDown size={11} className="text-g300 stroke-2" />
+                        )}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
