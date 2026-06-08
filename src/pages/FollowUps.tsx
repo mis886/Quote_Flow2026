@@ -31,6 +31,13 @@ import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
 import { DateFilterBanner } from '../components/ui';
 import type { Quote, FollowUp, FollowUpLog } from '../lib/types';
 import { DEFAULT_STAGE_TAT_H } from '../lib/types';
+import {
+  isQuoteSentLog as isQuoteSentLogFn,
+  stageTatHours as stageTatHoursFn,
+  buildFullChain as buildFullChainFn,
+  stepDeadline as stepDeadlineFn,
+  cardOnTimeRate as cardOnTimeRateFn,
+} from '../lib/kpi';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import PipelineBoard from '../components/PipelineBoard';
 
@@ -494,103 +501,15 @@ export default function FollowUps() {
 
   const isClosedTab = queueTab === 'closed';
 
-  function isQuoteSentLog(note: string) {
-    return note?.startsWith('Quote sent —') || note?.startsWith('Sent MRT-') || note?.startsWith('Sent ');
-  }
-
-  // Resolve TAT hours for a stage from settings (mirrors PipelineBoard logic).
-  function stageTatHours(stage: string): number {
-    const settings = data.settings;
-    const h = settings?.pipeline_tat_h?.[stage as any];
-    if (h != null) return h;
-    const d = settings?.pipeline_tat?.[stage as any];
-    if (d != null) return d * 24;
-    return DEFAULT_STAGE_TAT_H[stage as any] ?? 48;
-  }
-
-  // Build the full chronological log chain for a quote:
-  // synthetic "Quote Sent" entry first (with its TAT deadline as nextDate),
-  // then real follow-up logs (excluding any duplicate sent entries).
-  function buildFullChain(quote: Quote, followUp: FollowUp | undefined): FollowUpLog[] {
-    const total = quote.items.reduce((s, i) => s + i.total, 0);
-    const firstItem = quote.items[0]?.desc ?? '';
-    const itemCount = quote.items.length;
-    const sentNote = `Sent ${quote.id} for ${firstItem}${itemCount > 1 ? ` — ${itemCount} items` : ''}. ₹${total.toLocaleString('en-IN')}.`;
-    const realLogs = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
-    const storedSent = (followUp?.logs ?? []).find(l => isQuoteSentLog(l.note));
-    const sentTs = storedSent?.ts ?? (quote.date ? `${quote.date}T09:00:00.000Z` : new Date().toISOString());
-
-    // nextDate for the sent entry: use stored prompt date if available,
-    // else compute from Settings TAT for "Sent Quotation" stage.
-    let sentNextDate = storedSent?.nextDate;
-    if (!sentNextDate && quote.date) {
-      const tatH = stageTatHours('Sent Quotation');
-      const due = new Date(`${quote.date}T09:00:00.000Z`);
-      due.setTime(due.getTime() + tatH * 3600000);
-      sentNextDate = due.toISOString().split('T')[0];
-    }
-
-    const synthetic: FollowUpLog = {
-      ts: sentTs,
-      who: storedSent?.who ?? followUp?.owner ?? 'System',
-      channel: 'Email',
-      note: sentNote,
-      nextDate: sentNextDate,
-      nextChannel: storedSent?.nextChannel ?? 'Called',
-    };
-    return [synthetic, ...realLogs];
-  }
-
-  // Stage sequence a quote passes through — index maps to log position.
-  const STAGE_SEQUENCE: string[] = [
-    'Sent Quotation',      // log[0] — quote sent, TAT clock starts
-    'Offer Acknowledged',  // log[1] — 1st touch
-    '1st Follow-up',       // log[2]
-    '2nd Follow-up',       // log[3]
-    'Negotiation',         // log[4]+
-  ];
-
-  // Deadline for step i: if prev log has a nextDate (customer-promised), use that.
-  // Otherwise fall back to prevLog.ts + Settings TAT for that stage.
-  function stepDeadline(chain: FollowUpLog[], i: number): Date {
-    const prev = chain[i - 1];
-    if (prev.nextDate) {
-      const d = new Date(prev.nextDate);
-      d.setHours(23, 59, 59, 999);
-      return d;
-    }
-    const stageForPrev = STAGE_SEQUENCE[Math.min(i - 1, STAGE_SEQUENCE.length - 1)];
-    const tatH = stageTatHours(stageForPrev);
-    return new Date(new Date(prev.ts).getTime() + tatH * 3600000);
-  }
-
-  // On-time per step: was log[i] done by its deadline?
-  // Also counts the pending next step as LATE if it is now overdue and never acted on.
-  function cardOnTimeRate(chain: FollowUpLog[]): number | null {
-    if (chain.length < 1) return null;
-    let onTime = 0, total = 0;
-
-    // Score completed steps (index 1..n)
-    for (let i = 1; i < chain.length; i++) {
-      const deadline = stepDeadline(chain, i);
-      total++;
-      if (new Date(chain[i].ts) <= deadline) onTime++;
-    }
-
-    // Score the pending next step: if the last log has a nextDate that is
-    // already past today, the follow-up was not done on time — count it late.
-    const last = chain[chain.length - 1];
-    if (last.nextDate) {
-      const nextDue = new Date(last.nextDate);
-      nextDue.setHours(23, 59, 59, 999);
-      if (nextDue < new Date()) {
-        total++;
-        // not onTime — the action was due but never logged
-      }
-    }
-
-    return total > 0 ? Math.round(onTime / total * 100) : null;
-  }
+  // On-time / TAT helpers live in lib/kpi.ts (shared with the Doer KPI page).
+  // These thin wrappers bind the current settings so call sites stay unchanged.
+  const isQuoteSentLog = isQuoteSentLogFn;
+  const stageTatHours = (stage: string) => stageTatHoursFn(data.settings, stage);
+  const buildFullChain = (quote: Quote, followUp: FollowUp | undefined) =>
+    buildFullChainFn(data.settings, quote, followUp);
+  const stepDeadline = (chain: FollowUpLog[], i: number) =>
+    stepDeadlineFn(data.settings, chain, i);
+  const cardOnTimeRate = (chain: FollowUpLog[]) => cardOnTimeRateFn(data.settings, chain);
 
   // TAT label for the queue card footer: shows the active stage TAT from Settings.
   function tatLabel(followUp: FollowUp | undefined) {

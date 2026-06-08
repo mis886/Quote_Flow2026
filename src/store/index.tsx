@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount, PipelineStage, PipelineOutcome } from '../lib/types';
+import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount, PipelineStage, PipelineOutcome, TeamMember, DoerRole } from '../lib/types';
 import { supabase, signOut, getSettings } from '../lib/supabase';
 import { uploadToS3 } from '../lib/s3';
 import { fetchLabelledEmails, fetchEmailAttachments } from '../lib/gmail';
@@ -40,6 +40,10 @@ interface AppContextType {
   addBankAccount: (b: BankAccount) => Promise<void>;
   updateBankAccount: (id: string, updates: Partial<BankAccount>) => Promise<void>;
   deleteBankAccount: (id: string) => Promise<void>;
+  addTeamMember: (m: TeamMember) => Promise<void>;
+  updateTeamMember: (email: string, role: DoerRole, updates: Partial<TeamMember>) => Promise<void>;
+  deleteTeamMember: (email: string, role: DoerRole) => Promise<void>;
+  roleForDoer: (nameOrEmail?: string | null) => DoerRole[];
   globalSearchQuery: string;
   setGlobalSearchQuery: (query: string) => void;
   globalDateRange: GlobalDateRange | null;
@@ -68,6 +72,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     signatories: [],
     units: [],
     bankAccounts: [],
+    roster: [],
   });
   
   const [loading, setLoading] = useState(true);
@@ -125,7 +130,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (mounted) setLoading(false);
         });
       } else {
-        setData({ enquiries: [], quotes: [], orders: [], customers: [], followups: [], settings: null, signatories: [], units: [], bankAccounts: [] });
+        setData({ enquiries: [], quotes: [], orders: [], customers: [], followups: [], settings: null, signatories: [], units: [], bankAccounts: [], roster: [] });
         setLoading(false);
       }
     });
@@ -343,7 +348,8 @@ const mapEnquiryToDB = (e: any) => {
         { data: settings },
         { data: signatories },
         { data: units },
-        { data: bankAccountsData }
+        { data: bankAccountsData },
+        { data: rosterData }
       ] = await Promise.all([
         supabase.from('enquiries').select('*').order('recv', { ascending: false }),
         supabase.from('quotes').select('*').order('date', { ascending: false }),
@@ -353,7 +359,8 @@ const mapEnquiryToDB = (e: any) => {
         supabase.from('app_settings').select('*').eq('id', 'config').single(),
         supabase.from('authorized_signatories').select('*').order('name'),
         supabase.from('company_units').select('*').order('name'),
-        supabase.from('bank_accounts').select('*')
+        supabase.from('bank_accounts').select('*'),
+        supabase.from('team_roster').select('*').order('display_name')
       ]);
 
       setData({
@@ -371,6 +378,7 @@ const mapEnquiryToDB = (e: any) => {
         signatories: signatories || [],
         units: units || [],
         bankAccounts: bankAccountsData || [],
+        roster: (rosterData as TeamMember[]) || [],
       });
       await linkPendingPOSubmissions();
     } catch (error) {
@@ -770,6 +778,56 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
+  // ── Team roster (people → process role) ──────────────────────────
+  // The roster key is the (email, role) pair: one login can hold several roles,
+  // and one role can be covered by several people.
+  const addTeamMember = async (m: TeamMember) => {
+    const row = { ...m, email: m.email.trim().toLowerCase() };
+    const { error } = await supabase.from('team_roster').insert([row]);
+    if (!error) {
+      setData(prev => ({ ...prev, roster: [...prev.roster, row] }));
+    } else {
+      console.error('Error adding team member:', error);
+      throw error;
+    }
+  };
+
+  const updateTeamMember = async (email: string, role: DoerRole, updates: Partial<TeamMember>) => {
+    const key = email.trim().toLowerCase();
+    const patch = { ...updates, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from('team_roster').update(patch).eq('email', key).eq('role', role);
+    if (!error) {
+      setData(prev => ({
+        ...prev,
+        roster: prev.roster.map(m => (m.email === key && m.role === role) ? { ...m, ...updates } : m)
+      }));
+    } else {
+      console.error('Error updating team member:', error);
+      throw error;
+    }
+  };
+
+  const deleteTeamMember = async (email: string, role: DoerRole) => {
+    const key = email.trim().toLowerCase();
+    const { error } = await supabase.from('team_roster').delete().eq('email', key).eq('role', role);
+    if (!error) {
+      setData(prev => ({ ...prev, roster: prev.roster.filter(m => !(m.email === key && m.role === role)) }));
+    } else {
+      console.error('Error deleting team member:', error);
+      throw error;
+    }
+  };
+
+  // Resolve a free-text doer/owner/who (email OR display name) to its role(s).
+  // Case-insensitive; an identity may hold several roles → returns all of them.
+  const roleForDoer = (nameOrEmail?: string | null): DoerRole[] => {
+    if (!nameOrEmail) return [];
+    const key = nameOrEmail.trim().toLowerCase();
+    return data.roster
+      .filter(m => m.email.toLowerCase() === key || m.display_name.trim().toLowerCase() === key)
+      .map(m => m.role);
+  };
+
   const addUnit = async (u: CompanyUnit) => {
     // Strip undefined keys so Supabase doesn't reject them; coerce empties to null
     const row: Record<string, any> = { id: u.id, name: u.name, is_default: !!u.is_default };
@@ -953,6 +1011,10 @@ const mapEnquiryToDB = (e: any) => {
         addSignatory,
         updateSignatory,
         deleteSignatory,
+        addTeamMember,
+        updateTeamMember,
+        deleteTeamMember,
+        roleForDoer,
         addUnit,
         updateUnit,
         deleteUnit,

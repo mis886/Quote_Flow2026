@@ -1,0 +1,364 @@
+// Doer KPI — pure aggregation over the data already collected in the pipeline.
+//
+// The on-time / TAT math here is the SAME logic that drives the FollowUps score
+// bar (buildFullChain / stepDeadline / cardOnTimeRate), lifted out of the page
+// component so both the page and the KPI dashboard share one source of truth.
+// FollowUps.tsx imports these; do not fork the behaviour.
+
+import type {
+  AppSettings, DataStore, FollowUp, FollowUpLog, Quote, DoerRole, GlobalDateRangeLike,
+} from './types';
+import { DEFAULT_STAGE_TAT_H } from './types';
+
+// ── TAT resolution (mirrors PipelineBoard / FollowUps) ──────────────
+// hours → settings.pipeline_tat_h, then legacy pipeline_tat (×24), then default.
+export function stageTatHours(settings: AppSettings | null, stage: string): number {
+  const h = settings?.pipeline_tat_h?.[stage as never];
+  if (h != null) return h as number;
+  const d = settings?.pipeline_tat?.[stage as never];
+  if (d != null) return (d as number) * 24;
+  return DEFAULT_STAGE_TAT_H[stage as never] ?? 48;
+}
+
+export function isQuoteSentLog(note: string): boolean {
+  return note?.startsWith('Quote sent —') || note?.startsWith('Sent MRT-') || note?.startsWith('Sent ');
+}
+
+// Stage sequence a quote passes through — index maps to log position.
+const STAGE_SEQUENCE: string[] = [
+  'Sent Quotation',      // log[0] — quote sent, TAT clock starts
+  'Offer Acknowledged',  // log[1] — 1st touch
+  '1st Follow-up',       // log[2]
+  '2nd Follow-up',       // log[3]
+  'Negotiation',         // log[4]+
+];
+
+// Build the full chronological log chain for a quote: a synthetic "Quote Sent"
+// entry first (with its TAT deadline as nextDate), then real follow-up logs.
+export function buildFullChain(
+  settings: AppSettings | null,
+  quote: Quote,
+  followUp: FollowUp | undefined,
+): FollowUpLog[] {
+  const total = quote.items.reduce((s, i) => s + i.total, 0);
+  const firstItem = quote.items[0]?.desc ?? '';
+  const itemCount = quote.items.length;
+  const sentNote = `Sent ${quote.id} for ${firstItem}${itemCount > 1 ? ` — ${itemCount} items` : ''}. ₹${total.toLocaleString('en-IN')}.`;
+  const realLogs = (followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+  const storedSent = (followUp?.logs ?? []).find(l => isQuoteSentLog(l.note));
+  const sentTs = storedSent?.ts ?? (quote.date ? `${quote.date}T09:00:00.000Z` : new Date().toISOString());
+
+  let sentNextDate = storedSent?.nextDate;
+  if (!sentNextDate && quote.date) {
+    const tatH = stageTatHours(settings, 'Sent Quotation');
+    const due = new Date(`${quote.date}T09:00:00.000Z`);
+    due.setTime(due.getTime() + tatH * 3600000);
+    sentNextDate = due.toISOString().split('T')[0];
+  }
+
+  const synthetic: FollowUpLog = {
+    ts: sentTs,
+    who: storedSent?.who ?? followUp?.owner ?? 'System',
+    channel: 'Email',
+    note: sentNote,
+    nextDate: sentNextDate,
+    nextChannel: storedSent?.nextChannel ?? 'Called',
+  };
+  return [synthetic, ...realLogs];
+}
+
+// Deadline for step i: customer-promised nextDate on the previous log wins;
+// otherwise prevLog.ts + Settings TAT for that stage.
+export function stepDeadline(settings: AppSettings | null, chain: FollowUpLog[], i: number): Date {
+  const prev = chain[i - 1];
+  if (prev.nextDate) {
+    const d = new Date(prev.nextDate);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+  const stageForPrev = STAGE_SEQUENCE[Math.min(i - 1, STAGE_SEQUENCE.length - 1)];
+  const tatH = stageTatHours(settings, stageForPrev);
+  return new Date(new Date(prev.ts).getTime() + tatH * 3600000);
+}
+
+// On-time per step: was log[i] done by its deadline? Also counts a pending,
+// now-overdue next step as LATE.
+export function cardOnTimeRate(settings: AppSettings | null, chain: FollowUpLog[]): number | null {
+  if (chain.length < 1) return null;
+  let onTime = 0, total = 0;
+  for (let i = 1; i < chain.length; i++) {
+    total++;
+    if (new Date(chain[i].ts) <= stepDeadline(settings, chain, i)) onTime++;
+  }
+  const last = chain[chain.length - 1];
+  if (last.nextDate) {
+    const nextDue = new Date(last.nextDate);
+    nextDue.setHours(23, 59, 59, 999);
+    if (nextDue < new Date()) total++;
+  }
+  return total > 0 ? Math.round(onTime / total * 100) : null;
+}
+
+// ── Doer metrics ─────────────────────────────────────────────────────
+
+export interface DueItem {
+  kind: 'followup' | 'draft-quote' | 'stale-enquiry';
+  refId: string;            // quote id / enquiry id
+  cust: string;
+  label: string;            // human description
+  dueDate: string | null;   // ISO date the action is due
+}
+
+export interface DoerMetrics {
+  email: string;
+  displayName: string;
+  role: DoerRole;
+  onTimePct: number | null;   // % of follow-up steps done by deadline (this doer)
+  volume: number;             // role-specific throughput count
+  avgCycleH: number | null;   // role-specific speed (hours; lower better)
+  winRate: number | null;     // role-specific outcome %
+  dueNextWeek: DueItem[];
+  composite: number | null;   // 0–100 weighted by role (null for unscored roles)
+}
+
+// How each role's composite blends the metrics. Volume & speed are normalized to
+// 0–100 within the cohort before blending (see computeDoerMetrics).
+interface RoleWeight { onTime?: number; volume?: number; speed?: number; win?: number; }
+export const ROLE_WEIGHTS: Record<DoerRole, RoleWeight | null> = {
+  'DEO':         { volume: 0.5, speed: 0.5 },
+  'Rate Entry':  { speed: 0.5, volume: 0.5 },   // speed = E2Q
+  'SC_1':        { onTime: 0.7, volume: 0.3 },
+  'Negotiation': { win: 0.7, onTime: 0.3 },
+  'PI Sender':   null,                           // scoring deferred
+  'Other':       { onTime: 0.5, volume: 0.5 },
+};
+
+const MS_DAY = 86400000;
+function inRange(iso: string | null | undefined, range: GlobalDateRangeLike | null): boolean {
+  if (!iso) return false;
+  if (!range) return true;
+  const t = new Date(iso).getTime();
+  if (range.startDate && t < new Date(range.startDate).getTime()) return false;
+  if (range.endDate && t > new Date(range.endDate).getTime() + MS_DAY) return false;
+  return true;
+}
+
+function lc(s?: string | null): string { return (s ?? '').trim().toLowerCase(); }
+
+// Resolve a person key → set of identities (email + display name, lowercased)
+// so attribution matches whether the record stored an email or a name.
+function identitiesFor(member: { email: string; display_name: string }): Set<string> {
+  return new Set([lc(member.email), lc(member.display_name)].filter(Boolean));
+}
+
+export interface RosterMemberLike { email: string; display_name: string; role: DoerRole; active: boolean; }
+
+// The Map returned by computeDoerMetrics is keyed by (email, role). Build the
+// same key to look a row up from a DoerMetrics value.
+export function doerRowKey(email: string, role: DoerRole): string {
+  return `${email.trim().toLowerCase()}|${role}`;
+}
+
+// Compute per-doer metrics for the active roster over a date range.
+// Returns a Map keyed by lowercased email. `winsByOutcome` etc. computed inline.
+export function computeDoerMetrics(
+  data: DataStore,
+  roster: RosterMemberLike[],
+  range: GlobalDateRangeLike | null,
+): Map<string, DoerMetrics> {
+  const settings = data.settings;
+  const now = Date.now();
+  const nextWeekEnd = now + 7 * MS_DAY;
+
+  // First pass: raw metrics per (identity, role). A single login (e.g. a shared
+  // accounts@ account) can hold several roles, and one person can cover several
+  // roles — so the unit of scoring is the (email, role) pair, not the email.
+  interface Raw extends DoerMetrics { _speedSum: number; _speedN: number; }
+  const rowKey = doerRowKey;
+  const out = new Map<string, Raw>();
+
+  for (const m of roster) {
+    if (!m.active) continue;
+    out.set(rowKey(m.email, m.role), {
+      email: m.email, displayName: m.display_name, role: m.role,
+      onTimePct: null, volume: 0, avgCycleH: null, winRate: null,
+      dueNextWeek: [], composite: null, _speedSum: 0, _speedN: 0,
+    });
+  }
+  if (out.size === 0) return new Map();
+
+  // Index members by (identity, role) for fast attribution. Each identity may map
+  // to several roles, so we resolve the row by the role the action belongs to.
+  const memberByIdentityRole = new Map<string, Raw>();
+  for (const m of roster) {
+    if (!m.active) continue;
+    const raw = out.get(rowKey(m.email, m.role))!;
+    for (const id of identitiesFor(m)) memberByIdentityRole.set(`${id}|${m.role}`, raw);
+  }
+  // Resolve the roster row credited for a `who` value acting in a given role.
+  const matchDoer = (who: string | null | undefined, role: DoerRole): Raw | undefined =>
+    who ? memberByIdentityRole.get(`${lc(who)}|${role}`) : undefined;
+
+  // ── DEO: enquiries entered (volume) + entry lag recv→created_at (speed) ──
+  for (const e of data.enquiries) {
+    if (!inRange(e.recv, range)) continue;
+    const raw = matchDoer(e.doer, 'DEO');
+    if (!raw) continue;
+    raw.volume++;
+    if (e.recv && (e as any).created_at) {
+      const lag = (new Date((e as any).created_at).getTime() - new Date(e.recv).getTime()) / 3600000;
+      if (lag >= 0 && lag < 24 * 30) { raw._speedSum += lag; raw._speedN++; }
+    }
+  }
+
+  // ── Rate Entry: quotes created (volume) + E2Q recv→quote.date (speed) + win ──
+  const enquiryById = new Map(data.enquiries.map(e => [e.id, e]));
+  const winAcc = new Map<Raw, { won: number; closed: number }>();
+  for (const q of data.quotes) {
+    if (!inRange(q.date, range)) continue;
+    const raw = matchDoer(q.doer, 'Rate Entry');
+    if (!raw) continue;
+    raw.volume++;
+    const enq = q.enqRef ? enquiryById.get(q.enqRef) : undefined;
+    if (enq?.recv && q.date) {
+      const e2q = (new Date(q.date).getTime() - new Date(enq.recv).getTime()) / 3600000;
+      if (e2q >= 0 && e2q < 24 * 60) { raw._speedSum += e2q; raw._speedN++; }
+    }
+    const fu = data.followups.find(f => f.quote_id === q.id);
+    if (q.status === 'Won' || q.status === 'Lost' || fu?.outcome) {
+      const acc = winAcc.get(raw) ?? { won: 0, closed: 0 };
+      acc.closed++;
+      if (q.status === 'Won' || fu?.outcome === 'Won') acc.won++;
+      winAcc.set(raw, acc);
+    }
+  }
+
+  // ── SC_1: follow-up log activity (volume) + on-time over owned cards ──
+  // ── Negotiation: authored Negotiation-stage logs (volume) + win + on-time ──
+  const onTimeAcc = new Map<Raw, { on: number; tot: number }>();
+  const quoteById = new Map(data.quotes.map(q => [q.id, q]));
+  for (const fu of data.followups) {
+    const quote = quoteById.get(fu.quote_id);
+    const realLogs = (fu.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+
+    // Volume: each real log credits its author. The same log can credit both an
+    // SC_1 row and a Negotiation row if those roles map to the author's identity.
+    for (const log of realLogs) {
+      if (!inRange(log.ts, range)) continue;
+      const sc1 = matchDoer(log.who, 'SC_1');
+      if (sc1) sc1.volume++;
+      const neg = matchDoer(log.who, 'Negotiation');
+      if (neg && fu.stage === 'Negotiation') neg.volume++;
+    }
+
+    if (!quote) continue;
+
+    // On-time: credit the author of each step under whichever of SC_1 /
+    // Negotiation they hold; fall back to the card owner.
+    const chain = buildFullChain(settings, quote, fu);
+    for (let i = 1; i < chain.length; i++) {
+      const log = chain[i];
+      if (!inRange(log.ts, range)) continue;
+      const onTime = new Date(log.ts) <= stepDeadline(settings, chain, i);
+      for (const role of ['SC_1', 'Negotiation'] as const) {
+        const raw = matchDoer(log.who, role) ?? matchDoer(fu.owner, role);
+        if (!raw) continue;
+        const acc = onTimeAcc.get(raw) ?? { on: 0, tot: 0 };
+        acc.tot++;
+        if (onTime) acc.on++;
+        onTimeAcc.set(raw, acc);
+      }
+    }
+
+    // Negotiation win rate: cards that passed through Negotiation and closed.
+    if (fu.outcome) {
+      // Credit the last real-log author (the closer); fall back to the owner.
+      const lastAuthor = realLogs.length ? realLogs[realLogs.length - 1].who : undefined;
+      const negDoer = matchDoer(lastAuthor, 'Negotiation') ?? matchDoer(fu.owner, 'Negotiation');
+      if (negDoer) {
+        const acc = winAcc.get(negDoer) ?? { won: 0, closed: 0 };
+        acc.closed++;
+        if (fu.outcome === 'Won') acc.won++;
+        winAcc.set(negDoer, acc);
+      }
+    }
+
+    // ── Due next week: open follow-ups with next_date in the next 7 days ──
+    // Credit the owner under whichever follow-up role(s) they hold.
+    if (fu.status !== 'closed' && fu.next_date) {
+      const due = new Date(fu.next_date).getTime();
+      if (due >= now - MS_DAY && due <= nextWeekEnd) {
+        for (const role of ['SC_1', 'Negotiation'] as const) {
+          const raw = matchDoer(fu.owner, role);
+          if (raw) raw.dueNextWeek.push({
+            kind: 'followup', refId: fu.quote_id, cust: quote.cust,
+            label: `Follow-up ${quote.id} · ${quote.cust}`, dueDate: fu.next_date,
+          });
+        }
+      }
+    }
+  }
+
+  // ── DEO also: convert quote→order on PO (count orders) ──
+  for (const o of data.orders) {
+    if (!inRange((o as any).created_at ?? o.poDate, range)) continue;
+    const raw = matchDoer(o.doer, 'DEO');
+    if (raw) raw.volume++;
+  }
+
+  // ── Draft quotes pending = Rate Entry due-next-week ──
+  for (const q of data.quotes) {
+    if (q.status !== 'Draft') continue;
+    const raw = matchDoer(q.doer, 'Rate Entry');
+    if (raw) {
+      raw.dueNextWeek.push({
+        kind: 'draft-quote', refId: q.id, cust: q.cust,
+        label: `Send quote ${q.id} · ${q.cust}`, dueDate: null,
+      });
+    }
+  }
+
+  // Finalize per-member raw metrics.
+  for (const raw of out.values()) {
+    raw.avgCycleH = raw._speedN > 0 ? Math.round(raw._speedSum / raw._speedN) : null;
+    const ot = onTimeAcc.get(raw);
+    raw.onTimePct = ot && ot.tot > 0 ? Math.round(ot.on / ot.tot * 100) : null;
+    const w = winAcc.get(raw);
+    raw.winRate = w && w.closed > 0 ? Math.round(w.won / w.closed * 100) : null;
+  }
+
+  // ── Normalize volume & speed to 0–100 within cohort, then composite ──
+  const members = [...out.values()];
+  // Normalize volume & speed WITHIN each role — a DEO's enquiry count is not
+  // comparable to an SC_1's log count, so each role has its own best-in-cohort.
+  const maxVolByRole = new Map<DoerRole, number>();
+  const maxSpeedByRole = new Map<DoerRole, number>();
+  for (const m of members) {
+    maxVolByRole.set(m.role, Math.max(maxVolByRole.get(m.role) ?? 1, m.volume));
+    if (m.avgCycleH != null) maxSpeedByRole.set(m.role, Math.max(maxSpeedByRole.get(m.role) ?? 1, m.avgCycleH));
+  }
+
+  for (const m of members) {
+    const w = ROLE_WEIGHTS[m.role];
+    if (!w) { m.composite = null; continue; }
+    const maxVol = maxVolByRole.get(m.role) ?? 1;
+    const maxSpeed = maxSpeedByRole.get(m.role) ?? 1;
+    const volScore = (m.volume / maxVol) * 100;
+    // Speed: lower is better → invert against the role's worst.
+    const speedScore = m.avgCycleH != null ? (1 - m.avgCycleH / maxSpeed) * 100 : 0;
+    let sum = 0, wsum = 0;
+    if (w.onTime != null && m.onTimePct != null) { sum += w.onTime * m.onTimePct; wsum += w.onTime; }
+    if (w.win != null && m.winRate != null) { sum += w.win * m.winRate; wsum += w.win; }
+    if (w.volume != null) { sum += w.volume * volScore; wsum += w.volume; }
+    if (w.speed != null && m.avgCycleH != null) { sum += w.speed * speedScore; wsum += w.speed; }
+    m.composite = wsum > 0 ? Math.round(sum / wsum) : null;
+  }
+
+  // Strip private accumulators.
+  const result = new Map<string, DoerMetrics>();
+  for (const [k, raw] of out) {
+    const { _speedSum, _speedN, ...clean } = raw;
+    result.set(k, clean);
+  }
+  return result;
+}

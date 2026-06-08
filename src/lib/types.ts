@@ -307,6 +307,34 @@ export interface FollowUp {
   updated_at?: string;
 }
 
+// ── Team roster / doer KPI ─────────────────────────────────────────
+// Maps a free-text doer/owner/who identity to the process role that person
+// owns, so the Doer KPI page can aggregate per-role scores. Stored in the
+// `team_roster` table; see migrations/2026-06-08_team_roster.sql.
+export type DoerRole =
+  | 'DEO'          // enters enquiries; converts quote→order on PO
+  | 'Rate Entry'   // enters rates, turns enquiry into quote, marks sent
+  | 'SC_1'         // runs follow-ups per the TAT pipeline after quote sent
+  | 'Negotiation'  // handles cards in the Negotiation lane
+  | 'PI Sender'    // Accounts; issues the Proforma Invoice (scoring deferred)
+  | 'Other';
+
+export const DOER_ROLES: DoerRole[] = ['DEO', 'Rate Entry', 'SC_1', 'Negotiation', 'PI Sender', 'Other'];
+
+export interface TeamMember {
+  email: string;          // join key; matched case-insensitively to doer/owner/who
+  display_name: string;
+  role: DoerRole;
+  active: boolean;
+}
+
+// Minimal date-range shape used by KPI aggregation (mirrors the store's
+// GlobalDateRange without importing from the store, to avoid a cycle).
+export interface GlobalDateRangeLike {
+  startDate?: string;
+  endDate?: string;
+}
+
 export interface DataStore {
   enquiries: Enquiry[];
   quotes: Quote[];
@@ -317,6 +345,7 @@ export interface DataStore {
   signatories: AuthorizedSignatory[];
   units: CompanyUnit[];
   bankAccounts: BankAccount[];
+  roster: TeamMember[];
 }
 
 export interface AuthorizedSignatory {
