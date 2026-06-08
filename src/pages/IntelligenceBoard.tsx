@@ -334,7 +334,6 @@ function CustomerDetail({ stats, allFollowups }: {
           ) : (
             <div className="divide-y divide-g100">
               {quotes.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(q => {
-                const total = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
                 const desc = (q.items ?? [])[0]?.desc ?? '';
                 const isExpanded = expandedQuote === q.id;
                 const subTotal  = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
@@ -350,7 +349,7 @@ function CustomerDetail({ stats, allFollowups }: {
                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
                       <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
                       <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
-                      <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(total)}</span>
+                      <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(grandTotal)}</span>
                       <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
                       <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy, HH:mm') : '—'}</span>
                       <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
