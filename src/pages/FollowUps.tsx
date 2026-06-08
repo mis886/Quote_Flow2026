@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store';
 import { format, isBefore, isToday, parseISO, startOfDay, addDays } from 'date-fns';
 import {
@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   Trophy,
   XCircle,
+  Zap,
+  Timer,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn, fmtIST, isInDateRange, getThisWeekRange } from '../lib/utils';
@@ -84,6 +86,133 @@ function groupLogsByDay(logs: FollowUpLog[]) {
   return groups;
 }
 
+// ── Suggestion chip types ─────────────────────────────────────────────────────
+type SuggestionVariant = 'call' | 'whatsapp' | 'email' | 'meeting' | 'visit' | 'won' | 'lost' | 'park';
+interface Suggestion {
+  variant: SuggestionVariant;
+  label: string;
+  noteTemplate: string;    // pre-fill for the note textarea
+  channel: FollowUpLog['channel'] | null;  // null = outcome action (Won/Lost/Park)
+  nextDaysFromNow?: number; // pre-fill next_date = today + N days
+}
+
+const VARIANT_STYLE: Record<SuggestionVariant, string> = {
+  call:     'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
+  whatsapp: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
+  email:    'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
+  meeting:  'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
+  visit:    'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100',
+  won:      'bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200',
+  lost:     'bg-red-50 border-red-200 text-red-700 hover:bg-red-100',
+  park:     'bg-g100 border-g300 text-g700 hover:bg-g200',
+};
+const VARIANT_ICON: Record<SuggestionVariant, string> = {
+  call: '📞', whatsapp: '💬', email: '📧', meeting: '🤝', visit: '📍',
+  won: '🏆', lost: '❌', park: '⏸',
+};
+
+function buildSuggestions(
+  stage: string,
+  silentDays: number,
+  tatH: number,
+  elapsedH: number,
+  quoteId: string,
+  custName: string,
+  validityDate: string | undefined,
+): Suggestion[] {
+  const breached = elapsedH > tatH;
+  const validityMs = validityDate ? new Date(validityDate).getTime() - Date.now() : null;
+  const validityDaysLeft = validityMs !== null ? Math.ceil(validityMs / 86_400_000) : null;
+  const chips: Suggestion[] = [];
+
+  if (stage === 'Sent Quotation') {
+    if (!breached) {
+      chips.push({ variant: 'call',     label: 'Confirm Receipt',      channel: 'Called',   noteTemplate: `Called ${custName} to confirm receipt of ${quoteId} — `, nextDaysFromNow: 2 });
+      chips.push({ variant: 'email',    label: 'Resend Quote PDF',     channel: 'Email',    noteTemplate: `Resent ${quoteId} PDF to ${custName} — ` });
+    } else {
+      chips.push({ variant: 'call',     label: 'Call — Got the quote?', channel: 'Called',   noteTemplate: `Called ${custName} — did you receive ${quoteId}? — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'whatsapp', label: 'WhatsApp Reminder',    channel: 'WhatsApp', noteTemplate: `Sent WhatsApp to ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'email',    label: 'Follow-up Email',      channel: 'Email',    noteTemplate: `Sent follow-up email re: ${quoteId} to ${custName} — ` });
+    }
+  } else if (stage === 'Offer Acknowledged') {
+    if (!breached) {
+      chips.push({ variant: 'call',     label: 'Check for Questions',  channel: 'Called',   noteTemplate: `Called ${custName} to check if any questions on ${quoteId} — `, nextDaysFromNow: 2 });
+      chips.push({ variant: 'whatsapp', label: 'Send Spec Sheet',      channel: 'WhatsApp', noteTemplate: `Shared spec sheet with ${custName} re: ${quoteId} — ` });
+    } else {
+      chips.push({ variant: 'call',     label: 'Call — Any Decision?', channel: 'Called',   noteTemplate: `Called ${custName} for decision on ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'whatsapp', label: 'Push for PO Date',     channel: 'WhatsApp', noteTemplate: `WhatsApp to ${custName}: when can we expect PO for ${quoteId}? — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'meeting',  label: 'Offer a Meeting',      channel: 'Meeting',  noteTemplate: `Proposed a meeting with ${custName} to discuss ${quoteId} — `, nextDaysFromNow: 3 });
+    }
+  } else if (stage === '1st Follow-up') {
+    if (!breached) {
+      chips.push({ variant: 'call',     label: 'Check Decision Status', channel: 'Called',   noteTemplate: `Called ${custName} — status on ${quoteId}? — `, nextDaysFromNow: 3 });
+      chips.push({ variant: 'whatsapp', label: 'Price Negotiation?',    channel: 'WhatsApp', noteTemplate: `WhatsApp to ${custName}: open to discuss pricing on ${quoteId}? — ` });
+    } else {
+      chips.push({ variant: 'call',     label: 'Urgent Call',           channel: 'Called',   noteTemplate: `Urgent call to ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'whatsapp', label: 'Final Reminder',        channel: 'WhatsApp', noteTemplate: `Final WhatsApp reminder to ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'email',    label: 'Revised Offer Email',   channel: 'Email',    noteTemplate: `Sent revised offer email to ${custName} for ${quoteId} — ` });
+      if (silentDays >= 5) chips.push({ variant: 'park', label: 'Park This Quote', channel: null, noteTemplate: '' });
+    }
+  } else if (stage === '2nd Follow-up') {
+    if (!breached) {
+      chips.push({ variant: 'call',     label: 'Final Check',          channel: 'Called',   noteTemplate: `Called ${custName} — final check on ${quoteId} — `, nextDaysFromNow: 4 });
+      chips.push({ variant: 'whatsapp', label: 'Last WhatsApp Nudge',  channel: 'WhatsApp', noteTemplate: `Last WhatsApp nudge to ${custName} re: ${quoteId} — `, nextDaysFromNow: 2 });
+    } else {
+      chips.push({ variant: 'call',     label: 'Decision Call',        channel: 'Called',   noteTemplate: `Decision call with ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'whatsapp', label: 'Last Message',         channel: 'WhatsApp', noteTemplate: `Final message to ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'visit',    label: 'Visit / Meeting',      channel: 'Visit',    noteTemplate: `Visited / met ${custName} to discuss ${quoteId} — `, nextDaysFromNow: 3 });
+      if (silentDays >= 7) chips.push({ variant: 'lost', label: 'Mark Lost', channel: null, noteTemplate: '' });
+    }
+  } else if (stage === 'Negotiation') {
+    if (!breached) {
+      chips.push({ variant: 'meeting',  label: 'Schedule Meeting',     channel: 'Meeting',  noteTemplate: `Scheduled meeting with ${custName} re: ${quoteId} — `, nextDaysFromNow: 3 });
+      chips.push({ variant: 'call',     label: 'Discuss Terms',        channel: 'Called',   noteTemplate: `Called ${custName} to discuss terms on ${quoteId} — `, nextDaysFromNow: 2 });
+      chips.push({ variant: 'email',    label: 'Send Revised Quote',   channel: 'Email',    noteTemplate: `Sent revised quote to ${custName} for ${quoteId} — ` });
+    } else {
+      chips.push({ variant: 'call',     label: 'Final Negotiation',    channel: 'Called',   noteTemplate: `Final negotiation call with ${custName} re: ${quoteId} — `, nextDaysFromNow: 1 });
+      chips.push({ variant: 'won',      label: 'Mark Won',             channel: null,       noteTemplate: '' });
+      chips.push({ variant: 'lost',     label: 'Mark Lost',            channel: null,       noteTemplate: '' });
+    }
+  }
+
+  // Validity chips — appended regardless of stage
+  if (validityDaysLeft !== null && validityDaysLeft <= 3 && validityDaysLeft > 0) {
+    chips.push({ variant: 'email', label: `Validity expires in ${validityDaysLeft}d — extend`, channel: 'Email', noteTemplate: `Sent validity extension to ${custName} for ${quoteId} — ` });
+  } else if (validityDaysLeft !== null && validityDaysLeft <= 0) {
+    chips.push({ variant: 'email', label: 'Validity expired — reissue', channel: 'Email', noteTemplate: `Reissued ${quoteId} with updated validity to ${custName} — ` });
+    chips.push({ variant: 'call',  label: 'Call with new validity',     channel: 'Called', noteTemplate: `Called ${custName} to share reissued ${quoteId} with new validity — `, nextDaysFromNow: 1 });
+  }
+
+  return chips.slice(0, 5);
+}
+
+// Live countdown hook — ticks every minute
+function useCountdown(targetIso: string | null | undefined): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!targetIso) { setLabel(null); return; }
+    const compute = () => {
+      const diff = new Date(targetIso).getTime() - Date.now();
+      if (diff <= 0) {
+        const over = Math.abs(diff);
+        const d = Math.floor(over / 86_400_000);
+        const h = Math.floor((over % 86_400_000) / 3_600_000);
+        const m = Math.floor((over % 3_600_000) / 60_000);
+        setLabel(d > 0 ? `${d}d ${h}h overdue` : h > 0 ? `${h}h ${m}m overdue` : `${m}m overdue`);
+      } else {
+        const d = Math.floor(diff / 86_400_000);
+        const h = Math.floor((diff % 86_400_000) / 3_600_000);
+        const m = Math.floor((diff % 3_600_000) / 60_000);
+        setLabel(d > 0 ? `Due in ${d}d ${h}h` : h > 0 ? `Due in ${h}h ${m}m` : `Due in ${m}m`);
+      }
+    };
+    compute();
+    const t = setInterval(compute, 60_000);
+    return () => clearInterval(t);
+  }, [targetIso]);
+  return label;
+}
+
 export default function FollowUps() {
   const navigate = useNavigate();
   const store = useAppStore();
@@ -103,6 +232,23 @@ export default function FollowUps() {
   const [nextDate, setNextDate] = useState('');
   const [nextTime, setNextTime] = useState('');
   const [nextNote, setNextNote] = useState('');
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+
+  const applyChip = useCallback((chip: Suggestion) => {
+    if (chip.channel === null) return; // Won/Lost/Park handled via onClick
+    setChannel(chip.channel as FollowUpLog['channel']);
+    setNote(chip.noteTemplate);
+    if (chip.nextDaysFromNow) {
+      const d = new Date();
+      d.setDate(d.getDate() + chip.nextDaysFromNow);
+      setNextDate(d.toISOString().slice(0, 10));
+    }
+    setTimeout(() => {
+      noteRef.current?.focus();
+      const len = chip.noteTemplate.length;
+      noteRef.current?.setSelectionRange(len, len);
+    }, 50);
+  }, []);
 
   const today = startOfDay(new Date());
 
@@ -1005,6 +1151,48 @@ export default function FollowUps() {
                     <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
                   </div>
 
+                  {/* ── Next-step suggestion chips ── */}
+                  {!isClosedTab && (() => {
+                    const fu = selectedItem.followUp;
+                    const stage = fu?.stage ?? 'Sent Quotation';
+                    const enteredAt = fu?.stage_entered_at ?? selectedItem.quote.date ?? new Date().toISOString();
+                    const tatH = (() => {
+                      const s = data.settings;
+                      const bl = stage as import('../lib/types').BoardLane;
+                      const h = s?.pipeline_tat_h?.[bl];
+                      if (h != null) return h;
+                      const d = s?.pipeline_tat?.[bl];
+                      if (d != null) return d * 24;
+                      return DEFAULT_STAGE_TAT_H[bl] ?? 48;
+                    })();
+                    const elapsedH = (Date.now() - new Date(enteredAt).getTime()) / 3_600_000;
+                    const silentDays = selectedItem.daysSinceQuote;
+                    const chips = buildSuggestions(
+                      stage, silentDays, tatH, elapsedH,
+                      selectedItem.quote.id, selectedItem.quote.cust,
+                      selectedItem.quote.validity,
+                    );
+                    if (chips.length === 0) return null;
+
+                    // Countdown target: next_date + next_time if set
+                    const nextDue = fu?.next_date
+                      ? `${fu.next_date}T${fu.next_time ?? '09:00'}:00`
+                      : null;
+                    const isOverdue = selectedItem.priority === 'overdue';
+
+                    return (
+                      <SuggestionStrip
+                        chips={chips}
+                        nextDue={nextDue}
+                        isOverdue={isOverdue}
+                        quoteId={selectedItem.quote.id}
+                        onChip={applyChip}
+                        onMarkWon={(e: React.MouseEvent<HTMLButtonElement>) => handleMarkWon(selectedItem.quote.id, e)}
+                        onMarkLost={(e: React.MouseEvent<HTMLButtonElement>) => handleMarkLost(selectedItem.quote.id, e)}
+                      />
+                    );
+                  })()}
+
                   {(() => {
                     const allLogs = buildFullChain(selectedItem.quote, selectedItem.followUp);
                     return (
@@ -1148,6 +1336,7 @@ export default function FollowUps() {
                     <div className="space-y-1.5">
                       <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">What Happened?</div>
                       <textarea
+                        ref={noteRef}
                         required
                         placeholder="What did the customer say? Any commitments made?"
                         className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[88px]"
@@ -1268,6 +1457,93 @@ export default function FollowUps() {
       </div>
       )} {/* /viewTab !== 'board' right panel */}
       </div>{/* /flex flex-1 overflow-hidden */}
+    </div>
+  );
+}
+
+// ── SuggestionStrip component ─────────────────────────────────────────────────
+function SuggestionStrip({
+  chips, nextDue, isOverdue, quoteId, onChip, onMarkWon, onMarkLost,
+}: {
+  chips: Suggestion[];
+  nextDue: string | null;
+  isOverdue: boolean;
+  quoteId: string;
+  onChip: (c: Suggestion) => void;
+  onMarkWon: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onMarkLost: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const countdown = useCountdown(nextDue);
+
+  return (
+    <div className="mb-4 rounded-[6px] border border-g200 bg-white overflow-hidden">
+      {/* Header row */}
+      <div className={cn(
+        'flex items-center gap-2 px-3 py-2 border-b',
+        isOverdue ? 'bg-red-lt border-red-mrt/20' : 'bg-g50 border-g200',
+      )}>
+        <Zap size={11} className={isOverdue ? 'text-red-mrt' : 'text-amber-500'} />
+        <span className={cn(
+          'font-mono text-[9px] font-bold tracking-[1.5px] uppercase flex-1',
+          isOverdue ? 'text-red-mrt' : 'text-g500',
+        )}>
+          Suggested next step
+        </span>
+        {countdown && (
+          <span className={cn(
+            'flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full',
+            isOverdue
+              ? 'bg-red-mrt/10 text-red-mrt animate-pulse'
+              : 'bg-amber-50 text-amber-700',
+          )}>
+            <Timer size={9} />
+            {countdown}
+          </span>
+        )}
+        {!nextDue && (
+          <span className="flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 animate-pulse">
+            <Timer size={9} />
+            No follow-up scheduled
+          </span>
+        )}
+      </div>
+
+      {/* Chips */}
+      <div className="flex flex-wrap gap-2 px-3 py-2.5">
+        {chips.map((chip, i) => {
+          if (chip.variant === 'won') {
+            return (
+              <button key={i} type="button" onClick={onMarkWon}
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-colors', VARIANT_STYLE.won)}>
+                <span>{VARIANT_ICON.won}</span>{chip.label}
+              </button>
+            );
+          }
+          if (chip.variant === 'lost') {
+            return (
+              <button key={i} type="button" onClick={onMarkLost}
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-colors', VARIANT_STYLE.lost)}>
+                <span>{VARIANT_ICON.lost}</span>{chip.label}
+              </button>
+            );
+          }
+          if (chip.variant === 'park') {
+            return (
+              <button key={i} type="button"
+                onClick={() => onChip({ ...chip, channel: 'Called', noteTemplate: `Parked ${quoteId} — revisit later. ` })}
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-colors', VARIANT_STYLE.park)}>
+                <span>{VARIANT_ICON.park}</span>{chip.label}
+              </button>
+            );
+          }
+          return (
+            <button key={i} type="button" onClick={() => onChip(chip)}
+              className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-colors', VARIANT_STYLE[chip.variant])}>
+              <span>{VARIANT_ICON[chip.variant]}</span>{chip.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
