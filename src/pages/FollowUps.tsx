@@ -914,17 +914,17 @@ export default function FollowUps() {
 
               {/* Next follow-up date */}
               <div className={cn(
-                "flex items-center gap-1 px-3 pt-1 text-[10px] font-medium",
-                priority === 'overdue' ? "text-red-mrt" :
-                priority === 'today' ? "text-sR" :
-                priority === 'unscheduled' ? "text-orange-500" : "text-g500"
+                "flex items-center gap-1 px-3 pt-1 text-[11px] font-bold",
+                priority === 'overdue' ? "text-red-700" :
+                priority === 'today' ? "text-amber-700" :
+                priority === 'unscheduled' ? "text-orange-700" : "text-slate-600"
               )}>
                 {priority === 'unscheduled' ? (
-                  <AlertTriangle size={10} className="shrink-0 text-orange-500" />
+                  <AlertTriangle size={11} className="shrink-0 text-orange-600" />
                 ) : priority === 'overdue' ? (
-                  <Clock size={10} className="shrink-0 animate-pulse" />
+                  <Clock size={11} className="shrink-0 animate-pulse" />
                 ) : (
-                  <Calendar size={10} className="shrink-0" />
+                  <Calendar size={11} className="shrink-0" />
                 )}
                 <span>
                   {isClosedTab ? 'Closed' :
@@ -949,13 +949,13 @@ export default function FollowUps() {
 
               {/* TAT + On-Time footer */}
               <div className="flex items-center gap-2 px-3 py-1.5 mt-0.5 border-t border-g100 bg-g50/60 text-[9.5px] font-mono">
-                <span className="text-g400">{tat}</span>
+                <span className="text-slate-600 font-bold">{tat}</span>
                 {onTimePct !== null && (
                   <>
                     <span className="text-g300">·</span>
                     <span className={cn(
                       "font-bold",
-                      onTimePct >= 80 ? "text-emerald-600" : onTimePct >= 60 ? "text-orange-500" : "text-red-mrt"
+                      onTimePct >= 80 ? "text-emerald-700" : onTimePct >= 60 ? "text-orange-600" : "text-red-700"
                     )}>On-Time: {onTimePct}%</span>
                   </>
                 )}
@@ -1067,12 +1067,13 @@ export default function FollowUps() {
               <div className="flex border-t border-g150 mt-2 -mx-0">
                 {[
                   { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
-                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false },
+                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
+                    color: (() => { const ms = new Date(selectedItem.quote.validity).getTime() - Date.now(); return ms < 0 ? 'text-red-700 font-bold' : ms < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold'; })() },
                   { label: 'Next Step', value: selectedItem.followUp?.next_date
                     ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
                     : 'Not scheduled',
                     mono: false,
-                    color: selectedItem.priority === 'overdue' ? 'text-red-mrt' : selectedItem.priority === 'today' ? 'text-amber-700' : undefined },
+                    color: selectedItem.priority === 'overdue' ? 'text-red-700 font-bold' : selectedItem.priority === 'today' ? 'text-amber-700 font-bold' : 'text-slate-700 font-semibold' },
                   { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
                   { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
                   { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
@@ -1228,12 +1229,13 @@ export default function FollowUps() {
                                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                         <span className="text-[12px] font-bold text-blk">Quote Sent</span>
                                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">ON TIME</span>
-                                        <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                                        <span className="text-[9px] font-mono font-semibold text-slate-500">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
                                       </div>
                                       <p className="text-[12px] text-g600 leading-relaxed">{log.note}</p>
                                       {log.nextDate && (
-                                        <div className="text-[11px] font-semibold text-sR mt-1">
-                                          → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                        <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
+                                          <Calendar size={10} className="text-amber-600 shrink-0" />
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                       )}
                                       <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
@@ -1256,21 +1258,22 @@ export default function FollowUps() {
                                       {onTimeFinal !== null && (
                                         <span className={cn(
                                           "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
-                                          onTimeFinal ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-mrt"
+                                          onTimeFinal ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
                                         )}>
                                           {onTimeFinal ? 'ON TIME' : 'LATE'}
                                         </span>
                                       )}
-                                      <span className="text-[9px] font-mono text-g400">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
+                                      <span className="text-[9px] font-mono font-semibold text-slate-500">{fmtIST(parseISO(log.ts), 'dd MMM · hh:mm aa')}</span>
                                     </div>
                                     <p className="text-[12px] text-g700 leading-relaxed whitespace-pre-wrap mb-1">{log.note}</p>
                                     {log.nextDate && (
-                                      <div className="mb-1">
-                                        <div className="text-[11px] font-semibold text-sR">
-                                          → Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                      <div className="mb-1.5">
+                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
+                                          <Calendar size={10} className="text-amber-600 shrink-0" />
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                         {log.nextNote && (
-                                          <div className="text-[10.5px] italic text-g500 pl-2 border-l-2 border-g200 mt-0.5">
+                                          <div className="text-[10.5px] italic text-slate-500 pl-2 border-l-2 border-amber-200 mt-1">
                                             {log.nextNote}
                                           </div>
                                         )}
@@ -1342,8 +1345,10 @@ export default function FollowUps() {
                     </div>
 
                     {/* Next Follow-Up block */}
-                    <div className="bg-g100 border border-g200 rounded-[3px] p-3 space-y-2.5">
-                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Next Follow-Up Planned</div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-[3px] p-3 space-y-2.5">
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-amber-700 flex items-center gap-1.5">
+                        <Calendar size={10} className="text-amber-600" />Next Follow-Up Planned
+                      </div>
                       <select
                         title="Next follow-up action"
                         className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
@@ -1362,14 +1367,14 @@ export default function FollowUps() {
                           type="date"
                           title="Next follow-up date"
                           min={format(addDays(new Date(), 1), 'yyyy-MM-dd')}
-                          className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                          className="flex-1 bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
                           value={nextDate}
                           onChange={e => setNextDate(e.target.value)}
                         />
                         <input
                           type="time"
                           title="Next follow-up time"
-                          className="w-[100px] bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[12px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                          className="w-[100px] bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
                           value={nextTime}
                           onChange={e => setNextTime(e.target.value)}
                         />
@@ -1480,15 +1485,15 @@ function SuggestionStrip({
         <Zap size={10} className={isOverdue ? 'text-red-mrt shrink-0' : 'text-amber-500 shrink-0'} />
         {countdown && (
           <span className={cn(
-            'flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0',
-            isOverdue ? 'bg-red-lt text-red-mrt animate-pulse' : 'bg-amber-50 text-amber-700',
+            'flex items-center gap-1 font-mono text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 tracking-tight',
+            isOverdue ? 'bg-red-100 text-red-700 animate-pulse border border-red-200' : 'bg-amber-100 text-amber-800 border border-amber-200',
           )}>
-            <Timer size={9} />{countdown}
+            <Timer size={10} />{countdown}
           </span>
         )}
         {!nextDue && (
-          <span className="flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 animate-pulse shrink-0">
-            <Timer size={9} />No next step
+          <span className="flex items-center gap-1 font-mono text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-700 animate-pulse shrink-0 border border-orange-200">
+            <Timer size={10} />No next step
           </span>
         )}
       </div>
