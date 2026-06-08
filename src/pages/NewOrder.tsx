@@ -56,6 +56,7 @@ export function NewOrder() {
 
   const [step, setStep] = useState(1);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [dupOrderAlert, setDupOrderAlert] = useState<{ existingId: string } | null>(null);
 
   const [poNo, setPoNo] = useState('');
   const [poFile, setPoFile] = useState<File | null>(null);
@@ -154,6 +155,9 @@ export function NewOrder() {
         if (matched) setSelectedSigId(matched.id);
       }
     } else if (quoteRef) {
+      // Duplicate guard: warn if this quote was already converted to an order
+      const existing = data.orders.find(o => o.quoteRef === quoteRef);
+      if (existing) { setDupOrderAlert({ existingId: existing.id }); return; }
       const q = data.quotes.find(e => e.id === quoteRef);
       if (q) {
         hydratedKey.current = key;             // hydrate from quote only once
@@ -414,6 +418,55 @@ export function NewOrder() {
 
   const customer = data.customers.find(c => c.name === custName);
   const relatedQuote = quoteRef ? data.quotes.find(q => q.id === quoteRef) : undefined;
+
+  if (dupOrderAlert) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-g50 animate-in fade-in duration-200">
+        <div className="bg-white border border-amber-200 rounded-[8px] shadow-lg p-7 max-w-[420px] w-full mx-4">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5 text-amber-500"><path d="M10 2L2 17h16L10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M10 8v4M10 14.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </div>
+            <div>
+              <div className="font-bold text-[14px] text-blk mb-1">Quote Already Converted</div>
+              <div className="text-[12.5px] text-g600 leading-relaxed">
+                <span className="font-mono font-bold text-sQ">{quoteRef}</span> has already been converted to order{' '}
+                <span className="font-mono font-bold text-sW">{dupOrderAlert.existingId}</span>.
+              </div>
+              <div className="text-[12px] text-g500 mt-2">Would you like to edit the existing order, or create a new one anyway?</div>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-5">
+            <Button variant="primary" onClick={() => navigate(`/orders/new?orderId=${dupOrderAlert.existingId}`)} className="flex-1">
+              Edit {dupOrderAlert.existingId}
+            </Button>
+            <Button variant="secondary" onClick={() => {
+              setDupOrderAlert(null);
+              const q = data.quotes.find(e => e.id === quoteRef);
+              if (q) {
+                hydratedKey.current = `quote:${quoteRef}`;
+                setLinkedQuoteRef(q.id);
+                if (q.enqRef) setLinkedEnqRef(q.enqRef);
+                setOrderId(generateId('ORD', data.orders.map(o => o.id)));
+                setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
+                if ((q as any).siteId) setSiteId((q as any).siteId);
+                if ((q as any).contactId) setContactId((q as any).contactId);
+                if ((q as any).contact) setContact((q as any).contact);
+                if ((q as any).email) setEmail((q as any).email);
+                setContactManual(!(q as any).contactId && !!((q as any).contact || (q as any).email));
+                setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
+                setCustomTerms(parseQuoteTerms(q.terms));
+                setItems(q.items.map(i => ({ ...i, agreedRate: i.unitPrice, remarks: '' })));
+              }
+            }} className="flex-1">
+              Create New Anyway
+            </Button>
+          </div>
+          <button type="button" onClick={() => navigate(-1)} className="mt-3 w-full text-center text-[11px] text-g400 hover:text-g600">← Go back</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">

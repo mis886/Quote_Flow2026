@@ -71,6 +71,7 @@ export function NewQuote() {
 
   const [step, setStep] = useState(1);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [dupQuoteAlert, setDupQuoteAlert] = useState<{ existingId: string } | null>(null);
 
   const [date, setDate] = useState(localDateStr(new Date()));
   const [validity, setValidity] = useState(localDateStr(new Date(Date.now() + 30 * 86400000)));
@@ -149,6 +150,9 @@ export function NewQuote() {
         }
       }
     } else if (enqRef) {
+      // Duplicate guard: warn if this enquiry was already converted to a quote
+      const existing = data.quotes.find(q => q.enqRef === enqRef);
+      if (existing) { setDupQuoteAlert({ existingId: existing.id }); return; }
       setQuoteId(generateId('MRT', data.quotes.map(q => q.id)));
       const enq = data.enquiries.find(e => e.id === enqRef);
       if (enq) {
@@ -470,6 +474,49 @@ export function NewQuote() {
   );
 
   const customer = data.customers.find(c => c.name === custName);
+
+  if (dupQuoteAlert) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-g50 animate-in fade-in duration-200">
+        <div className="bg-white border border-amber-200 rounded-[8px] shadow-lg p-7 max-w-[420px] w-full mx-4">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5 text-amber-500"><path d="M10 2L2 17h16L10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M10 8v4M10 14.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </div>
+            <div>
+              <div className="font-bold text-[14px] text-blk mb-1">Enquiry Already Converted</div>
+              <div className="text-[12.5px] text-g600 leading-relaxed">
+                <span className="font-mono font-bold text-sQ">{enqRef}</span> has already been converted to quote{' '}
+                <span className="font-mono font-bold text-red-mrt">{dupQuoteAlert.existingId}</span>.
+              </div>
+              <div className="text-[12px] text-g500 mt-2">Would you like to edit the existing quote, or create a new one anyway?</div>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-5">
+            <Button variant="primary" onClick={() => navigate(`/quotes/new?id=${dupQuoteAlert.existingId}`)} className="flex-1">
+              Edit {dupQuoteAlert.existingId}
+            </Button>
+            <Button variant="secondary" onClick={() => {
+              setDupQuoteAlert(null);
+              setQuoteId(generateId('MRT', data.quotes.map(q => q.id)));
+              const enq = data.enquiries.find(e => e.id === enqRef);
+              if (enq) {
+                setCustName(enq.cust); if (enq.siteId) setSiteId(enq.siteId); if (enq.contactId) setContactId(enq.contactId);
+                setContact(enq.contact); setEmail(enq.email);
+                setContactManual(!enq.contactId && !!(enq.contact || enq.email));
+                const cr = data.customers.find(c => c.name === enq.cust);
+                if (cr) { setInco(cr.inco || 'EXW - Ex Works'); setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
+                setItems(enq.items.map((i, idx) => ({ ...i, seq: idx + 1, hsn: '40169930', unitPrice: 0, gst: 18, total: 0 })));
+              }
+            }} className="flex-1">
+              Create New Anyway
+            </Button>
+          </div>
+          <button type="button" onClick={() => navigate(-1)} className="mt-3 w-full text-center text-[11px] text-g400 hover:text-g600">← Go back</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
