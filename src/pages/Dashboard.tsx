@@ -881,10 +881,15 @@ export function Dashboard() {
               e2qWeekDelta,
               e2qMonthDelta,
               'h',
-              true, // inverse — lower hours = better
+              true,
             )}
             color="blue"
             icon={<Clock size={16} strokeWidth={2} />}
+            tips={[
+              'Quote within 4h for Hot, 24h for Urgent enquiries',
+              'Use saved line items to fill quotes faster',
+              'Assign enquiries immediately on receipt',
+            ]}
           />
           <StatCard
             label="Open Pipeline"
@@ -897,6 +902,11 @@ export function Dashboard() {
             ]}
             color="purple"
             icon={<IndianRupee size={16} strokeWidth={2} />}
+            tips={[
+              'Follow up on Sent quotes older than 7 days',
+              'Log every customer call to track engagement',
+              'Parked quotes still count — revisit them monthly',
+            ]}
           />
           <StatCard
             label="Q→O Conversion"
@@ -910,6 +920,11 @@ export function Dashboard() {
             )}
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
+            tips={[
+              'Schedule a follow-up the day after sending a quote',
+              'Address objections early — log notes on each quote',
+              'Review Lost quotes to spot pricing or spec patterns',
+            ]}
           />
           <StatCard
             label="Quotes Sent"
@@ -923,6 +938,11 @@ export function Dashboard() {
             )}
             color="orange"
             icon={<FileSignature size={16} strokeWidth={2} />}
+            tips={[
+              'Reduce Draft quotes — send or discard within 48h',
+              'Copy recurring items from previous quotes',
+              'Link every quote back to its enquiry for full traceability',
+            ]}
           />
           <StatCard
             label="Quote Value"
@@ -936,6 +956,11 @@ export function Dashboard() {
             )}
             color="red"
             icon={<IndianRupee size={16} strokeWidth={2} />}
+            tips={[
+              'Target larger-basket enquiries from Gold-tier customers',
+              'Include all accessories and services in each line item',
+              'Review unit prices quarterly against market rates',
+            ]}
           />
         </div>
 
@@ -1184,24 +1209,24 @@ function SourcePieChart({ data, total }: { data: { src: string; count: number; c
 }
 
 const STAT_COLORS = {
-  blue:   { top: 'border-t-blue-500',   iconBg: 'bg-blue-50',   iconText: 'text-blue-500'   },
-  purple: { top: 'border-t-purple-500', iconBg: 'bg-purple-50', iconText: 'text-purple-500' },
-  green:  { top: 'border-t-emerald-500',iconBg: 'bg-emerald-50',iconText: 'text-emerald-500'},
-  orange: { top: 'border-t-orange-500', iconBg: 'bg-orange-50', iconText: 'text-orange-500' },
-  red:    { top: 'border-t-red-500',    iconBg: 'bg-red-50',    iconText: 'text-red-500'    },
+  blue:   { top: 'border-t-blue-500',   iconBg: 'bg-blue-50',   iconText: 'text-blue-500',   tip: 'bg-blue-600'    },
+  purple: { top: 'border-t-purple-500', iconBg: 'bg-purple-50', iconText: 'text-purple-500', tip: 'bg-purple-600'  },
+  green:  { top: 'border-t-emerald-500',iconBg: 'bg-emerald-50',iconText: 'text-emerald-500',tip: 'bg-emerald-600' },
+  orange: { top: 'border-t-orange-500', iconBg: 'bg-orange-50', iconText: 'text-orange-500', tip: 'bg-orange-600'  },
+  red:    { top: 'border-t-red-500',    iconBg: 'bg-red-50',    iconText: 'text-red-500',    tip: 'bg-red-600'     },
 };
 
 type SubEntry = { text: string; dir?: 'up' | 'dn' | 'neutral' | null };
 
-function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon }: {
+function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon, tips }: {
   label: string; value: string;
   sub?: string | string[] | SubEntry[];
   subIdx?: number;
   trend?: string; trendColor?: 'up' | 'dn' | 'neutral';
   color: keyof typeof STAT_COLORS; icon: React.ReactNode;
+  tips?: string[];
 }) {
   const c = STAT_COLORS[color];
-  // Normalise sub to SubEntry[]
   const subList: SubEntry[] = Array.isArray(sub)
     ? (sub as any[]).map((s): SubEntry => typeof s === 'string' ? { text: s, dir: null } : s)
     : sub
@@ -1214,7 +1239,7 @@ function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, ico
     : 'text-g400';
   const arrow = currentSub?.dir === 'up' ? '↑' : currentSub?.dir === 'dn' ? '↓' : '';
   return (
-    <div className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow', c.top)}>
+    <div className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow relative group/statcard overflow-visible', c.top)}>
       <div className="flex items-start justify-between gap-2">
         <div className={cn('font-mono text-[10px] font-bold tracking-[1.5px] uppercase text-g500')}>{label}</div>
         <div className={cn('w-8 h-8 rounded-[6px] flex items-center justify-center shrink-0', c.iconBg)}>
@@ -1239,6 +1264,40 @@ function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, ico
         >
           {arrow && <span>{arrow}</span>}
           <span className="truncate">{currentSub.text}</span>
+        </div>
+      )}
+
+      {/* Flying tip banner — appears above card on hover */}
+      {tips && tips.length > 0 && (
+        <div className={cn(
+          'absolute bottom-[calc(100%+8px)] left-0 right-0 z-50',
+          'opacity-0 translate-y-1 pointer-events-none',
+          'group-hover/statcard:opacity-100 group-hover/statcard:translate-y-0 group-hover/statcard:pointer-events-auto',
+          'transition-all duration-200 ease-out',
+        )}>
+          <div className={cn('rounded-[8px] p-3 shadow-lg text-white', c.tip)}>
+            <div className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase opacity-75 mb-2">How to improve</div>
+            <ul className="space-y-1.5">
+              {tips.map((tip, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-[10.5px] leading-snug">
+                  <span className="opacity-60 shrink-0 mt-[1px]">›</span>
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* arrow pointing down */}
+          <div className="flex justify-center -mt-[1px]">
+            <svg viewBox="0 0 12 6" className="w-3 h-3 drop-shadow-sm">
+              <polygon points="0,0 12,0 6,6" className={cn(
+                color === 'blue'   ? 'fill-blue-600'    :
+                color === 'purple' ? 'fill-purple-600'  :
+                color === 'green'  ? 'fill-emerald-600' :
+                color === 'orange' ? 'fill-orange-600'  :
+                'fill-red-600'
+              )} />
+            </svg>
+          </div>
         </div>
       )}
     </div>
