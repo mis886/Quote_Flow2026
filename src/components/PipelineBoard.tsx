@@ -192,7 +192,7 @@ export default function PipelineBoard({
         cust: quote.cust,
         site: siteNameFor(quote.cust, quote.siteId || data.enquiries.find(e => e.id === quote.enqRef)?.siteId),
         title: quote.id,
-        subtitle: `Ref: ${quote.enqRef}`,
+        subtitle: `Ref: ${quote.enqRef || '—'}`,
         value: quote.items.reduce((a, i) => a + i.total, 0),
         owner,
         enteredAt: isClosed ? null : enteredAt,

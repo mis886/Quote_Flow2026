@@ -222,7 +222,7 @@ export function Quotes() {
                         onClick={() => setExpandedRow(isExpanded ? null : q.id)}
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-sQ">{q.id}</span></td>
-                        <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10px] font-bold text-red-mrt">{q.enqRef}</span></td>
+                        <td className="px-[13px] py-[10px] align-middle">{q.enqRef ? <span className="font-mono text-[10px] font-bold text-red-mrt">{q.enqRef}</span> : <span className="font-mono text-[10px] font-bold text-g400" title="Standalone quote — not linked to an enquiry">—</span>}</td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <div className="font-semibold">{q.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === q.cust), (q as any).siteId || data.enquiries.find(e => e.id === q.enqRef)?.siteId); return sl ? <span className="font-normal text-g500"> — {sl}</span> : null; })()}</div>
                         </td>

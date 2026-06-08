@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount, PipelineStage, PipelineOutcome, TeamMember, DoerRole } from '../lib/types';
+import type { Customer, DataStore, Enquiry, Order, Quote, FollowUp, FollowUpLog, AuthorizedSignatory, CompanyUnit, BankAccount, PipelineStage, PipelineOutcome, TeamMember, DoerRole, EnqStatus } from '../lib/types';
 import { supabase, signOut, getSettings } from '../lib/supabase';
 import { uploadToS3 } from '../lib/s3';
 import { fetchLabelledEmails, fetchEmailAttachments } from '../lib/gmail';
@@ -622,6 +622,24 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
+  // Propagate a quote outcome to its parent enquiry so enquiry-based views
+  // (Enquiries Won/Lost tabs, Analytics, funnel) stay consistent with the quote.
+  // `enqStatus` null = no change. Updates both DB and local state.
+  const syncEnquiryStatusForQuote = async (quoteId: string, enqStatus: EnqStatus | null) => {
+    if (!enqStatus) return;
+    const quote = data.quotes.find(q => q.id === quoteId);
+    const enqId = quote?.enqRef;
+    if (!enqId) return;
+    const enq = data.enquiries.find(e => e.id === enqId);
+    if (!enq || enq.status === enqStatus) return;
+    const { error } = await supabase.from('enquiries').update({ status: enqStatus }).eq('id', enqId);
+    if (error) { console.error('Error syncing enquiry status:', error); return; }
+    setData(prev => ({
+      ...prev,
+      enquiries: prev.enquiries.map(e => e.id === enqId ? { ...e, status: enqStatus } : e),
+    }));
+  };
+
   const closeFollowUp = async (quoteId: string, outcome: PipelineOutcome = 'Other') => {
     const { error } = await supabase
       .from('followups')
@@ -647,6 +665,8 @@ const mapEnquiryToDB = (e: any) => {
         .update({ status: outcome })
         .eq('id', quoteId);
       if (qErr) console.error('Error updating quote status:', qErr);
+      // Propagate to the parent enquiry so enquiry-based views stay in sync.
+      await syncEnquiryStatusForQuote(quoteId, outcome);
     }
 
     setData(prev => ({
@@ -700,6 +720,7 @@ const mapEnquiryToDB = (e: any) => {
     if (isClosed && (resolvedOutcome === 'Won' || resolvedOutcome === 'Lost')) {
       const { error: qErr } = await supabase.from('quotes').update({ status: resolvedOutcome }).eq('id', quoteId);
       if (qErr) console.error('Error updating quote status on stage close:', qErr);
+      await syncEnquiryStatusForQuote(quoteId, resolvedOutcome);
     }
 
     setData(prev => ({
@@ -730,6 +751,8 @@ const mapEnquiryToDB = (e: any) => {
     // Reset quote status back to Sent so it re-enters the pipeline
     const { error: qErr } = await supabase.from('quotes').update({ status: 'Sent' }).eq('id', quoteId);
     if (qErr) console.error('Error resetting quote status on reopen:', qErr);
+    // The enquiry had a quote, so it returns to 'Quoted' (not Won/Lost).
+    await syncEnquiryStatusForQuote(quoteId, 'Quoted');
 
     setData(prev => ({
       ...prev,

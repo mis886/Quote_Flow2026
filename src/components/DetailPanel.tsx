@@ -490,6 +490,15 @@ export function DetailPanel() {
                 if (next === 'Won') {
                   try { await closeFollowUp(q.id, 'Won'); } catch { /* no follow-up row — ignore */ }
                 }
+                // Keep the parent enquiry in sync so its Won/Lost/Quoted tabs and
+                // enquiry-based analytics match the quote. Won/Lost via closeFollowUp
+                // already syncs when a follow-up exists; this covers the direct path
+                // and the no-follow-up case. A quote still implies 'Quoted'.
+                if (q.enqRef) {
+                  const enqStatus = next === 'Won' ? 'Won' : next === 'Lost' ? 'Lost' : 'Quoted';
+                  const enq = data.enquiries.find(en => en.id === q.enqRef);
+                  if (enq && enq.status !== enqStatus) await updateEnquiry(q.enqRef, { status: enqStatus });
+                }
               }}
               className="font-sans text-[12px] text-blk bg-white border border-g300 rounded-[3px] p-[6px_10px] outline-none hover:border-g400"
             >

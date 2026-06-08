@@ -29,9 +29,11 @@ export function Analytics() {
   const slaMet = e2qSamples.filter(s => s.hours <= slaTargets[s.urg]).length;
   const slaRate = e2qSamples.length ? Math.round((slaMet / e2qSamples.length) * 100) : 0;
 
-  const closedEnqs = data.enquiries.filter(e => e.status === 'Won' || e.status === 'Lost');
-  const wonEnqs = data.enquiries.filter(e => e.status === 'Won');
-  const winRate = closedEnqs.length ? Math.round((wonEnqs.length / closedEnqs.length) * 100) : 0;
+  // Authoritative Win Rate = Won quotes ÷ total quotes (same definition the
+  // Dashboard uses), so the two screens never disagree. Quote status is the
+  // source of truth for outcomes; enquiry status is kept in sync separately.
+  const wonQuotes = data.quotes.filter(q => q.status === 'Won');
+  const winRate = data.quotes.length ? Math.round((wonQuotes.length / data.quotes.length) * 100) : 0;
 
   const totalItems = data.enquiries.reduce((a, e) => a + e.items.length, 0);
 
@@ -43,7 +45,7 @@ export function Analytics() {
   // Funnel — each stage is % of the TOTAL enquiries so bars always shrink left→right
   const fEnq = data.enquiries.length;
   const fQt  = data.enquiries.filter(e => e.qRef).length;
-  const fWon = wonEnqs.length;
+  const fWon = wonQuotes.length;
   const fOrd = data.orders.length;
 
   const funnelPct = (n: number) => fEnq ? Math.min(100, Math.round(n / fEnq * 100)) : 0;
@@ -127,7 +129,7 @@ export function Analytics() {
           <KpiCard
             title="Win Rate"
             value={<>{winRate}<span className="text-[20px] text-red-mrt ml-1">%</span></>}
-            delta={closedEnqs.length > 0 ? `${wonEnqs.length} won of ${closedEnqs.length} closed` : 'No closed enquiries yet'}
+            delta={data.quotes.length > 0 ? `${wonQuotes.length} won of ${data.quotes.length} quotes` : 'No quotes yet'}
           />
           <KpiCard 
             title="Total Line Items" 
@@ -276,7 +278,7 @@ export function Analytics() {
                 >
                   <span className="text-[14px]">⚠</span>
                   <div className="text-[11.5px] font-medium">
-                    <strong className="font-mono tracking-wider">{e.id}</strong> {e.urg} · <span className="font-bold">{e.ageH}h</span> without response — <span className="font-bold text-blk">{e.cust}</span>
+                    <strong className="font-mono tracking-wider">{e.id}</strong> {e.urg} · <span className="font-bold">{e.ageH.toFixed(1)}h</span> without response — <span className="font-bold text-blk">{e.cust}</span>
                   </div>
                 </div>
               ))}
