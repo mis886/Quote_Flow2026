@@ -1146,19 +1146,20 @@ export default function FollowUps() {
                 )}
                 {/* Chat-bubble activity log */}
                 <div className="flex-1 overflow-y-auto p-6 pb-4">
-                  <div className="flex items-center gap-2 mb-4">
-                    <History size={16} className="text-g400" />
-                    <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
-                  </div>
-
-                  {/* ── Next-step suggestion chips ── */}
-                  {!isClosedTab && (() => {
+                  {/* Activity History header + inline suggestion chips */}
+                  {(() => {
+                    if (isClosedTab) return (
+                      <div className="flex items-center gap-2 mb-4">
+                        <History size={16} className="text-g400" />
+                        <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500">Activity History</span>
+                      </div>
+                    );
                     const fu = selectedItem.followUp;
                     const stage = fu?.stage ?? 'Sent Quotation';
                     const enteredAt = fu?.stage_entered_at ?? selectedItem.quote.date ?? new Date().toISOString();
+                    const bl = stage as import('../lib/types').BoardLane;
                     const tatH = (() => {
                       const s = data.settings;
-                      const bl = stage as import('../lib/types').BoardLane;
                       const h = s?.pipeline_tat_h?.[bl];
                       if (h != null) return h;
                       const d = s?.pipeline_tat?.[bl];
@@ -1166,20 +1167,15 @@ export default function FollowUps() {
                       return DEFAULT_STAGE_TAT_H[bl] ?? 48;
                     })();
                     const elapsedH = (Date.now() - new Date(enteredAt).getTime()) / 3_600_000;
-                    const silentDays = selectedItem.daysSinceQuote;
                     const chips = buildSuggestions(
-                      stage, silentDays, tatH, elapsedH,
+                      stage, selectedItem.daysSinceQuote, tatH, elapsedH,
                       selectedItem.quote.id, selectedItem.quote.cust,
                       selectedItem.quote.validity,
                     );
-                    if (chips.length === 0) return null;
-
-                    // Countdown target: next_date + next_time if set
                     const nextDue = fu?.next_date
                       ? `${fu.next_date}T${fu.next_time ?? '09:00'}:00`
                       : null;
                     const isOverdue = selectedItem.priority === 'overdue';
-
                     return (
                       <SuggestionStrip
                         chips={chips}
@@ -1476,40 +1472,29 @@ function SuggestionStrip({
   const countdown = useCountdown(nextDue);
 
   return (
-    <div className="mb-4 rounded-[6px] border border-g200 bg-white overflow-hidden">
-      {/* Header row */}
-      <div className={cn(
-        'flex items-center gap-2 px-3 py-2 border-b',
-        isOverdue ? 'bg-red-lt border-red-mrt/20' : 'bg-g50 border-g200',
-      )}>
-        <Zap size={11} className={isOverdue ? 'text-red-mrt' : 'text-amber-500'} />
-        <span className={cn(
-          'font-mono text-[9px] font-bold tracking-[1.5px] uppercase flex-1',
-          isOverdue ? 'text-red-mrt' : 'text-g500',
-        )}>
-          Suggested next step
-        </span>
+    <div className="mb-4">
+      {/* Merged header: Activity History label + countdown + chips */}
+      <div className="flex items-center gap-2 mb-2">
+        <History size={14} className="text-g400 shrink-0" />
+        <span className="font-mono text-[9px] font-bold tracking-[2px] uppercase text-g500 flex-1">Activity History</span>
+        <Zap size={10} className={isOverdue ? 'text-red-mrt shrink-0' : 'text-amber-500 shrink-0'} />
         {countdown && (
           <span className={cn(
-            'flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full',
-            isOverdue
-              ? 'bg-red-mrt/10 text-red-mrt animate-pulse'
-              : 'bg-amber-50 text-amber-700',
+            'flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0',
+            isOverdue ? 'bg-red-lt text-red-mrt animate-pulse' : 'bg-amber-50 text-amber-700',
           )}>
-            <Timer size={9} />
-            {countdown}
+            <Timer size={9} />{countdown}
           </span>
         )}
         {!nextDue && (
-          <span className="flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 animate-pulse">
-            <Timer size={9} />
-            No follow-up scheduled
+          <span className="flex items-center gap-1 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 animate-pulse shrink-0">
+            <Timer size={9} />No next step
           </span>
         )}
       </div>
 
-      {/* Chips */}
-      <div className="flex flex-wrap gap-2 px-3 py-2.5">
+      {/* Chips row */}
+      <div className="flex flex-wrap gap-1.5">
         {chips.map((chip, i) => {
           if (chip.variant === 'won') {
             return (
