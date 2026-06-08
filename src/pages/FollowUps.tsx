@@ -1298,7 +1298,7 @@ export default function FollowUps() {
               {!isClosedTab && (
                 <form onSubmit={handleLogActivity} className="w-[360px] shrink-0 bg-white flex flex-col overflow-hidden">
                   {/* Panel header */}
-                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-g150 shrink-0">
+                  <div className="flex items-center justify-between px-5 py-1.5 border-b border-g150 shrink-0">
                     <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
                     <span className="text-[11px] text-g400">
                       {selectedItem.followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).length
@@ -1308,7 +1308,7 @@ export default function FollowUps() {
                   </div>
 
                   {/* Scrollable form body */}
-                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
 
                     {/* Activity Done */}
                     <div className="space-y-1.5">
