@@ -217,6 +217,52 @@ export function Dashboard() {
   const openPipeWeekDelta  = openQuotes.filter(q => inLast(q.date, 7)).length;
   const openPipeMonthDelta = openQuotes.filter(q => inLast(q.date, 30)).length;
 
+  const today = new Date();
+  const formattedDate = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const AgeCell = ({ hours }: { hours: number }) => {
+    let color = "text-[#059669]";
+    let dot = "bg-[#059669]";
+    let text = `${hours.toFixed(1)}h`;
+    if (hours < 0.1) text = "Now";
+    else if (hours >= 24) {
+      color = "text-red-mrt";
+      dot = "bg-red-mrt animate-pulse";
+      text = `${Math.floor(hours/24)}d ${Math.round(hours%24)}h`;
+    } else if (hours >= 4) {
+      color = "text-[#d97706]";
+      dot = "bg-[#d97706]";
+      text = `${Math.round(hours)}h`;
+    }
+    return (
+      <div className={`flex items-center gap-1.5 font-mono text-[10.5px] font-bold ${color}`}>
+        <div className={`w-[7px] h-[7px] rounded-full ${dot}`}></div>
+        {text}
+      </div>
+    );
+  };
+
+  // Enquiry Sources for pie chart
+  const sourceColors = ['#D42027', '#2563EB', '#059669', '#d97706', '#7C3AED'];
+  const sources = ['Email', 'Phone', 'WhatsApp', 'Exhibition', 'Website'];
+  const sourceCounts = sources.map((src, i) => ({
+    src,
+    count: data.enquiries.filter(e => e.src === src).length,
+    color: sourceColors[i],
+  })).filter(s => s.count > 0).sort((a, b) => b.count - a.count);
+  const totalSources = sourceCounts.reduce((s, c) => s + c.count, 0);
+
+  // Open Quote Value By Customer
+  const custQuotes: Record<string, number> = {};
+  openQuotes.forEach(q => {
+    custQuotes[q.cust] = (custQuotes[q.cust] || 0) + q.items.reduce((acc, i) => acc + i.total + (i.total * i.gst / 100), 0);
+  });
+  const openCustData = Object.entries(custQuotes)
+    .map(([cust, val]) => ({ cust, val }))
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 5);
+  const maxOpenCustVal = Math.max(...openCustData.map(c => c.val), 1);
+
   // ── Real-time tips derived from live data ─────────────────────────────────
   const SLA_H_TIPS: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
 
@@ -231,7 +277,6 @@ export function Dashboard() {
     const slaBreached = data.enquiries.filter(e => !e.qRef && (e.status === 'New' || e.status === 'In Review') && e.ageH > (SLA_H_TIPS[e.urg] ?? 48));
     if (slaBreached.length > 0)
       tips.push(`${slaBreached.length} enq${slaBreached.length === 1 ? 'uiry' : 'uiries'} past SLA target — quote immediately`);
-    // Slowest customer by avg E2Q hours (built directly from enquiry records)
     const custE2q: Record<string, number[]> = {};
     for (const enq of data.enquiries) {
       if (!enq.qRef || !enq.recv) continue;
@@ -263,7 +308,6 @@ export function Dashboard() {
     });
     if (noFollowup.length > 0)
       tips.push(`${noFollowup.length} sent quote${noFollowup.length === 1 ? '' : 's'} with zero follow-up logged`);
-    // Biggest open quote
     const biggestOpen = openQuotes.reduce((best, q) => {
       const v = q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0);
       return v > best.v ? { q, v } : best;
@@ -317,10 +361,8 @@ export function Dashboard() {
       tips.push(`+${quoteValMonthDelta}L vs last month — value is growing`);
     else if (quoteValMonthDelta < 0)
       tips.push(`${quoteValMonthDelta}L vs last month — check if smaller orders or fewer high-value quotes`);
-    // Customer with highest open value
     if (openCustData.length > 0)
       tips.push(`Top open quote customer: ${openCustData[0].cust} — ${formatINR(openCustData[0].val)} awaiting PO`);
-    // Average items per quote this period
     const avgItems = quotesInPeriod.length
       ? (quotesInPeriod.reduce((s, q) => s + q.items.length, 0) / quotesInPeriod.length).toFixed(1)
       : null;
@@ -331,52 +373,6 @@ export function Dashboard() {
     return tips.slice(0, 3);
   }, [quoteValMonthDelta, openCustData, quotesInPeriod, quoteValInPeriod]);
   // ─────────────────────────────────────────────────────────────────────────────
-
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-  const AgeCell = ({ hours }: { hours: number }) => {
-    let color = "text-[#059669]";
-    let dot = "bg-[#059669]";
-    let text = `${hours.toFixed(1)}h`;
-    if (hours < 0.1) text = "Now";
-    else if (hours >= 24) {
-      color = "text-red-mrt";
-      dot = "bg-red-mrt animate-pulse";
-      text = `${Math.floor(hours/24)}d ${Math.round(hours%24)}h`;
-    } else if (hours >= 4) {
-      color = "text-[#d97706]";
-      dot = "bg-[#d97706]";
-      text = `${Math.round(hours)}h`;
-    }
-    return (
-      <div className={`flex items-center gap-1.5 font-mono text-[10.5px] font-bold ${color}`}>
-        <div className={`w-[7px] h-[7px] rounded-full ${dot}`}></div>
-        {text}
-      </div>
-    );
-  };
-
-  // Enquiry Sources for pie chart
-  const sourceColors = ['#D42027', '#2563EB', '#059669', '#d97706', '#7C3AED'];
-  const sources = ['Email', 'Phone', 'WhatsApp', 'Exhibition', 'Website'];
-  const sourceCounts = sources.map((src, i) => ({
-    src,
-    count: data.enquiries.filter(e => e.src === src).length,
-    color: sourceColors[i],
-  })).filter(s => s.count > 0).sort((a, b) => b.count - a.count);
-  const totalSources = sourceCounts.reduce((s, c) => s + c.count, 0);
-
-  // Open Quote Value By Customer
-  const custQuotes: Record<string, number> = {};
-  openQuotes.forEach(q => {
-    custQuotes[q.cust] = (custQuotes[q.cust] || 0) + q.items.reduce((acc, i) => acc + i.total + (i.total * i.gst / 100), 0);
-  });
-  const openCustData = Object.entries(custQuotes)
-    .map(([cust, val]) => ({ cust, val }))
-    .sort((a, b) => b.val - a.val)
-    .slice(0, 5);
-  const maxOpenCustVal = Math.max(...openCustData.map(c => c.val), 1);
 
   // Recent Quotations (latest 5)
   const recentQuotes = [...data.quotes]
