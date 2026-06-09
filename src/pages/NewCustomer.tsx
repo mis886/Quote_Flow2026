@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Button } from '../components/ui';
@@ -145,10 +145,16 @@ export function NewCustomer() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [parsePreview, setParsePreview] = useState<Record<number, ReturnType<typeof parseMixedAddress> | null>>({});
 
+  // Load the form ONCE per record. Keyed on editId only (not data.customers) so
+  // a background refreshData() — e.g. a Supabase token refresh fired on tab
+  // switch — does not re-run this effect and wipe the user's unsaved edits.
+  const loadedFor = useRef<string | null>(null);
   useEffect(() => {
     if (editId) {
+      if (loadedFor.current === editId) return; // already hydrated this record
       const cust = data.customers.find(c => c.id === editId);
       if (cust) {
+        loadedFor.current = editId;
         setId(cust.id);
         setCode(cust.code);
         setName(cust.name);
@@ -160,7 +166,8 @@ export function NewCustomer() {
         setPan(cust.pan || '');
         setSites(cust.sites || []);
       }
-    } else {
+    } else if (loadedFor.current !== '__new__') {
+      loadedFor.current = '__new__';
       setId(generateId('CUST', data.customers.map(c => c.id)));
       setCode(generateId('CUS', data.customers.map(c => c.code)));
     }
