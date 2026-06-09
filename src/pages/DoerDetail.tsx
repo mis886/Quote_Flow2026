@@ -214,7 +214,10 @@ function MetricCard({ label, value, hint, plain }: { label: string; value: strin
 
 function StatusBadge({ row }: { row: TimelineRow }) {
   if (row.kind === 'pending') {
-    return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-mrt shrink-0"><XCircle size={12} /> overdue</span>;
+    // onTime === false → overdue (past due); null → upcoming (not yet due).
+    return row.onTime === false
+      ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-mrt shrink-0"><XCircle size={12} /> overdue</span>
+      : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 shrink-0"><Clock size={12} /> due</span>;
   }
   if (row.onTime === true) {
     return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 shrink-0"><CheckCircle2 size={12} /> on-time</span>;

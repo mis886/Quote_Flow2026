@@ -427,21 +427,25 @@ export function buildDoerTimeline(
       });
     }
 
-    // Pending row: open card this member owns whose promised next step is overdue.
-    if (fu.status !== 'closed' && isMine(fu.owner) && fu.next_date) {
+    // Pending row: any OPEN card attributed to this member with a promised next
+    // step — overdue AND upcoming. Attribute by owner OR the latest log's `who`
+    // (the identity may live on either field), so a single alias covers both.
+    // Not date-range filtered: pending is live to-do state, not history.
+    const realLogs = (fu.logs ?? []).filter(l => !isQuoteSentLog(l.note));
+    const lastWho = realLogs.length ? realLogs[realLogs.length - 1].who : undefined;
+    if (fu.status !== 'closed' && fu.next_date && (isMine(fu.owner) || isMine(lastWho))) {
       const due = new Date(fu.next_date);
       due.setHours(23, 59, 59, 999);
-      if (due < now) {
-        rows.push({
-          date: fu.next_date.slice(0, 10),
-          ts: fu.next_date,
-          kind: 'pending',
-          activity: `Follow-up overdue · ${quote.id}`,
-          refId: quote.id,
-          cust: quote.cust,
-          onTime: false,
-        });
-      }
+      const overdue = due < now;
+      rows.push({
+        date: fu.next_date.slice(0, 10),
+        ts: fu.next_date,
+        kind: 'pending',
+        activity: `Follow-up due · ${quote.id}`,
+        refId: quote.id,
+        cust: quote.cust,
+        onTime: overdue ? false : null, // false = overdue, null = upcoming
+      });
     }
   }
 

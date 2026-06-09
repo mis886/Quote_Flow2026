@@ -12,3 +12,16 @@
 -- Stored as a JSONB array of lowercased strings.
 
 ALTER TABLE team_roster ADD COLUMN IF NOT EXISTS aliases JSONB DEFAULT '[]'::jsonb;
+
+-- Map the SC_1 login's stray profile name to the roster so existing follow-ups
+-- (owner / logs[].who = 'Mangla / Disha Khurana') attribute to Disha, not 'Other'.
+-- Lowercased to match identitiesFor()/roleForDoer() (case-insensitive compare).
+-- Idempotent: jsonb_agg(DISTINCT …) won't duplicate or clobber Settings-added aliases.
+UPDATE public.team_roster
+SET aliases = (
+  SELECT jsonb_agg(DISTINCT a)
+  FROM jsonb_array_elements_text(
+    COALESCE(aliases, '[]'::jsonb) || '["mangla / disha khurana"]'::jsonb
+  ) AS a
+)
+WHERE email = 'sc1@manglarubbers.com' AND role = 'SC_1';
