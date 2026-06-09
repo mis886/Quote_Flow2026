@@ -43,7 +43,7 @@ export function FollowUpSendPrompt({ quote, onClose }: Props) {
       : `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
     return {
       ts: new Date().toISOString(),
-      who: user?.user_metadata?.full_name ?? user?.email ?? 'System',
+      who: user?.email ?? user?.user_metadata?.full_name ?? 'System',
       channel: 'Email' as const,
       note: `Sent ${quote.id} for ${itemDesc}. ${totalStr}.`,
       nextDate: nextDate ?? undefined,

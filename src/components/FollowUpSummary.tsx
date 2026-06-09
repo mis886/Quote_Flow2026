@@ -58,7 +58,7 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
     try {
       const log: FollowUpLog = {
         ts: new Date().toISOString(),
-        who: user?.user_metadata?.full_name ?? user?.email ?? 'Unknown',
+        who: user?.email ?? user?.user_metadata?.full_name ?? 'Unknown',
         channel,
         note: note.trim(),
         nextDate: nextDate || undefined,

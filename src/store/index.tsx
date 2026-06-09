@@ -597,7 +597,7 @@ const mapEnquiryToDB = (e: any) => {
       const newFollowUp = {
         id: quoteId,
         quote_id: quoteId,
-        owner: owner || user?.user_metadata?.full_name || user?.email || 'Unknown',
+        owner: owner || user?.email || user?.user_metadata?.full_name || 'Unknown',
         next_date: nextDate,
         next_time: nextTime,
         status: 'open' as const,
@@ -704,7 +704,7 @@ const mapEnquiryToDB = (e: any) => {
       const row = {
         id: quoteId,
         quote_id: quoteId,
-        owner: user?.user_metadata?.full_name || user?.email || 'Unknown',
+        owner: user?.email || user?.user_metadata?.full_name || 'Unknown',
         next_date: null,
         next_time: null,
         logs: [],
@@ -805,7 +805,11 @@ const mapEnquiryToDB = (e: any) => {
   // The roster key is the (email, role) pair: one login can hold several roles,
   // and one role can be covered by several people.
   const addTeamMember = async (m: TeamMember) => {
-    const row = { ...m, email: m.email.trim().toLowerCase() };
+    const row = {
+      ...m,
+      email: m.email.trim().toLowerCase(),
+      aliases: (m.aliases ?? []).map(a => a.trim().toLowerCase()).filter(Boolean),
+    };
     const { error } = await supabase.from('team_roster').insert([row]);
     if (!error) {
       setData(prev => ({ ...prev, roster: [...prev.roster, row] }));
@@ -817,12 +821,15 @@ const mapEnquiryToDB = (e: any) => {
 
   const updateTeamMember = async (email: string, role: DoerRole, updates: Partial<TeamMember>) => {
     const key = email.trim().toLowerCase();
-    const patch = { ...updates, updated_at: new Date().toISOString() };
+    const normalized: Partial<TeamMember> = 'aliases' in updates
+      ? { ...updates, aliases: (updates.aliases ?? []).map(a => a.trim().toLowerCase()).filter(Boolean) }
+      : updates;
+    const patch = { ...normalized, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('team_roster').update(patch).eq('email', key).eq('role', role);
     if (!error) {
       setData(prev => ({
         ...prev,
-        roster: prev.roster.map(m => (m.email === key && m.role === role) ? { ...m, ...updates } : m)
+        roster: prev.roster.map(m => (m.email === key && m.role === role) ? { ...m, ...normalized } : m)
       }));
     } else {
       console.error('Error updating team member:', error);
@@ -841,13 +848,16 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
-  // Resolve a free-text doer/owner/who (email OR display name) to its role(s).
-  // Case-insensitive; an identity may hold several roles → returns all of them.
+  // Resolve a free-text doer/owner/who (email, display name, OR alias) to its
+  // role(s). Case-insensitive; an identity may hold several roles → returns all.
   const roleForDoer = (nameOrEmail?: string | null): DoerRole[] => {
     if (!nameOrEmail) return [];
     const key = nameOrEmail.trim().toLowerCase();
     return data.roster
-      .filter(m => m.email.toLowerCase() === key || m.display_name.trim().toLowerCase() === key)
+      .filter(m =>
+        m.email.toLowerCase() === key ||
+        m.display_name.trim().toLowerCase() === key ||
+        (m.aliases ?? []).some(a => a.trim().toLowerCase() === key))
       .map(m => m.role);
   };
 

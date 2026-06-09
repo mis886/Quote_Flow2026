@@ -340,6 +340,10 @@ export interface TeamMember {
   display_name: string;
   role: DoerRole;
   active: boolean;
+  // Extra identities this login appears under in older records (e.g. a Google
+  // profile name like "Mangla Rubber Technologies A"). Also matched to
+  // doer/owner/who so historical data attributes correctly. Lowercased.
+  aliases?: string[];
 }
 
 // Minimal date-range shape used by KPI aggregation (mirrors the store's

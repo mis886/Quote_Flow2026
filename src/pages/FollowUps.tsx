@@ -416,7 +416,7 @@ export default function FollowUps() {
 
     const newLog: FollowUpLog = {
       ts: new Date().toISOString(),
-      who: user?.user_metadata?.full_name || user?.email || 'Unknown',
+      who: user?.email || user?.user_metadata?.full_name || 'Unknown',
       channel,
       note,
       nextDate: nextDate || undefined,

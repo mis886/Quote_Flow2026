@@ -145,13 +145,14 @@ function inRange(iso: string | null | undefined, range: GlobalDateRangeLike | nu
 
 function lc(s?: string | null): string { return (s ?? '').trim().toLowerCase(); }
 
-// Resolve a person key → set of identities (email + display name, lowercased)
-// so attribution matches whether the record stored an email or a name.
-function identitiesFor(member: { email: string; display_name: string }): Set<string> {
-  return new Set([lc(member.email), lc(member.display_name)].filter(Boolean));
+// Resolve a person key → set of identities (email + display name + aliases,
+// lowercased) so attribution matches whether the record stored an email, the
+// roster name, or a stray profile name carried as an alias.
+function identitiesFor(member: { email: string; display_name: string; aliases?: string[] }): Set<string> {
+  return new Set([lc(member.email), lc(member.display_name), ...(member.aliases ?? []).map(lc)].filter(Boolean));
 }
 
-export interface RosterMemberLike { email: string; display_name: string; role: DoerRole; active: boolean; }
+export interface RosterMemberLike { email: string; display_name: string; role: DoerRole; active: boolean; aliases?: string[]; }
 
 // The Map returned by computeDoerMetrics is keyed by (email, role). Build the
 // same key to look a row up from a DoerMetrics value.

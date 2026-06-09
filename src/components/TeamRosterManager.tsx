@@ -23,6 +23,7 @@ export function TeamRosterManager() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<DoerRole>('DEO');
+  const [aliases, setAliases] = useState('');
   const [err, setErr] = useState('');
 
   // Edit row is keyed by (email, role); role is part of the identity so it is
@@ -30,6 +31,11 @@ export function TeamRosterManager() {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [eName, setEName] = useState('');
   const [eActive, setEActive] = useState(true);
+  const [eAliases, setEAliases] = useState('');
+
+  // Aliases entered as comma- or newline-separated free text → array.
+  const parseAliases = (s: string): string[] =>
+    s.split(/[,\n]/).map(x => x.trim()).filter(Boolean);
 
   const add = async () => {
     setErr('');
@@ -39,16 +45,16 @@ export function TeamRosterManager() {
       setErr(`${e} is already assigned the ${role} role.`); return;
     }
     try {
-      await addTeamMember({ email: e, display_name: name.trim(), role, active: true });
-      setName(''); setEmail(''); setRole('DEO');
+      await addTeamMember({ email: e, display_name: name.trim(), role, active: true, aliases: parseAliases(aliases) });
+      setName(''); setEmail(''); setRole('DEO'); setAliases('');
     } catch { setErr('Could not save — check your connection.'); }
   };
 
   const startEdit = (m: typeof roster[number]) => {
-    setEditKey(keyOf(m)); setEName(m.display_name); setEActive(m.active);
+    setEditKey(keyOf(m)); setEName(m.display_name); setEActive(m.active); setEAliases((m.aliases ?? []).join(', '));
   };
   const saveEdit = async (m: typeof roster[number]) => {
-    await updateTeamMember(m.email, m.role, { display_name: eName.trim(), active: eActive });
+    await updateTeamMember(m.email, m.role, { display_name: eName.trim(), active: eActive, aliases: parseAliases(eAliases) });
     setEditKey(null);
   };
 
@@ -61,6 +67,9 @@ export function TeamRosterManager() {
         <br />A login can hold <strong className="text-g700">several roles</strong> (a shared <code>accounts@</code> doing
         DEO + Rate Entry + PI Sender), and a role can be shared by several people — add one row per (person, role). To
         change a row's role, remove it and add a new one.
+        <br /><strong className="text-g700">Aliases</strong>: if older records stored a different name for this login
+        (e.g. a Google profile name like <code>Mangla Rubber Technologies A</code>), list it as an alias so that history
+        still attributes correctly.
       </p>
 
       {/* Add form */}
@@ -85,6 +94,10 @@ export function TeamRosterManager() {
             <Plus size={13} />Add
           </button>
         </div>
+        <div className="mt-3">
+          <label className="block text-[10px] font-bold text-g500 tracking-[0.5px] uppercase mb-1.5">Aliases <span className="text-g400 normal-case font-normal">(optional — other names/emails in old records, comma-separated)</span></label>
+          <input className={inputCls} value={aliases} onChange={e => setAliases(e.target.value)} placeholder="Mangla Rubber Technologies A, old.email@…" />
+        </div>
         <p className="text-[11px] text-g400 mt-2">{ROLE_HELP[role]}</p>
         {err && <p className="text-[11px] text-red-mrt font-medium mt-1.5">{err}</p>}
       </div>
@@ -96,18 +109,20 @@ export function TeamRosterManager() {
             <th className="px-4 py-2.5">Name</th>
             <th className="px-4 py-2.5">Email</th>
             <th className="px-4 py-2.5">Role</th>
+            <th className="px-4 py-2.5">Aliases</th>
             <th className="px-4 py-2.5">Active</th>
             <th className="px-4 py-2.5 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {roster.length === 0 ? (
-            <tr><td colSpan={5} className="px-4 py-8 text-center text-[12px] text-g400 italic">No team members yet — add one above.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-8 text-center text-[12px] text-g400 italic">No team members yet — add one above.</td></tr>
           ) : roster.map(m => editKey === keyOf(m) ? (
             <tr key={keyOf(m)} className="border-b border-g100 bg-red-lt/40">
               <td className="px-4 py-2"><input className={inputCls} value={eName} onChange={e => setEName(e.target.value)} /></td>
               <td className="px-4 py-2 text-[12px] text-g500">{m.email}</td>
               <td className="px-4 py-2 text-[12px] text-g600">{m.role}</td>
+              <td className="px-4 py-2"><input className={inputCls} value={eAliases} onChange={e => setEAliases(e.target.value)} placeholder="comma-separated" /></td>
               <td className="px-4 py-2">
                 <input type="checkbox" checked={eActive} onChange={e => setEActive(e.target.checked)} />
               </td>
@@ -121,6 +136,7 @@ export function TeamRosterManager() {
               <td className="px-4 py-2.5 text-[13px] font-medium text-blk">{m.display_name}</td>
               <td className="px-4 py-2.5 text-[12px] text-g500">{m.email}</td>
               <td className="px-4 py-2.5 text-[12px] text-g600">{m.role}</td>
+              <td className="px-4 py-2.5 text-[11px] text-g400">{(m.aliases ?? []).length ? (m.aliases ?? []).join(', ') : '—'}</td>
               <td className="px-4 py-2.5 text-[12px]">{m.active ? <span className="text-emerald-600 font-semibold">Yes</span> : <span className="text-g400">No</span>}</td>
               <td className="px-4 py-2.5 text-right whitespace-nowrap">
                 <button type="button" title="Edit" onClick={() => startEdit(m)} className="p-1.5 text-g400 hover:text-blk rounded transition-colors"><Pencil size={14} /></button>
