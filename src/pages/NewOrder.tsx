@@ -278,7 +278,10 @@ export function NewOrder() {
 
   const validateStep1 = () => {
     const e: Record<string, string> = {};
-    if (!poNo.trim()) e.poNo = 'PO Number is required';
+    // PO number: required, and at least 3 characters to catch stray/test input.
+    const poTrimmed = poNo.trim();
+    if (!poTrimmed) e.poNo = 'PO Number is required';
+    else if (poTrimmed.length < 3) e.poNo = 'PO Number looks too short — enter the customer PO reference';
     if (!custName) e.custName = 'Customer is required';
     if (items.some(i => !i.desc || Number(i.qty) <= 0)) e.items = 'All items need a description and quantity > 0';
     // Quote ref is compulsory when this order was converted from a quote.
@@ -294,7 +297,7 @@ export function NewOrder() {
     return {
     id: orderId, quoteRef: effQuoteRef,
     enqRef: effEnqRef,
-    cust: custName, siteId: siteId || undefined, poNo, poDate, dlvDate,
+    cust: custName, siteId: siteId || undefined, poNo: poNo.trim(), poDate, dlvDate,
     status: editOrderId ? orderStatus : 'Processing',
     value: grandTotal,
     inco: dlvTerms === 'OVERRIDE' ? customDlvTerms : dlvTerms,

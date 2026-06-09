@@ -349,7 +349,7 @@ function Card({ card, onAdvance, onBack, onOpen }: { card: BoardCard; onAdvance:
 
         <div className="flex items-center justify-between mt-1.5 text-[10px] text-g500">
           <span className="truncate">{card.subtitle}</span>
-          {card.value > 0 && <span className="font-mono shrink-0">Rs{card.value.toLocaleString('en-IN')}</span>}
+          {card.value > 0 && <span className="font-mono shrink-0">₹{card.value.toLocaleString('en-IN')}</span>}
         </div>
 
         {/* Activity hint */}

@@ -997,6 +997,7 @@ export function Dashboard() {
             color="blue"
             icon={<Clock size={16} strokeWidth={2} />}
             tips={e2qTips}
+            onClick={() => navigate('/analytics')}
           />
           <StatCard
             label="Open Pipeline"
@@ -1010,6 +1011,7 @@ export function Dashboard() {
             color="purple"
             icon={<IndianRupee size={16} strokeWidth={2} />}
             tips={pipelineTips}
+            onClick={() => navigate('/quotes')}
           />
           <StatCard
             label="Q→O Conversion"
@@ -1024,6 +1026,7 @@ export function Dashboard() {
             color="green"
             icon={<Trophy size={16} strokeWidth={2} />}
             tips={q2oTips}
+            onClick={() => navigate('/analytics')}
           />
           <StatCard
             label="Quotes Sent"
@@ -1038,6 +1041,7 @@ export function Dashboard() {
             color="orange"
             icon={<FileSignature size={16} strokeWidth={2} />}
             tips={quotesSentTips}
+            onClick={() => navigate('/quotes')}
           />
           <StatCard
             label="Quote Value"
@@ -1309,13 +1313,14 @@ const STAT_COLORS = {
 
 type SubEntry = { text: string; dir?: 'up' | 'dn' | 'neutral' | null };
 
-function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon, tips }: {
+function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, icon, tips, onClick }: {
   label: string; value: string;
   sub?: string | string[] | SubEntry[];
   subIdx?: number;
   trend?: string; trendColor?: 'up' | 'dn' | 'neutral';
   color: keyof typeof STAT_COLORS; icon: React.ReactNode;
   tips?: string[];
+  onClick?: () => void;
 }) {
   const c = STAT_COLORS[color];
   const subList: SubEntry[] = Array.isArray(sub)
@@ -1329,8 +1334,14 @@ function StatCard({ label, value, sub, subIdx = 0, trend, trendColor, color, ico
     : currentSub?.dir === 'neutral' ? 'text-g400'
     : 'text-g400';
   const arrow = currentSub?.dir === 'up' ? '↑' : currentSub?.dir === 'dn' ? '↓' : '';
+  const clickProps = onClick
+    ? { onClick, role: 'button' as const, tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } }
+    : {};
   return (
-    <div className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow relative group/statcard overflow-visible', c.top)}>
+    <div
+      {...clickProps}
+      className={cn('bg-white rounded-[10px] border border-g200 border-t-[3px] p-5 flex flex-col gap-2 shadow-sm hover:shadow transition-shadow relative group/statcard overflow-visible', onClick && 'cursor-pointer', c.top)}>
       <div className="flex items-start justify-between gap-2">
         <div className={cn('font-mono text-[10px] font-bold tracking-[1.5px] uppercase text-g500')}>{label}</div>
         <div className={cn('w-8 h-8 rounded-[6px] flex items-center justify-center shrink-0', c.iconBg)}>
@@ -1412,7 +1423,7 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   const stages = [
     { label: 'Open Enquiries', count: openEnqs.length,   val: 0,                  color: 'text-blue-600',    bar: 'bg-blue-500',    hover: 'group-hover:bg-blue-50',    badge: 'text-blue-700 bg-blue-50 border-blue-200',    path: '/enquiries' },
     { label: 'Quoted',         count: quotedEnqs.length, val: quoteVal(data.quotes.filter((q: any) => quotedEnqs.some((e: any) => e.id === q.enqRef))), color: 'text-purple-600', bar: 'bg-purple-500', hover: 'group-hover:bg-purple-50', badge: 'text-purple-700 bg-purple-50 border-purple-200', path: '/quotes' },
-    { label: 'Negotiating',    count: sentQts.length,    val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  hover: 'group-hover:bg-orange-50',  badge: 'text-orange-700 bg-orange-50 border-orange-200', path: '/quotes' },
+    { label: 'Sent',           count: sentQts.length,    val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  hover: 'group-hover:bg-orange-50',  badge: 'text-orange-700 bg-orange-50 border-orange-200', path: '/quotes' },
     { label: 'Won',            count: wonQts.length,     val: quoteVal(wonQts),   color: 'text-emerald-600', bar: 'bg-emerald-500', hover: 'group-hover:bg-emerald-50', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', path: '/quotes' },
     { label: 'Lost',           count: lostEnqs.length + lostQts.length, val: quoteVal(lostQts), color: 'text-red-600', bar: 'bg-red-500', hover: 'group-hover:bg-red-50', badge: 'text-red-700 bg-red-50 border-red-200', path: '/enquiries' },
     { label: 'Active Orders',  count: activeOrds.length, val: 0,                  color: 'text-teal-600',    bar: 'bg-teal-500',    hover: 'group-hover:bg-teal-50',    badge: 'text-teal-700 bg-teal-50 border-teal-200',    path: '/orders' },
@@ -1424,7 +1435,7 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   // Thresholds match confetti milestones exactly — same numbers user sees celebrated
   const totalSentQuotes = data.quotes.filter((q: any) => q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost').length;
   const STAGE_MILESTONES: Record<string, { threshold: number; label: string; count: number }[]> = {
-    'Negotiating':   [{ threshold: 10, label: '10 Sent', count: totalSentQuotes }, { threshold: 50, label: '50 Sent', count: totalSentQuotes }, { threshold: 100, label: '100 Sent 🚀', count: totalSentQuotes }, { threshold: 250, label: '250 Sent 🔥', count: totalSentQuotes }],
+    'Sent':          [{ threshold: 10, label: '10 Sent', count: totalSentQuotes }, { threshold: 50, label: '50 Sent', count: totalSentQuotes }, { threshold: 100, label: '100 Sent 🚀', count: totalSentQuotes }, { threshold: 250, label: '250 Sent 🔥', count: totalSentQuotes }],
     'Open Enquiries':[{ threshold: 10, label: '10 Enqs', count: openEnqs.length }, { threshold: 50, label: '50 Enqs', count: openEnqs.length }, { threshold: 100, label: '100 Enqs 🎯', count: openEnqs.length }, { threshold: 500, label: '500 Enqs 🏆', count: openEnqs.length }],
     'Won':           [{ threshold: 1,  label: 'First Win! 🎉', count: wonQts.length }, { threshold: 10, label: '10 Won 🏅', count: wonQts.length }, { threshold: 50, label: '50 Won 🥇', count: wonQts.length }],
     'Active Orders': [{ threshold: 5,  label: '5 Active', count: activeOrds.length }, { threshold: 10, label: '10 Active', count: activeOrds.length }],

@@ -321,6 +321,20 @@ export type DoerRole =
 
 export const DOER_ROLES: DoerRole[] = ['DEO', 'Rate Entry', 'SC_1', 'Negotiation', 'PI Sender', 'Other'];
 
+// Default role that owns each board lane. Editable per lane in Settings →
+// Pipeline TAT (persisted as AppSettings.pipeline_roles). Used to show each
+// doer the cards sitting in the stages their role owns.
+export const DEFAULT_STAGE_ROLE: Record<BoardLane, DoerRole> = {
+  'New Enquiry': 'DEO',
+  'To Quote': 'Rate Entry',
+  'Sent Quotation': 'SC_1',
+  'Offer Acknowledged': 'SC_1',
+  '1st Follow-up': 'SC_1',
+  '2nd Follow-up': 'SC_1',
+  'Negotiation': 'Negotiation',
+  'Closed': 'Other',
+};
+
 export interface TeamMember {
   email: string;          // join key; matched case-insensitively to doer/owner/who
   display_name: string;
@@ -376,4 +390,7 @@ export interface AppSettings {
   // Per-lane TAT in HOURS, editable in Settings. Falls back to pipeline_tat
   // (×24) then DEFAULT_STAGE_TAT_H.
   pipeline_tat_h?: Partial<Record<BoardLane, number>>;
+  // Which role owns each board lane. Drives the per-doer stage workload on the
+  // Doer KPI page. Missing lanes fall back to DEFAULT_STAGE_ROLE.
+  pipeline_roles?: Partial<Record<BoardLane, DoerRole>>;
 }

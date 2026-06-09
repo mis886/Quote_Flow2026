@@ -351,7 +351,7 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
             {[
               { label: 'FY Turnover', value: formatTurnover(customer.turnover) },
               { label: 'Revenue',     value: formatTurnover(customer.revenue) },
-              { label: 'Rating',      value: `${rating}/100` },
+              { label: 'Rating',      value: rating > 0 ? `${rating}/100` : 'Not rated' },
             ].map(({ label, value }) => (
               <div key={label} className="px-4 py-3 text-center">
                 <div className="font-mono text-[8px] font-bold uppercase tracking-[1.5px] text-g400 mb-0.5">{label}</div>

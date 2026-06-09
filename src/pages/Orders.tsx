@@ -10,6 +10,18 @@ import { getS3SignedUrl } from '../lib/s3';
 import { Order } from '../lib/types';
 import { SendEmailModal } from '../components/SendEmailModal';
 
+// Colour the "Delivery By" date by urgency, mirroring the SLA colouring used in
+// Enquiries. Delivered orders show neutral (the clock has stopped).
+function dlvDateClass(dlvDate: string, status: string): { text: string; title?: string } {
+  if (status === 'Delivered') return { text: 'text-g600' };
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const due = new Date(dlvDate); due.setHours(0, 0, 0, 0);
+  const days = Math.round((due.getTime() - now.getTime()) / 86400000);
+  if (days < 0) return { text: 'text-red-mrt font-bold', title: `Past due by ${Math.abs(days)} day(s)` };
+  if (days <= 7) return { text: 'text-amber-600 font-semibold', title: days === 0 ? 'Due today' : `Due in ${days} day(s)` };
+  return { text: 'text-emerald-600', title: `Due in ${days} day(s)` };
+}
+
 export function Orders() {
   const store = useAppStore();
   const { data, user, globalSearchQuery, setGlobalSearchQuery, updateOrder, openAttachmentModal } = store;
@@ -290,8 +302,13 @@ export function Orders() {
                           </span>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-right font-mono text-[12px] font-bold">{formatINR(grandTotal)}</td>
-                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {o.dlvDate ? fmtIST(new Date(o.dlvDate), 'dd MMM yyyy') : '--'}
+                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
+                          {o.dlvDate ? (() => {
+                            // Colour the due date only while the order is still open:
+                            // red = past due, amber = within 7 days, green = safe.
+                            const cls = dlvDateClass(o.dlvDate, o.status);
+                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date(o.dlvDate), 'dd MMM yyyy')}</span>;
+                          })() : <span className="text-g600">--</span>}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle"><Badge status={o.status} /></td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>

@@ -5,7 +5,7 @@ import { hasActiveToken } from '../lib/gmail';
 import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X, GitBranch, Users } from 'lucide-react';
 import { UnitsManager } from '../components/UnitsManager';
 import { TeamRosterManager } from '../components/TeamRosterManager';
-import { BOARD_LANES, DEFAULT_STAGE_TAT_H, type BoardLane } from '../lib/types';
+import { BOARD_LANES, DEFAULT_STAGE_TAT_H, DEFAULT_STAGE_ROLE, DOER_ROLES, type BoardLane, type DoerRole } from '../lib/types';
 
 type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations' | 'pipeline' | 'roster';
 
@@ -41,6 +41,7 @@ export function Settings() {
 
   // Pipeline TAT (total HOURS per lane; edited as days + hours)
   const [pipelineTatH, setPipelineTatH] = useState<Record<BoardLane, number>>({ ...DEFAULT_STAGE_TAT_H });
+  const [pipelineRoles, setPipelineRoles] = useState<Record<BoardLane, DoerRole>>({ ...DEFAULT_STAGE_ROLE });
 
   // Gmail
   const [gmailEnabled, setGmailEnabled] = useState(false);
@@ -96,6 +97,7 @@ export function Settings() {
         ? Object.fromEntries(Object.entries(s.pipeline_tat).map(([k, v]) => [k, (v as number) * 24]))
         : {};
       setPipelineTatH({ ...DEFAULT_STAGE_TAT_H, ...fromDays, ...(s.pipeline_tat_h ?? {}) });
+      setPipelineRoles({ ...DEFAULT_STAGE_ROLE, ...(s.pipeline_roles ?? {}) });
     });
   }, []);
 
@@ -115,6 +117,7 @@ export function Settings() {
         sheets_webhook_url: sheetsUrl.trim() || undefined,
         sheets_drive_folder_id: sheetsDriveFolderId.trim() || undefined,
         pipeline_tat_h: pipelineTatH,
+        pipeline_roles: pipelineRoles,
       });
       if (error) throw error;
       await refreshData();
@@ -342,6 +345,7 @@ export function Settings() {
                   <div className="flex items-center justify-between gap-3 pb-1 text-[9px] font-bold uppercase tracking-wider text-g400">
                     <span>Stage</span>
                     <div className="flex items-center gap-2">
+                      <span className="w-[110px] text-center">Owner role</span>
                       <span className="w-16 text-center">Days</span>
                       <span className="w-16 text-center">Hours</span>
                       <span className="w-14 text-right">= Total</span>
@@ -357,6 +361,14 @@ export function Settings() {
                       <div key={lane} className="flex items-center justify-between gap-3 py-1.5 border-b border-g100 last:border-0">
                         <span className="text-[13px] text-blk font-medium">{lane}</span>
                         <div className="flex items-center gap-2">
+                          <select
+                            aria-label={`${lane} owner role`}
+                            className="w-[110px] font-sans text-[12px] bg-white border border-g300 rounded-[3px] px-2 py-[6px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
+                            value={pipelineRoles[lane] ?? DEFAULT_STAGE_ROLE[lane]}
+                            onChange={e => setPipelineRoles(prev => ({ ...prev, [lane]: e.target.value as DoerRole }))}
+                          >
+                            {DOER_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
                           <input
                             type="number" min={0} step={1}
                             aria-label={`${lane} TAT days`}
@@ -380,7 +392,7 @@ export function Settings() {
                 <div className="mt-4 flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => setPipelineTatH({ ...DEFAULT_STAGE_TAT_H })}
+                    onClick={() => { setPipelineTatH({ ...DEFAULT_STAGE_TAT_H }); setPipelineRoles({ ...DEFAULT_STAGE_ROLE }); }}
                     className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-wider uppercase text-g500 hover:text-blk transition-colors"
                   >
                     <RotateCcw size={11} /> Reset to defaults

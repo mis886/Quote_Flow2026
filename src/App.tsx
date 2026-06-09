@@ -19,6 +19,7 @@ import { Login } from './pages/Login';
 import { SubmitPO } from './pages/SubmitPO';
 import { IntelligenceBoard } from './pages/IntelligenceBoard';
 import { DoerKPI } from './pages/DoerKPI';
+import { DoerDetail } from './pages/DoerDetail';
 import { useAppStore } from './store';
 import { Loader2 } from 'lucide-react';
 import { ProductionLayout } from './production/components/ProductionLayout';
@@ -89,6 +90,7 @@ export default function App() {
                   <Route path="customers/new" element={<NewCustomer />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="doer-kpi" element={<DoerKPI />} />
+                  <Route path="doer-kpi/:key" element={<DoerDetail />} />
                   <Route path="blueprint" element={<Blueprint />} />
                   <Route path="followups" element={<FollowUps />} />
                   <Route path="settings" element={<Settings />} />

@@ -291,9 +291,9 @@ function CustomerDetail({ stats, allFollowups }: {
                 </div>
               ))}
             </div>
-            {enqs.length > 0 && (
-              <div className={`mt-3 px-3 py-2 rounded-[3px] text-[10px] ${vsAvg >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-                {vsAvg >= 0
+            {enqs.length > 0 && vsAvg !== 0 && (
+              <div className={`mt-3 px-3 py-2 rounded-[3px] text-[10px] ${vsAvg > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                {vsAvg > 0
                   ? <span>Win rate <strong>+{vsAvg}%</strong> above company average</span>
                   : <span>Win rate <strong>{vsAvg}%</strong> below company average</span>}
               </div>

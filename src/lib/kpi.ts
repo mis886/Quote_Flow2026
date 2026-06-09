@@ -6,9 +6,9 @@
 // FollowUps.tsx imports these; do not fork the behaviour.
 
 import type {
-  AppSettings, DataStore, FollowUp, FollowUpLog, Quote, DoerRole, GlobalDateRangeLike,
+  AppSettings, DataStore, FollowUp, FollowUpLog, Quote, DoerRole, BoardLane, GlobalDateRangeLike,
 } from './types';
-import { DEFAULT_STAGE_TAT_H } from './types';
+import { DEFAULT_STAGE_TAT_H, DEFAULT_STAGE_ROLE } from './types';
 
 // ── TAT resolution (mirrors PipelineBoard / FollowUps) ──────────────
 // hours → settings.pipeline_tat_h, then legacy pipeline_tat (×24), then default.
@@ -361,4 +361,152 @@ export function computeDoerMetrics(
     result.set(k, clean);
   }
   return result;
+}
+
+// ── Pipeline stage ownership ─────────────────────────────────────────
+// Which role owns a board lane: settings.pipeline_roles → DEFAULT_STAGE_ROLE.
+export function roleForStage(settings: AppSettings | null, lane: BoardLane): DoerRole {
+  return settings?.pipeline_roles?.[lane] ?? DEFAULT_STAGE_ROLE[lane] ?? 'Other';
+}
+
+// Resolve a roster member's identities (email + display name, lowercased).
+function memberIdentities(member: RosterMemberLike): Set<string> {
+  return identitiesFor(member);
+}
+
+// ── Per-doer behaviour timeline ──────────────────────────────────────
+export interface TimelineRow {
+  date: string;            // YYYY-MM-DD (group key)
+  ts: string;              // ISO (sort within day, desc)
+  kind: 'done' | 'pending';
+  activity: string;        // e.g. "Called · MRT-092"
+  channel?: string;        // log channel when kind === 'done'
+  refId: string;           // quote / enquiry id
+  cust: string;
+  onTime: boolean | null;  // done: met step deadline?; pending: false = overdue
+}
+
+// Build the done + pending behaviour history for one roster member over a range.
+// Done rows = the member's follow-up logs (scored on-time via the shared
+// buildFullChain/stepDeadline). Pending rows = open follow-ups the member owns
+// whose next step is now overdue. Rows are returned newest-first.
+export function buildDoerTimeline(
+  data: DataStore,
+  member: RosterMemberLike,
+  range: GlobalDateRangeLike | null,
+): TimelineRow[] {
+  const settings = data.settings;
+  const ids = memberIdentities(member);
+  const isMine = (who?: string | null) => !!who && ids.has(lc(who));
+  const rows: TimelineRow[] = [];
+  const quoteById = new Map(data.quotes.map(q => [q.id, q]));
+  const now = new Date();
+
+  for (const fu of data.followups) {
+    const quote = quoteById.get(fu.quote_id);
+    if (!quote) continue;
+    const chain = buildFullChain(settings, quote, fu);
+
+    // Done rows: real logs authored by this member (skip synthetic quote-sent).
+    for (let i = 0; i < chain.length; i++) {
+      const log = chain[i];
+      if (isQuoteSentLog(log.note)) continue;
+      if (!isMine(log.who)) continue;
+      if (!inRange(log.ts, range)) continue;
+      const onTime = i >= 1 ? new Date(log.ts) <= stepDeadline(settings, chain, i) : null;
+      rows.push({
+        date: log.ts.slice(0, 10),
+        ts: log.ts,
+        kind: 'done',
+        activity: `${log.channel} · ${quote.id}`,
+        channel: log.channel,
+        refId: quote.id,
+        cust: quote.cust,
+        onTime,
+      });
+    }
+
+    // Pending row: open card this member owns whose promised next step is overdue.
+    if (fu.status !== 'closed' && isMine(fu.owner) && fu.next_date) {
+      const due = new Date(fu.next_date);
+      due.setHours(23, 59, 59, 999);
+      if (due < now) {
+        rows.push({
+          date: fu.next_date.slice(0, 10),
+          ts: fu.next_date,
+          kind: 'pending',
+          activity: `Follow-up overdue · ${quote.id}`,
+          refId: quote.id,
+          cust: quote.cust,
+          onTime: false,
+        });
+      }
+    }
+  }
+
+  // Newest first; pending sorts with its due date.
+  return rows.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+}
+
+// ── Per-doer stage workload ──────────────────────────────────────────
+export interface StageWorkload {
+  lane: BoardLane;
+  tatHours: number;
+  pending: number;   // cards in this lane breaching / past TAT
+  done: number;      // cards in this lane still within TAT
+  total: number;
+}
+
+// For each board lane the member's role owns, count the cards currently sitting
+// in it, split into within-TAT ("done"/on track) vs breached ("pending"/overdue).
+// Lane derivation mirrors PipelineBoard: pre-quote lanes from enquiry status,
+// quote lanes from followup.stage (or quote status fallback).
+export function doerStageWorkload(
+  data: DataStore,
+  member: RosterMemberLike,
+): StageWorkload[] {
+  const settings = data.settings;
+  const now = Date.now();
+
+  // Lanes owned by this member's role (excluding Closed — no live workload).
+  const ownedLanes = (Object.keys(DEFAULT_STAGE_ROLE) as BoardLane[])
+    .filter(lane => lane !== 'Closed' && roleForStage(settings, lane) === member.role);
+  if (ownedLanes.length === 0) return [];
+
+  const acc = new Map<BoardLane, StageWorkload>();
+  for (const lane of ownedLanes) {
+    acc.set(lane, { lane, tatHours: stageTatHours(settings, lane), pending: 0, done: 0, total: 0 });
+  }
+
+  const bump = (lane: BoardLane, enteredAt: string | null | undefined) => {
+    const w = acc.get(lane);
+    if (!w) return;
+    w.total++;
+    const tatMs = w.tatHours * 3600000;
+    const elapsed = enteredAt ? now - new Date(enteredAt).getTime() : 0;
+    if (w.tatHours > 0 && elapsed > tatMs) w.pending++;
+    else w.done++;
+  };
+
+  // Pre-quote lanes from enquiries (not yet quoted).
+  for (const enq of data.enquiries) {
+    if (enq.qRef) continue;
+    if (enq.status === 'Lost' || enq.status === 'Parked') continue;
+    const lane: BoardLane | null =
+      enq.status === 'New' ? 'New Enquiry' :
+      enq.status === 'In Review' ? 'To Quote' : null;
+    if (lane && acc.has(lane)) bump(lane, enq.recv);
+  }
+
+  // Quote lanes from followup.stage (or quote status fallback).
+  for (const quote of data.quotes) {
+    const fu = data.followups.find(f => f.quote_id === quote.id);
+    const stage =
+      (fu?.stage as BoardLane) ||
+      (quote.status === 'Won' || quote.status === 'Lost' ? 'Closed' : 'Sent Quotation');
+    if (stage === 'Closed' || !acc.has(stage)) continue;
+    bump(stage, fu?.stage_entered_at || quote.date || null);
+  }
+
+  return ownedLanes.map(lane => acc.get(lane)!);
 }

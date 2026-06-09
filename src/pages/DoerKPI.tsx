@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { cn } from '../lib/utils';
 import { DOER_ROLES, type DoerRole, type GlobalDateRangeLike } from '../lib/types';
@@ -51,8 +52,19 @@ function fmtHours(v: number | null): string {
   return h ? `${d}d ${h}h` : `${d}d`;
 }
 
+// Shortfall = how far below 100% a metric sits, shown as a negative %.
+// null (no data) stays null → rendered as '—', never a fabricated −100%.
+function shortfall(v: number | null): number | null {
+  return v == null ? null : v - 100;
+}
+function fmtShortfall(v: number | null): string {
+  const s = shortfall(v);
+  return s == null ? '—' : `${s}%`; // s ≤ 0 already carries the minus sign
+}
+
 export function DoerKPI() {
   const { data, globalDateRange } = useAppStore();
+  const navigate = useNavigate();
   const roster = data.roster.filter(m => m.active);
 
   const range: GlobalDateRangeLike = globalDateRange
@@ -81,11 +93,11 @@ export function DoerKPI() {
   }, [rows, sortKey]);
 
   // Trend is selected by row key (email|role) so a shared login's roles differ.
-  const [trendKey, setTrendKey] = useState<string | null>(null);
+  // Inline trend shows the top performer; per-doer drill-down lives on the detail page.
   const firstKey = rows[0] ? doerRowKey(rows[0].email, rows[0].role) : undefined;
-  const trendData = useMemo(() => buildTrend(data, roster, trendKey ?? firstKey),
+  const trendData = useMemo(() => buildTrend(data, roster, firstKey),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, trendKey, rows]);
+    [data, rows]);
 
   // Headline metric per role for the top cards (best performer in that role).
   const roleCards = DOER_ROLES.filter(r => r !== 'Other').map(role => {
@@ -120,14 +132,15 @@ export function DoerKPI() {
           const meta = ROLE_META[role];
           const c = CARD_COLORS[meta.color];
           const prev = best ? previous.get(doerRowKey(best.email, best.role)) : undefined;
+          // Shown as SHORTFALL (gap below 100%). best = highest composite =
+          // smallest shortfall. Delta: composite up = improving = up arrow.
           let value = '—'; let deltaTxt = ''; let deltaDir: 'up' | 'dn' | null = null;
           if (role === 'PI Sender') {
             value = '—';
           } else if (best) {
-            const cur = best.composite;
-            value = cur == null ? '—' : `${cur}`;
-            if (cur != null && prev?.composite != null) {
-              const d = cur - prev.composite;
+            value = fmtShortfall(best.composite);
+            if (best.composite != null && prev?.composite != null) {
+              const d = best.composite - prev.composite;
               deltaTxt = `${d >= 0 ? '+' : ''}${d}`;
               deltaDir = d >= 0 ? 'up' : 'dn';
             }
@@ -140,8 +153,9 @@ export function DoerKPI() {
                   <Gauge size={14} className={c.iconText} />
                 </div>
               </div>
-              <div className="font-sans text-[26px] leading-none font-bold text-blk tracking-tight">
-                {value}{value !== '—' && role !== 'PI Sender' && <span className="text-[13px] text-g400 font-medium"> /100</span>}
+              <div className={cn('font-sans text-[26px] leading-none font-bold tracking-tight',
+                value !== '—' && value !== '0%' ? 'text-red-mrt' : 'text-blk')}>
+                {value}
               </div>
               <div className="text-[10.5px] truncate">
                 {role === 'PI Sender'
@@ -159,8 +173,13 @@ export function DoerKPI() {
         })}
       </div>
 
+      <div className="mt-2 text-[10.5px] text-g400">
+        Scores shown as <span className="text-red-mrt font-semibold">shortfall</span> — how far below 100% each doer
+        is (e.g. <span className="font-mono">−57%</span> = 57% of tasks not done / not on time). Click a row for the full history.
+      </div>
+
       {/* ── Scoreboard ── */}
-      <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-[10px] border border-g200 mt-4 overflow-hidden shadow-sm">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-g100">
           <Trophy size={15} className="text-g500" />
           <h2 className="font-mono text-[11px] font-bold tracking-[1.5px] uppercase text-g600">Scoreboard</h2>
@@ -174,7 +193,7 @@ export function DoerKPI() {
               <tr className="text-g500 font-mono text-[9.5px] tracking-[1px] uppercase border-b border-g100">
                 <Th>Doer</Th>
                 <Th>Role</Th>
-                <ThSort label="Score" k="composite" sortKey={sortKey} onSort={setSortKey} />
+                <ThSort label="Shortfall" k="composite" sortKey={sortKey} onSort={setSortKey} />
                 <ThSort label="On-time" k="onTimePct" sortKey={sortKey} onSort={setSortKey} />
                 <ThSort label="Volume" k="volume" sortKey={sortKey} onSort={setSortKey} />
                 <ThSort label="Speed" k="avgCycleH" sortKey={sortKey} onSort={setSortKey} />
@@ -190,18 +209,22 @@ export function DoerKPI() {
                 const delta = (m.composite != null && prev?.composite != null) ? m.composite - prev.composite : null;
                 return (
                   <tr key={key} className="border-b border-g50 hover:bg-g50/50 cursor-pointer"
-                      onClick={() => setTrendKey(key)}>
+                      onClick={() => navigate(`/doer-kpi/${encodeURIComponent(key)}`)}>
                     <td className="px-4 py-2.5 font-medium text-blk whitespace-nowrap">{m.displayName}</td>
                     <td className="px-4 py-2.5 text-g500">{m.role}</td>
                     <td className="px-4 py-2.5">
                       {deferred ? <span className="text-g300" title="PI tracking coming soon">—</span> : (
                         <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 rounded-full bg-g100 overflow-hidden">
+                          {/* Bar fills the DONE portion (composite%); track shows the shortfall gap. */}
+                          <div className="w-16 h-1.5 rounded-full bg-red-100 overflow-hidden">
                             <div className={cn('h-full rounded-full',
                               (m.composite ?? 0) >= 70 ? 'bg-emerald-500' : (m.composite ?? 0) >= 40 ? 'bg-amber-500' : 'bg-red-500')}
                               style={{ width: `${m.composite ?? 0}%` }} />
                           </div>
-                          <span className="font-semibold text-blk tabular-nums">{m.composite ?? '—'}</span>
+                          <span className={cn('font-semibold tabular-nums',
+                            m.composite == null ? 'text-g300' : m.composite >= 100 ? 'text-emerald-600' : 'text-red-mrt')}>
+                            {fmtShortfall(m.composite)}
+                          </span>
                         </div>
                       )}
                     </td>
