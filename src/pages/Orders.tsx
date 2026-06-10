@@ -241,7 +241,7 @@ export function Orders() {
                 <SortTh col="poDate">PO Date</SortTh>
                 <SortTh col="items">Items</SortTh>
                 <SortTh col="value" right>Order Value</SortTh>
-                <SortTh col="dlvDate">Delivery By</SortTh>
+                <SortTh col="created_at">Punched At</SortTh>
                 <SortTh col="status">Status</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Actions</th>
               </tr>

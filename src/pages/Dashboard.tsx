@@ -550,8 +550,8 @@ export function Dashboard() {
 
     // Teal — order delivery deadlines
     data.orders.forEach(o => {
-      if (!o.dlvDate || o.status !== 'Processing') return;
-      const key = o.dlvDate.slice(0, 10);
+      if (!o.created_at || o.status !== 'Processing') return;
+      const key = o.created_at.slice(0, 10);
       addEvent(key, {
         id: o.id,
         type: 'order-dlv',
