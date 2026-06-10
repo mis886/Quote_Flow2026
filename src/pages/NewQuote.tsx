@@ -637,7 +637,7 @@ export function NewQuote() {
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
+                    <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Unit / City</label>
                     <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Site...</option>
                       {(data.customers.find(c => c.name === custName)?.sites ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` (${s.city})` : ''}</option>)}
