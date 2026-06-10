@@ -176,7 +176,7 @@ export function Quotes() {
           <Search size={11} className="text-g400 shrink-0" />
           <input
             type="text"
-            placeholder="Site / city..."
+            placeholder="Unit / city..."
             value={siteQuery}
             onChange={e => setSiteQuery(e.target.value)}
             className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"
