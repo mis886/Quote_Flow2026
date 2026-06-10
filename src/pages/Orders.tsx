@@ -116,6 +116,7 @@ export function Orders() {
       else if (sortCol === 'value') { av = a.items.reduce((s, i) => s + i.total, 0); bv = b.items.reduce((s, i) => s + i.total, 0); }
       else if (sortCol === 'items') { av = a.items.length; bv = b.items.length; }
       else if (sortCol === 'dlvDate') { av = a.dlvDate || ''; bv = b.dlvDate || ''; }
+      else if (sortCol === 'created_at') { av = a.created_at || ''; bv = b.created_at || ''; }
       else { av = a.poDate; bv = b.poDate; }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
