@@ -80,6 +80,7 @@ export function NewQuote() {
   const [contactId, setContactId] = useState('');
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [contactManual, setContactManual] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const contactRef = useRef<HTMLDivElement>(null);
@@ -149,8 +150,12 @@ export function NewQuote() {
           const ps = (q.siteId && (c.sites ?? []).find((s: any) => s.id === q.siteId))
             || (c.sites ?? []).find((s: any) => s.isPrimary)
             || (c.sites ?? [])[0];
-          if (ps) { setSiteId(ps.id); const pc = (ps.contacts ?? []).find((ct: any) => ct.isPrimary) || (ps.contacts ?? [])[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); } }
+          if (ps) { setSiteId(ps.id); const pc = (ps.contacts ?? []).find((ct: any) => ct.isPrimary) || (ps.contacts ?? [])[0]; if (pc) { setContactId(pc.id); setContact(pc.name); setEmail(pc.email); setPhone(pc.phone || ''); } }
         }
+        // Saved quote contact details win over re-derived ones.
+        if (q.contact) setContact(q.contact);
+        if (q.email) setEmail(q.email);
+        if (q.phone) setPhone(q.phone);
       }
     } else if (enqRef) {
       // Duplicate guard: warn if this enquiry was already converted to a quote
@@ -160,7 +165,9 @@ export function NewQuote() {
       const enq = data.enquiries.find(e => e.id === enqRef);
       if (enq) {
         setCustName(enq.cust); if (enq.siteId) setSiteId(enq.siteId); if (enq.contactId) setContactId(enq.contactId);
-        setContact(enq.contact); setEmail(enq.email);
+        setContact(enq.contact); setEmail(enq.email); setPhone(enq.phone || '');
+        // Carry the customer's enquiry doc number forward (editable).
+        if (enq.custEnqDocNo) setCustEnquiryDocNo(enq.custEnqDocNo);
         // If the enquiry had no contactId the details were typed manually — preserve them
         setContactManual(!enq.contactId && !!(enq.contact || enq.email));
         const cr = data.customers.find(c => c.name === enq.cust);
@@ -194,7 +201,7 @@ export function NewQuote() {
         const contacts = site.contacts ?? [];
         if (contactId && !contactManual) {
           const ct = contacts.find(c => c.id === contactId);
-          if (ct) { setContact(ct.name); setEmail(ct.email); }
+          if (ct) { setContact(ct.name); setEmail(ct.email); setPhone(ct.phone || ''); }
         }
       }
     } else { if (sites.length === 1) setSiteId(sites[0].id); }
@@ -372,6 +379,7 @@ export function NewQuote() {
     contactId: contactId || undefined,
     contact: contact || undefined,
     email: email || undefined,
+    phone: phone || undefined,
     // Stays Draft until actually sent (email module / manual). Convert-to-order
     // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
     status: statusOverride ?? quoteStatus,
@@ -623,18 +631,20 @@ export function NewQuote() {
                     <CustomerSearch
                       customers={data.customers}
                       value={custName}
-                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
+                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
                       error={!!errors.custName}
                     />
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
-                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Site...</option>
                       {(data.customers.find(c => c.name === custName)?.sites ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` (${s.city})` : ''}</option>)}
                     </select>
                   </div>
+                </div>
+                <div className="p-[0_16px_12px] grid grid-cols-3 gap-[10px]">
                   <div ref={contactRef} className="relative">
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
                     {(() => {
@@ -658,7 +668,7 @@ export function NewQuote() {
                                 <div className="px-3 py-2 text-[11px] text-g400 italic">No match — name will be saved as typed</div>
                               ) : (
                                 filtered.map((ct: any) => (
-                                  <button key={ct.id} type="button" onMouseDown={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
+                                  <button key={ct.id} type="button" onMouseDown={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setPhone(ct.phone || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
                                     <span className="font-medium text-blk">{ct.name}</span>
                                     {ct.role && <span className="text-[10px] text-g400 font-mono">{ct.role}</span>}
                                   </button>
@@ -669,6 +679,11 @@ export function NewQuote() {
                         </>
                       );
                     })()}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Phone</label>
+                    <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => { setContactManual(true); setPhone(e.target.value); }}
+                      className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>

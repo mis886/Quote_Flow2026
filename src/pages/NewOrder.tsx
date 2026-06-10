@@ -69,6 +69,8 @@ export function NewOrder() {
   const [shipAddr, setShipAddr] = useState('');
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [custEnquiryDocNo, setCustEnquiryDocNo] = useState('');
   const [contactManual, setContactManual] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const contactRef = useRef<HTMLDivElement>(null);
@@ -150,7 +152,13 @@ export function NewOrder() {
         if (o.priceBasis || o.eximCode || o.customPoint || o.pan || o.hsn) setShowExim(true);
         if (o.poFileName) setExistingPoFileName(o.poFileName);
         if (o.shipToAddress) setShipAddr(o.shipToAddress);
-        if ((o as any).siteId) setSiteId((o as any).siteId);
+        if (o.siteId) setSiteId(o.siteId);
+        if (o.contactId) setContactId(o.contactId);
+        if (o.contact) setContact(o.contact);
+        if (o.email) setEmail(o.email);
+        if (o.phone) setPhone(o.phone);
+        if (o.custEnquiryDocNo) setCustEnquiryDocNo(o.custEnquiryDocNo);
+        setContactManual(!o.contactId && !!(o.contact || o.email));
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === o.authorizedPerson?.name);
         if (matched) setSelectedSigId(matched.id);
       }
@@ -165,12 +173,15 @@ export function NewOrder() {
         if (q.enqRef) setLinkedEnqRef(q.enqRef);
         setOrderId(generateId('ORD', data.orders.map(o => o.id)));
         setCustName(q.cust); setAuthName(q.authorizedPerson?.name || '');
-        if ((q as any).siteId) setSiteId((q as any).siteId);
-        if ((q as any).contactId) setContactId((q as any).contactId);
-        if ((q as any).contact) setContact((q as any).contact);
-        if ((q as any).email) setEmail((q as any).email);
+        if (q.siteId) setSiteId(q.siteId);
+        if (q.contactId) setContactId(q.contactId);
+        if (q.contact) setContact(q.contact);
+        if (q.email) setEmail(q.email);
+        if (q.phone) setPhone(q.phone);
+        // Carry the customer's enquiry doc number forward (editable).
+        if (q.custEnquiryDocNo) setCustEnquiryDocNo(q.custEnquiryDocNo);
         // Preserve manual contact if quote had no contactId
-        setContactManual(!(q as any).contactId && !!((q as any).contact || (q as any).email));
+        setContactManual(!q.contactId && !!(q.contact || q.email));
         setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
         setCustomTerms(parseQuoteTerms(q.terms));
         setItems(q.items.map(i => ({ ...i, agreedRate: i.unitPrice, remarks: '' })));
@@ -199,7 +210,7 @@ export function NewOrder() {
         const contacts = site.contacts ?? [];
         if (contactId && !contactManual) {
           const ct = contacts.find((c: any) => c.id === contactId);
-          if (ct) { setContact(ct.name); setEmail(ct.email); }
+          if (ct) { setContact(ct.name); setEmail(ct.email); setPhone(ct.phone || ''); }
         }
       }
     } else { if (sites.length === 1) setSiteId(sites[0].id); }
@@ -297,7 +308,13 @@ export function NewOrder() {
     return {
     id: orderId, quoteRef: effQuoteRef,
     enqRef: effEnqRef,
-    cust: custName, siteId: siteId || undefined, poNo: poNo.trim(), poDate, dlvDate,
+    cust: custName, siteId: siteId || undefined,
+    contactId: contactId || undefined,
+    contact: contact || undefined,
+    email: email || undefined,
+    phone: phone || undefined,
+    custEnquiryDocNo: custEnquiryDocNo.trim() || undefined,
+    poNo: poNo.trim(), poDate, dlvDate,
     status: editOrderId ? orderStatus : 'Processing',
     value: grandTotal,
     inco: dlvTerms === 'OVERRIDE' ? customDlvTerms : dlvTerms,
@@ -599,18 +616,20 @@ export function NewOrder() {
                     <CustomerSearch
                       customers={data.customers}
                       value={custName}
-                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
+                      onChange={name => { setCustName(name); setSiteId(''); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); setErrors({ ...errors, custName: '' }); }}
                       error={!!errors.custName}
                     />
                     {errors.custName && <p className="text-red-mrt text-[10px] mt-1">{errors.custName}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Site / Branch</label>
-                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
+                    <select value={siteId} onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); }} disabled={!custName} className={selectCls + ' disabled:bg-g50 disabled:cursor-not-allowed'}>
                       <option value="">Select Site...</option>
                       {(data.customers.find(c => c.name === custName)?.sites ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` (${s.city})` : ''}</option>)}
                     </select>
                   </div>
+                </div>
+                <div className="p-[0_16px_12px] grid grid-cols-3 gap-[10px]">
                   <div ref={contactRef} className="relative">
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
                     {(() => {
@@ -634,7 +653,7 @@ export function NewOrder() {
                                 <div className="px-3 py-2 text-[11px] text-g400 italic">No match — name will be saved as typed</div>
                               ) : (
                                 filtered.map((ct: any) => (
-                                  <button key={ct.id} type="button" onMouseDown={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
+                                  <button key={ct.id} type="button" onMouseDown={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setPhone(ct.phone || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
                                     <span className="font-medium text-blk">{ct.name}</span>
                                     {ct.role && <span className="text-[10px] text-g400 font-mono">{ct.role}</span>}
                                   </button>
@@ -645,6 +664,11 @@ export function NewOrder() {
                         </>
                       );
                     })()}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Phone</label>
+                    <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => { setContactManual(true); setPhone(e.target.value); }}
+                      className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
@@ -671,6 +695,11 @@ export function NewOrder() {
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Shipping Address</label>
                     <input type="text" value={shipAddr} onChange={e => setShipAddr(e.target.value)} placeholder="Delivery address"
+                      className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Cust. Enquiry Doc No.</label>
+                    <input type="text" value={custEnquiryDocNo} onChange={e => setCustEnquiryDocNo(e.target.value)} placeholder="Ref/2024/01..."
                       className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt" />
                   </div>
                 </div>

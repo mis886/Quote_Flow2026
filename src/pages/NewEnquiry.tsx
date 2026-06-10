@@ -131,6 +131,7 @@ export function NewEnquiry() {
         setContactId(e.contactId || '');
         setContact(e.contact || '');
         setEmail(e.email || '');
+        setPhone(e.phone || '');
         setContactManual(false);
         setUrgency(e.urg);
         setAssigned(e.assigned || 'Akki');
@@ -303,6 +304,7 @@ export function NewEnquiry() {
         contactId,
         contact,
         email,
+        phone,
         urg: urgency,
         status: editId ? (data.enquiries.find(x => x.id === editId)?.status || 'New') : 'New',
         assigned,
@@ -401,7 +403,7 @@ export function NewEnquiry() {
 
             <div className="bg-white border border-g200 p-[18px_20px]">
               <div className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-[12px] pb-[7px] border-b border-g200">Customer & Contact</div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Customer <span className="text-red-mrt">*</span></label>
                   <CustomerSearch
@@ -436,6 +438,8 @@ export function NewEnquiry() {
                     );
                   })()}
                 </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3">
                 <div ref={contactRef} className="relative">
                   <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Contact Person</label>
                   {(() => {
@@ -484,12 +488,12 @@ export function NewEnquiry() {
                   })()}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
-                  <input type="email" placeholder="contact@company.com" value={email} onChange={e => { setContactManual(true); setEmail(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
+                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Phone</label>
+                  <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => { setContactManual(true); setPhone(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Mobile No.</label>
-                  <input type="tel" placeholder="+91 98XXX XXXXX" value={phone} onChange={e => { setContactManual(true); setPhone(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
+                  <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Email</label>
+                  <input type="email" placeholder="contact@company.com" value={email} onChange={e => { setContactManual(true); setEmail(e.target.value); }} className="w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt" />
                 </div>
               </div>
             </div>

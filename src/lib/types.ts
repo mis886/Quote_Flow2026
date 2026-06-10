@@ -90,6 +90,7 @@ export interface Enquiry {
   contactId?: string;
   contact: string;
   email: string;
+  phone?: string;          // customer contact phone
   urg: Urgency;
   status: EnqStatus;
   assigned: string;
@@ -110,6 +111,7 @@ export interface Quote {
   contactId?: string;
   contact?: string;
   email?: string;
+  phone?: string;             // customer contact phone (carried from enquiry)
   date: string;
   validity: string;
   status: QuoteStatus;
@@ -136,6 +138,11 @@ export interface Order {
   enqRef: string;
   cust: string;
   siteId?: string;
+  contactId?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;             // customer contact phone (carried from quote)
+  custEnquiryDocNo?: string;  // carried enquiry → quote → order
   poNo: string;
   poDate: string;
   dlvDate: string;

@@ -167,12 +167,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const obj: any = { ...e };
     obj.siteId = e.site_id;
     obj.contactId = e.contact_id;
+    obj.phone = e.contact_phone ?? undefined;
     obj.ageH = e.recv ? calculateAgeHours(e.recv) : (e.age_h || 0);
     obj.qRef = e.q_ref;
     if (e.gmail_message_id) obj.gmailMessageId = e.gmail_message_id;
 
     delete obj.site_id;
     delete obj.contact_id;
+    delete obj.contact_phone;
     delete obj.age_h;
     delete obj.q_ref;
     delete obj.gmail_message_id;
@@ -189,6 +191,7 @@ const mapEnquiryToDB = (e: any) => {
   if ('cust' in e) obj.cust = e.cust;
   if ('contact' in e) obj.contact = e.contact;
   if ('email' in e) obj.email = e.email;
+  if ('phone' in e) obj.contact_phone = e.phone || null;
   if ('urg' in e) obj.urg = e.urg;
   if ('status' in e) obj.status = e.status;
   if ('assigned' in e) obj.assigned = e.assigned;
@@ -217,6 +220,7 @@ const mapEnquiryToDB = (e: any) => {
     if (q.contact_id) obj.contactId = q.contact_id;
     if (q.unit_id) obj.unitId = q.unit_id;
     if (q.cust_enquiry_doc_no) obj.custEnquiryDocNo = q.cust_enquiry_doc_no;
+    if (q.contact_phone) obj.phone = q.contact_phone;
     if ('authorized_person' in q) {
       obj.authorizedPerson = q.authorized_person;
       delete obj.authorized_person;
@@ -226,6 +230,7 @@ const mapEnquiryToDB = (e: any) => {
     delete obj.contact_id;
     delete obj.unit_id;
     delete obj.cust_enquiry_doc_no;
+    delete obj.contact_phone;
     return obj;
   };
 
@@ -253,6 +258,7 @@ const mapEnquiryToDB = (e: any) => {
     if ('contactId' in q) obj.contact_id = q.contactId || null;
     if ('contact' in q) obj.contact = q.contact || null;
     if ('email' in q) obj.email = q.email || null;
+    if ('phone' in q) obj.contact_phone = q.phone || null;
 
     if ('unitId' in q) obj.unit_id = q.unitId || null;
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
@@ -267,6 +273,9 @@ const mapEnquiryToDB = (e: any) => {
     obj.quoteRef = o.quote_ref;
     obj.enqRef = o.enq_ref;
     if (o.site_id) obj.siteId = o.site_id;
+    if (o.contact_id) obj.contactId = o.contact_id;
+    if (o.contact_phone) obj.phone = o.contact_phone;
+    if (o.cust_enquiry_doc_no) obj.custEnquiryDocNo = o.cust_enquiry_doc_no;
     obj.poNo = o.po_no;
     obj.poDate = o.po_date;
     obj.dlvDate = o.dlv_date;
@@ -288,6 +297,9 @@ const mapEnquiryToDB = (e: any) => {
     delete obj.quote_ref;
     delete obj.enq_ref;
     delete obj.site_id;
+    delete obj.contact_id;
+    delete obj.contact_phone;
+    delete obj.cust_enquiry_doc_no;
     delete obj.po_no;
     delete obj.po_date;
     delete obj.dlv_date;
@@ -326,6 +338,12 @@ const mapEnquiryToDB = (e: any) => {
 
     if ('siteId' in o) obj.site_id = o.siteId || null;
     else if ('site_id' in o) obj.site_id = o.site_id || null;
+
+    if ('contactId' in o) obj.contact_id = o.contactId || null;
+    if ('contact' in o) obj.contact = o.contact || null;
+    if ('email' in o) obj.email = o.email || null;
+    if ('phone' in o) obj.contact_phone = o.phone || null;
+    if ('custEnquiryDocNo' in o) obj.cust_enquiry_doc_no = o.custEnquiryDocNo || null;
 
     if ('poNo' in o) obj.po_no = o.poNo;
     else if ('po_no' in o) obj.po_no = o.po_no;
