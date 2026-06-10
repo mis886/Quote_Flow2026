@@ -35,7 +35,7 @@ interface AppContextType {
   addCustomer: (customer: Customer) => Promise<void>;
   updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
-  addFollowUpLog: (quoteId: string, log: FollowUpLog, nextDate?: string | null, nextTime?: string | null, owner?: string) => Promise<void>;
+  addFollowUpLog: (quoteId: string, log: FollowUpLog, nextDate?: string | null, nextTime?: string | null, owner?: string, stageOverride?: string | null) => Promise<void>;
   closeFollowUp: (quoteId: string, outcome?: PipelineOutcome) => Promise<void>;
   reopenFollowUp: (quoteId: string) => Promise<void>;
   setFollowUpStage: (quoteId: string, stage: PipelineStage, outcome?: PipelineOutcome | null) => Promise<void>;
@@ -580,18 +580,22 @@ const mapEnquiryToDB = (e: any) => {
     return 'Negotiation';
   };
 
-  const addFollowUpLog = async (quoteId: string, log: any, nextDate: string | null = null, nextTime: string | null = null, owner: string = '') => {
+  const addFollowUpLog = async (quoteId: string, log: any, nextDate: string | null = null, nextTime: string | null = null, owner: string = '', stageOverride: string | null = null) => {
     const existing = data.followups.find(f => f.quote_id === quoteId);
     const nowIso = new Date().toISOString();
 
     if (existing) {
       const updatedLogs = [log, ...existing.logs];
-      // Count only real follow-up actions (not quote-sent system entries)
-      const realCount = updatedLogs.filter((l: any) => {
-        const n: string = l.note ?? '';
-        return !n.startsWith('Quote sent —') && !n.startsWith('Sent MRT-') && !n.startsWith('Sent ');
-      }).length;
-      const newStage = stageFromLogCount(realCount);
+      // If caller supplied an explicit stage, use it; otherwise auto-derive from log count.
+      const newStage: PipelineStage = stageOverride
+        ? (stageOverride as PipelineStage)
+        : (() => {
+            const realCount = updatedLogs.filter((l: any) => {
+              const n: string = l.note ?? '';
+              return !n.startsWith('Quote sent —') && !n.startsWith('Sent MRT-') && !n.startsWith('Sent ');
+            }).length;
+            return stageFromLogCount(realCount);
+          })();
       const stageChanged = newStage !== existing.stage;
 
       const { error } = await supabase

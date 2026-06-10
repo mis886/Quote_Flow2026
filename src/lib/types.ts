@@ -233,7 +233,7 @@ export interface Customer {
 export interface FollowUpLog {
   ts: string;
   who: string;
-  channel: 'Called' | 'WhatsApp' | 'Email' | 'Meeting' | 'Visit';
+  channel: 'Called' | 'To Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Visit';
   note: string;
   nextDate?: string;
   nextTime?: string;

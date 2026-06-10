@@ -185,7 +185,7 @@ export function Enquiries() {
           <Search size={11} className="text-g400 shrink-0" />
           <input
             type="text"
-            placeholder="Site / City..."
+            placeholder="Unit / City..."
             value={siteQuery}
             onChange={e => setSiteQuery(e.target.value)}
             className="bg-transparent border-none outline-none font-sans text-xs text-blk w-full placeholder:text-g400"

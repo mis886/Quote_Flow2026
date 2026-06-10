@@ -435,6 +435,7 @@ function CustomerDetail({ stats, allFollowups }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type SortKey = 'pipeline' | 'winrate' | 'enqs';
+type BoardView = 'customers' | 'quotations';
 
 export function IntelligenceBoard() {
   const { data } = useAppStore();
@@ -443,6 +444,7 @@ export function IntelligenceBoard() {
   const [unlocked, setUnlocked] = useState(() =>
     !pin || sessionStorage.getItem('intel_unlocked') === '1'
   );
+  const [boardView, setBoardView] = useState<BoardView>('customers');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('pipeline');
   const [selId, setSelId] = useState<string | null>(null);
@@ -491,15 +493,38 @@ export function IntelligenceBoard() {
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Page header */}
-      <div className="px-5 pt-4 pb-3 border-b border-g200 bg-white shrink-0">
-        <div className="font-mono text-[9px] font-bold tracking-[3px] uppercase text-red-mrt mb-0.5">Analytics</div>
-        <h1 className="font-serif text-[20px] text-blk tracking-tight leading-tight">
-          Customer <em className="italic text-red-mrt">Intel Board</em>
-        </h1>
+      <div className="px-5 pt-4 pb-3 border-b border-g200 bg-white shrink-0 flex items-end justify-between">
+        <div>
+          <div className="font-mono text-[9px] font-bold tracking-[3px] uppercase text-red-mrt mb-0.5">Analytics</div>
+          <h1 className="font-serif text-[20px] text-blk tracking-tight leading-tight">
+            Customer <em className="italic text-red-mrt">Intel Board</em>
+          </h1>
+        </div>
+        {/* View toggle */}
+        <div className="flex gap-0.5 bg-g100 rounded-[3px] p-0.5 mb-0.5">
+          {([['customers', 'By Customer'], ['quotations', 'All Quotations']] as [BoardView, string][]).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setBoardView(v)}
+              className={cn(
+                'px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[2px] transition-colors',
+                boardView === v ? 'bg-white text-blk shadow-sm' : 'text-g500 hover:text-blk'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Two-panel board */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* All Quotations view */}
+      {boardView === 'quotations' && (
+        <AllQuotationsView quotes={data.quotes} customers={data.customers} units={data.units} />
+      )}
+
+      {/* Two-panel board — Customer view */}
+      {boardView === 'customers' && <div className="flex flex-1 overflow-hidden">
 
         {/* ── Left: ranked customer list ── */}
         <div className="w-[300px] min-w-[300px] bg-white border-r border-g200 flex flex-col">
@@ -583,6 +608,155 @@ export function IntelligenceBoard() {
             Select a customer to view analytics
           </div>
         )}
+      </div>}
+    </div>
+  );
+}
+
+// ── All Quotations view ───────────────────────────────────────────────────────
+
+function AllQuotationsView({
+  quotes,
+  customers,
+  units,
+}: {
+  quotes: Quote[];
+  customers: Customer[];
+  units: import('../lib/types').CompanyUnit[];
+}) {
+  const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return quotes
+      .filter(qt => !q || qt.cust.toLowerCase().includes(q) || qt.id.toLowerCase().includes(q))
+      .filter(qt => statusFilter === 'All' || qt.status === statusFilter)
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  }, [quotes, search, statusFilter]);
+
+  // Group by customer
+  const groups = useMemo(() => {
+    const map = new Map<string, Quote[]>();
+    for (const qt of filtered) {
+      const existing = map.get(qt.cust);
+      if (existing) existing.push(qt);
+      else map.set(qt.cust, [qt]);
+    }
+    return Array.from(map.entries()).map(([cust, qs]) => ({ cust, qs }));
+  }, [filtered]);
+
+  return (
+    <div className="flex-1 overflow-hidden flex flex-col bg-cream">
+      {/* Toolbar */}
+      <div className="bg-white border-b border-g200 px-5 py-2.5 flex items-center gap-3 shrink-0">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search customer or quote…"
+          className="w-60 text-[11.5px] bg-g50 border border-g200 rounded-[3px] px-2.5 py-1.5 outline-none focus:border-g400 placeholder:text-g400"
+        />
+        <div className="flex gap-1">
+          {['All', 'Draft', 'Sent', 'Won', 'Lost', 'Parked'].map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                'px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-full border transition-colors',
+                statusFilter === s
+                  ? 'bg-g800 text-white border-g800'
+                  : 'bg-white text-g500 border-g200 hover:border-g400'
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto text-[10px] text-g400 font-mono">{filtered.length} quotes · {groups.length} customers</span>
+      </div>
+
+      {/* Groups */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {groups.length === 0 && (
+          <div className="text-center py-16 text-[13px] text-g400 italic">No quotations match</div>
+        )}
+        {groups.map(({ cust, qs }) => {
+          const custRec = customers.find(c => c.name === cust);
+          const primarySite = custRec?.sites?.find(s => s.isPrimary) ?? custRec?.sites?.[0];
+          const unitRec = qs[0]?.unitId ? units.find(u => u.id === qs[0].unitId) : units.find(u => u.is_default);
+          const unitLabel = unitRec?.name ?? '';
+          const cityLabel = primarySite?.city ?? primarySite?.state ?? '';
+          const totalValue = qs.reduce((s, q) => s + (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0), 0);
+          const wonCount = qs.filter(q => q.status === 'Won').length;
+
+          return (
+            <div key={cust} className="bg-white border border-g200 rounded-[4px] overflow-hidden">
+              {/* Customer header row */}
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-g50 border-b border-g200">
+                <InitialAvatar name={cust} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-blk leading-tight truncate">{cust}</span>
+                    {cityLabel && (
+                      <span className="flex items-center gap-1 text-[10px] text-g400 shrink-0">
+                        <MapPin size={9} className="shrink-0" />{cityLabel}
+                      </span>
+                    )}
+                    {unitLabel && (
+                      <span className="text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-[3px] shrink-0">
+                        {unitLabel}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 text-right">
+                  <div className="text-[10px] text-g400">{qs.length} quotes · {wonCount} won</div>
+                  <div className="font-mono text-[12px] font-bold text-blk">{fVal(totalValue)}</div>
+                </div>
+              </div>
+
+              {/* Quote rows */}
+              <div className="divide-y divide-g100">
+                {qs.map(q => {
+                  const subTotal = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
+                  const gstTotal = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                  const grand = subTotal + gstTotal;
+                  const desc = (q.items ?? [])[0]?.desc ?? '';
+                  // Per-quote unit
+                  const qUnit = q.unitId ? units.find(u => u.id === q.unitId) : units.find(u => u.is_default);
+                  const qUnitLabel = qUnit?.name ?? '';
+
+                  return (
+                    <div key={q.id} className="flex items-center gap-3 px-4 py-2 hover:bg-g50 transition-colors">
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
+                      <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
+                      <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
+                      {qUnitLabel && (
+                        <span className="text-[9px] font-mono bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-[3px] shrink-0">
+                          {qUnitLabel}
+                        </span>
+                      )}
+                      <span className="font-mono text-[11px] font-semibold text-blk whitespace-nowrap shrink-0">{fVal(grand)}</span>
+                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
+                      <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yy') : '—'}</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/quotes/new?id=${q.id}`)}
+                        title="Edit quote"
+                        className="w-6 h-6 flex items-center justify-center text-g400 hover:text-red-mrt transition-colors shrink-0"
+                      >
+                        <ExternalLink size={11} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

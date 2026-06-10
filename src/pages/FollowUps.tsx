@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store';
-import { format, isBefore, isToday, parseISO, startOfDay, addDays, addHours } from 'date-fns';
+import { format, isBefore, isToday, parseISO, startOfDay, addDays, addHours, addMinutes } from 'date-fns';
 import {
   Phone,
   Mail,
@@ -67,6 +67,7 @@ function dateKey(d: Date | string): string {
 
 const CHANNEL_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string }> = {
   Called:    { icon: '📞', color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
+  'To Call': { icon: '📲', color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
   WhatsApp:  { icon: '💬', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
   Email:     { icon: '📧', color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-200' },
   Meeting:   { icon: '🤝', color: 'text-purple-700', bg: 'bg-purple-50',  border: 'border-purple-200' },
@@ -80,8 +81,9 @@ function formatDue(date: string | null | undefined, time?: string | null) {
 }
 
 function groupLogsByDay(logs: FollowUpLog[]) {
+  // newest day first, newest log within each day first
   const groups: { day: string; logs: FollowUpLog[] }[] = [];
-  for (const log of [...logs].reverse()) {
+  for (const log of [...logs].sort((a, b) => b.ts.localeCompare(a.ts))) {
     const day = log.ts.slice(0, 10);
     const last = groups[groups.length - 1];
     if (last && last.day === day) {
@@ -235,10 +237,12 @@ export default function FollowUps() {
 
   const [channel, setChannel] = useState<FollowUpLog['channel']>('Called');
   const [note, setNote] = useState('');
-  const [nextAction, setNextAction] = useState<FollowUpLog['channel']>('Called');
+  const [nextAction, setNextAction] = useState<FollowUpLog['channel']>('To Call');
   const [nextDate, setNextDate] = useState('');
   const [nextTime, setNextTime] = useState('');
   const [nextNote, setNextNote] = useState('');
+  // Explicit stage the user is logging activity for — does NOT auto-advance
+  const [stageOverride, setStageOverride] = useState<string>('');
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const applyChip = useCallback((chip: Suggestion) => {
@@ -379,6 +383,14 @@ export default function FollowUps() {
   const todayKey = dateKey(new Date());
 
   const selectedItem = followUpQueue.find(item => item.quote.id === selectedQuoteId) || followUpQueue[0];
+  // Reset stage override when selection changes
+  const prevSelectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedItem?.quote.id !== prevSelectedRef.current) {
+      prevSelectedRef.current = selectedItem?.quote.id ?? null;
+      setStageOverride('');
+    }
+  }, [selectedItem?.quote.id]);
 
   const stats = {
     // Overdue + No Next Step merged into one urgent bucket
@@ -426,11 +438,12 @@ export default function FollowUps() {
     };
 
     try {
-      await addFollowUpLog(selectedQuoteId, newLog, nextDate || null, nextTime || null);
+      await addFollowUpLog(selectedQuoteId, newLog, nextDate || null, nextTime || null, '', stageOverride || null);
       setNote('');
       setNextDate('');
       setNextTime('');
       setNextNote('');
+      // Keep stageOverride so the next log defaults to the same stage
     } catch (err) {
       alert('Failed to log activity. Please ensure followups table exists in Supabase.');
     }
@@ -1229,6 +1242,23 @@ export default function FollowUps() {
                   {/* Scrollable form body */}
                   <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
 
+                    {/* Follow-up Stage — explicit, no auto-advance */}
+                    <div className="space-y-1.5">
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Follow-up Stage</div>
+                      <select
+                        title="Which follow-up stage is this activity for?"
+                        className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                        value={stageOverride || (selectedItem?.followUp?.stage ?? 'Sent Quotation')}
+                        onChange={e => setStageOverride(e.target.value)}
+                      >
+                        <option value="Sent Quotation">Sent Quotation</option>
+                        <option value="Offer Acknowledged">Offer Acknowledged</option>
+                        <option value="1st Follow-up">1st Follow-up</option>
+                        <option value="2nd Follow-up">2nd Follow-up</option>
+                        <option value="Negotiation">Negotiation</option>
+                      </select>
+                    </div>
+
                     {/* Activity Done */}
                     <div className="space-y-1.5">
                       <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Activity Done</div>
@@ -1276,7 +1306,7 @@ export default function FollowUps() {
                         onChange={e => setNextAction(e.target.value as any)}
                       >
                         <option value="">— Action —</option>
-                        <option value="Called">Called</option>
+                        <option value="To Call">To Call</option>
                         <option value="WhatsApp">WhatsApp</option>
                         <option value="Email">Email</option>
                         <option value="Meeting">Meeting</option>
@@ -1285,20 +1315,22 @@ export default function FollowUps() {
                       {/* Quick "remind in" chips — same-day reschedules for no-answer / out-of-coverage */}
                       <div className="flex flex-wrap gap-1.5">
                         {[
+                          { label: '+½ hr', hrs: 0.5 },
+                          { label: '+1 hr', hrs: 1 },
                           { label: '+2 hrs', hrs: 2 },
                           { label: '+3 hrs', hrs: 3 },
-                          { label: '+4 hrs', hrs: 4 },
-                          { label: 'In 1 hr', hrs: 1 },
                         ].map(q => (
                           <button
                             key={q.label}
                             type="button"
                             title={`Remind ${q.label.toLowerCase()} from now`}
                             onClick={() => {
-                              const t = addHours(new Date(), q.hrs);
+                              const t = q.hrs < 1
+                                ? addMinutes(new Date(), Math.round(q.hrs * 60))
+                                : addHours(new Date(), q.hrs);
                               setNextDate(format(t, 'yyyy-MM-dd'));
                               setNextTime(format(t, 'HH:mm'));
-                              if (!nextAction) setNextAction('Called');
+                              if (!nextAction) setNextAction('To Call');
                             }}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
                           >
@@ -1311,6 +1343,7 @@ export default function FollowUps() {
                           onClick={() => {
                             setNextDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
                             setNextTime('09:30');
+                            if (!nextAction) setNextAction('To Call');
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
                         >
