@@ -302,13 +302,18 @@ export function Orders() {
                           </span>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-right font-mono text-[12px] font-bold">{formatINR(grandTotal)}</td>
-                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
+                        {/* <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
                           {o.dlvDate ? (() => {
                             // Colour the due date only while the order is still open:
                             // red = past due, amber = within 7 days, green = safe.
                             const cls = dlvDateClass(o.dlvDate, o.status);
                             return <span className={cls.text} title={cls.title}>{fmtIST(new Date(o.dlvDate), 'dd MMM yyyy')}</span>;
                           })() : <span className="text-g600">--</span>}
+                        </td> */}
+                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
+                          {(o as any).created_at ? (
+                            <span className="text-g600">{fmtIST(new Date((o as any).created_at), 'dd MMM yyyy')}</span>
+                          ) : <span className="text-g600">--</span>}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle"><Badge status={o.status} /></td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>
