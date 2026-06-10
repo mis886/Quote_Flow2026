@@ -6,11 +6,20 @@ import { AttachmentModal } from './AttachmentModal';
 import { AppTour } from './AppTour';
 import { MilestoneConfetti } from './MilestoneConfetti';
 import { useAppStore } from '../store';
+import { DoerIdentityGate } from './DoerIdentityGate';
 import { Loader2 } from 'lucide-react';
 
 export function Layout() {
-  const { loading, attachmentModal, closeAttachmentModal } = useAppStore();
+  const { loading, attachmentModal, closeAttachmentModal, data, user, activeDoer } = useAppStore();
   const { collapsed, setCollapsed } = useSidebarCollapse();
+
+  // Doer identity prompt: active roster rows registered to the logged-in email.
+  // Shown only when this login is on the roster and no doer is chosen yet.
+  const email = user?.email?.toLowerCase();
+  const candidates = email
+    ? data.roster.filter(m => m.active && m.email.toLowerCase() === email)
+    : [];
+  const needsDoer = !loading && !activeDoer && candidates.length > 0;
 
   return (
     <div className="flex w-full h-screen overflow-hidden">
@@ -39,6 +48,7 @@ export function Layout() {
       />
       <AppTour />
       <MilestoneConfetti />
+      {needsDoer && <DoerIdentityGate candidates={candidates} />}
     </div>
   );
 }

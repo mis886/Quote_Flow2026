@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { cn, fmtIST } from '../lib/utils';
 
 export function FollowUpSummary({ quote }: { quote: Quote }) {
-  const { data, user, addFollowUpLog } = useAppStore();
+  const { data, addFollowUpLog, stampName } = useAppStore();
   const followUp = data.followups.find(f => f.quote_id === quote.id);
   const today = startOfDay(new Date());
   const lastLog = followUp?.logs?.[0];
@@ -58,7 +58,7 @@ export function FollowUpSummary({ quote }: { quote: Quote }) {
     try {
       const log: FollowUpLog = {
         ts: new Date().toISOString(),
-        who: user?.email ?? user?.user_metadata?.full_name ?? 'Unknown',
+        who: stampName(),
         channel,
         note: note.trim(),
         nextDate: nextDate || undefined,

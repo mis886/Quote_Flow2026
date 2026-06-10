@@ -416,7 +416,7 @@ export default function FollowUps() {
 
     const newLog: FollowUpLog = {
       ts: new Date().toISOString(),
-      who: user?.email || user?.user_metadata?.full_name || 'Unknown',
+      who: store.stampName(),
       channel,
       note,
       nextDate: nextDate || undefined,
@@ -1246,7 +1246,7 @@ export default function FollowUps() {
                           <option>Visit</option>
                         </select>
                         <div className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12px] text-g600 truncate flex items-center min-w-0">
-                          {user?.user_metadata?.full_name || user?.email || 'Unknown'}
+                          {store.stampName()}
                         </div>
                       </div>
                     </div>

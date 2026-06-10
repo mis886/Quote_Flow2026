@@ -5,6 +5,7 @@ import { hasActiveToken } from '../lib/gmail';
 import { RefreshCw, Save, Plus, Trash2, Check, Landmark, Mail, Star, Lock, Puzzle, RotateCcw, Pencil, X, GitBranch, Users } from 'lucide-react';
 import { UnitsManager } from '../components/UnitsManager';
 import { TeamRosterManager } from '../components/TeamRosterManager';
+import { PinGate } from '../components/PinGate';
 import { BOARD_LANES, DEFAULT_STAGE_TAT_H, DEFAULT_STAGE_ROLE, DOER_ROLES, type BoardLane, type DoerRole } from '../lib/types';
 
 type Tab = 'signatories' | 'units' | 'gmail' | 'intel' | 'integrations' | 'pipeline' | 'roster';
@@ -23,6 +24,15 @@ const inputCls = 'w-full font-sans text-[13px] text-blk bg-white border border-g
 export function Settings() {
   const { data, refreshData, syncGmailEnquiries, addSignatory, updateSignatory, deleteSignatory } = useAppStore();
   const [tab, setTab] = useState<Tab>('signatories');
+  // Admin PIN gate for sensitive tabs (roster / pipeline / integrations).
+  // Reuses intelligence_pin; one unlock covers all three for the session.
+  const adminPin = data.settings?.intelligence_pin ?? '';
+  const [adminUnlocked, setAdminUnlocked] = useState(() =>
+    !adminPin || sessionStorage.getItem('admin_unlocked') === '1'
+  );
+  const handleAdminUnlock = () => { sessionStorage.setItem('admin_unlocked', '1'); setAdminUnlocked(true); };
+  const GATED_TABS: Tab[] = ['roster', 'pipeline', 'integrations'];
+  const tabLocked = GATED_TABS.includes(tab) && !!adminPin && !adminUnlocked;
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -191,6 +201,16 @@ export function Settings() {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
 
+        {/* Admin PIN gate for sensitive tabs */}
+        {tabLocked ? (
+          <PinGate
+            correctPin={adminPin}
+            onUnlock={handleAdminUnlock}
+            title="Admin settings"
+            subtitle="Enter the PIN to manage this section"
+          />
+        ) : (
+        <>
         {/* ── App Tour (always visible) ── */}
         <div className="max-w-3xl mb-6">
           <div className="bg-white border border-g200 rounded-[4px] overflow-hidden">
@@ -521,6 +541,7 @@ export function Settings() {
                 <p className="text-[12px] text-g500 leading-relaxed">
                   Set a PIN to restrict access to the Customer Intel page. Only users who enter the correct PIN can view customer analytics, win rates, and revenue data.
                   Leave blank to allow all logged-in users.
+                  <br /><span className="text-g600 font-medium">This same PIN also guards the Team Roster, Pipeline TAT, and Integrations tabs.</span>
                 </p>
                 <Field label="Access PIN">
                   <input
@@ -590,6 +611,8 @@ export function Settings() {
               </div>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

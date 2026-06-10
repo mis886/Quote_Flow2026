@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { DOER_ROLES, type DoerRole } from '../lib/types';
-import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
+import { sha256 } from '../lib/doerAuth';
+import { Plus, Trash2, Pencil, Check, X, KeyRound } from 'lucide-react';
 
 const inputCls = 'w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] px-3 py-[7px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt transition-shadow';
 
@@ -56,6 +57,18 @@ export function TeamRosterManager() {
   const saveEdit = async (m: typeof roster[number]) => {
     await updateTeamMember(m.email, m.role, { display_name: eName.trim(), active: eActive, aliases: parseAliases(eAliases) });
     setEditKey(null);
+  };
+
+  // Admin sets/clears a doer's identity password. Hashed client-side; the hash
+  // (never the password) is stored on the roster row.
+  const setPasswordFor = async (m: typeof roster[number]) => {
+    const pw = window.prompt(
+      `Set a password for ${m.display_name} (${m.role}).\nLeave blank and OK to REMOVE the password.`,
+      '',
+    );
+    if (pw === null) return; // cancelled
+    const password_hash = pw.trim() ? await sha256(pw.trim()) : '';
+    await updateTeamMember(m.email, m.role, { password_hash });
   };
 
   return (
@@ -139,6 +152,12 @@ export function TeamRosterManager() {
               <td className="px-4 py-2.5 text-[11px] text-g400">{(m.aliases ?? []).length ? (m.aliases ?? []).join(', ') : '—'}</td>
               <td className="px-4 py-2.5 text-[12px]">{m.active ? <span className="text-emerald-600 font-semibold">Yes</span> : <span className="text-g400">No</span>}</td>
               <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                <button
+                  type="button"
+                  title={m.password_hash ? 'Password set — click to change or clear' : 'Set login password'}
+                  onClick={() => setPasswordFor(m)}
+                  className={`p-1.5 rounded transition-colors ${m.password_hash ? 'text-emerald-600 hover:text-emerald-700' : 'text-g400 hover:text-blk'}`}
+                ><KeyRound size={14} /></button>
                 <button type="button" title="Edit" onClick={() => startEdit(m)} className="p-1.5 text-g400 hover:text-blk rounded transition-colors"><Pencil size={14} /></button>
                 <button type="button" title="Remove" onClick={() => { if (confirm(`Remove ${m.display_name} (${m.role}) from the roster?`)) deleteTeamMember(m.email, m.role); }} className="p-1.5 text-g400 hover:text-red-mrt rounded transition-colors"><Trash2 size={14} /></button>
               </td>

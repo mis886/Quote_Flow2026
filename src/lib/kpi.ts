@@ -385,6 +385,21 @@ export interface TimelineRow {
   refId: string;           // quote / enquiry id
   cust: string;
   onTime: boolean | null;  // done: met step deadline?; pending: false = overdue
+  note?: string;           // what happened (log note)
+  nextSummary?: string;    // planned-next: "12 Jun · Email — send revised quote"
+}
+
+// Compose a "planned next" one-liner from a log's next* fields (or a followup's
+// next_date/next_time for pending rows). Returns undefined when nothing planned.
+function nextSummaryOf(parts: { date?: string | null; time?: string | null; channel?: string | null; note?: string | null }): string | undefined {
+  const { date, time, channel, note } = parts;
+  if (!date && !channel && !note) return undefined;
+  const datePart = date
+    ? (() => { try { return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); } catch { return date; } })()
+    : '';
+  const head = [datePart, time].filter(Boolean).join(' ');
+  const lead = [head, channel].filter(Boolean).join(' · ');
+  return note ? (lead ? `${lead} — ${note}` : note) : (lead || undefined);
 }
 
 // Build the done + pending behaviour history for one roster member over a range.
@@ -424,6 +439,8 @@ export function buildDoerTimeline(
         refId: quote.id,
         cust: quote.cust,
         onTime,
+        note: log.note,
+        nextSummary: nextSummaryOf({ date: log.nextDate, time: log.nextTime, channel: log.nextChannel, note: log.nextNote }),
       });
     }
 
@@ -445,6 +462,7 @@ export function buildDoerTimeline(
         refId: quote.id,
         cust: quote.cust,
         onTime: overdue ? false : null, // false = overdue, null = upcoming
+        nextSummary: nextSummaryOf({ date: fu.next_date, time: fu.next_time }),
       });
     }
   }

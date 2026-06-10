@@ -344,6 +344,9 @@ export interface TeamMember {
   // profile name like "Mangla Rubber Technologies A"). Also matched to
   // doer/owner/who so historical data attributes correctly. Lowercased.
   aliases?: string[];
+  // SHA-256 hash of this doer's identity password (set by admin). Empty/absent =
+  // no password required. Never displayed.
+  password_hash?: string;
 }
 
 // Minimal date-range shape used by KPI aggregation (mirrors the store's

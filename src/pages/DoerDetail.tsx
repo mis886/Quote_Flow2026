@@ -180,13 +180,23 @@ export function DoerDetail() {
                   </div>
                   <ul className="space-y-1.5">
                     {dayRows.map((row, i) => (
-                      <li key={i} className="flex items-center gap-3 text-[12px]">
-                        <span className="font-mono text-[10.5px] text-g400 w-[58px] shrink-0">
+                      <li key={i} className="flex gap-3 text-[12px]">
+                        <span className="font-mono text-[10.5px] text-g400 w-[58px] shrink-0 pt-0.5">
                           {fmtIST(new Date(row.ts), 'hh:mm a')}
                         </span>
-                        <StatusBadge row={row} />
-                        <span className="text-g700 truncate">{row.activity}</span>
-                        <span className="text-g400 truncate hidden sm:inline">· {row.cust}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge row={row} />
+                            <span className="text-g700 truncate">{row.activity}</span>
+                            <span className="text-g400 truncate hidden sm:inline">· {row.cust}</span>
+                          </div>
+                          {row.note && <div className="text-[11px] text-g500 mt-0.5 leading-snug">{row.note}</div>}
+                          {row.nextSummary && (
+                            <div className="text-[10.5px] text-red-mrt/80 mt-0.5 leading-snug">
+                              <span className="font-semibold">next:</span> {row.nextSummary}
+                            </div>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

@@ -478,7 +478,7 @@ function CloseDialog({ card, onCancel, onPick }: { card: BoardCard; onCancel: ()
 
 // Right-side slide-over: contact strip + activity history + inline log form.
 function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose: () => void; onCreateQuote: () => void }) {
-  const { data, user, addFollowUpLog, closeFollowUp, openAttachmentModal } = useAppStore();
+  const { data, addFollowUpLog, closeFollowUp, openAttachmentModal, stampName } = useAppStore();
   const [markingOutcome, setMarkingOutcome] = useState<null | 'Won' | 'Lost'>(null);
   const isEnquiry = card.kind === 'enquiry';
 
@@ -536,7 +536,7 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
     try {
       const log: FollowUpLog = {
         ts: new Date().toISOString(),
-        who: user?.email ?? user?.user_metadata?.full_name ?? 'Unknown',
+        who: stampName(),
         channel,
         note: note.trim(),
         nextDate: nextDate || undefined,

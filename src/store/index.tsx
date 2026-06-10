@@ -12,6 +12,14 @@ export interface GlobalDateRange {
   preset: 'today' | 'yesterday' | 'last-7-days' | 'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'custom';
 }
 
+// The person identified after login (one Google login may be shared by several
+// doers). Their display_name is what gets stamped on records this session.
+export interface ActiveDoer {
+  email: string;
+  display_name: string;
+  role: DoerRole;
+}
+
 interface AppContextType {
   data: DataStore;
   loading: boolean;
@@ -44,6 +52,12 @@ interface AppContextType {
   updateTeamMember: (email: string, role: DoerRole, updates: Partial<TeamMember>) => Promise<void>;
   deleteTeamMember: (email: string, role: DoerRole) => Promise<void>;
   roleForDoer: (nameOrEmail?: string | null) => DoerRole[];
+  // Active doer (post-login identity on a possibly-shared Google login).
+  activeDoer: ActiveDoer | null;
+  setActiveDoer: (d: ActiveDoer | null) => void;
+  clearActiveDoer: () => void;
+  // The name to stamp on records this session: active doer's name, else email.
+  stampName: () => string;
   globalSearchQuery: string;
   setGlobalSearchQuery: (query: string) => void;
   globalDateRange: GlobalDateRange | null;
@@ -78,6 +92,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [activeDoer, setActiveDoerState] = useState<ActiveDoer | null>(() => {
+    try { const s = sessionStorage.getItem('active_doer'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [detailPanel, setDetailPanel] = useState<{ type: 'enquiry' | 'quote' | 'order' | null, id: string | null }>({ type: null, id: null });
   const [attachmentModal, setAttachmentModal] = useState<{ type: 'enquiry' | 'quote' | 'order' | null, id: string | null }>({ type: null, id: null });
@@ -597,7 +614,7 @@ const mapEnquiryToDB = (e: any) => {
       const newFollowUp = {
         id: quoteId,
         quote_id: quoteId,
-        owner: owner || user?.email || user?.user_metadata?.full_name || 'Unknown',
+        owner: owner || stampName(),
         next_date: nextDate,
         next_time: nextTime,
         status: 'open' as const,
@@ -704,7 +721,7 @@ const mapEnquiryToDB = (e: any) => {
       const row = {
         id: quoteId,
         quote_id: quoteId,
-        owner: user?.email || user?.user_metadata?.full_name || 'Unknown',
+        owner: stampName(),
         next_date: null,
         next_time: null,
         logs: [],
@@ -860,6 +877,20 @@ const mapEnquiryToDB = (e: any) => {
         (m.aliases ?? []).some(a => a.trim().toLowerCase() === key))
       .map(m => m.role);
   };
+
+  // ── Active doer (post-login identity) ────────────────────────────
+  const setActiveDoer = (d: ActiveDoer | null) => {
+    setActiveDoerState(d);
+    try {
+      if (d) sessionStorage.setItem('active_doer', JSON.stringify(d));
+      else sessionStorage.removeItem('active_doer');
+    } catch { /* sessionStorage unavailable — keep in-memory only */ }
+  };
+  const clearActiveDoer = () => setActiveDoer(null);
+
+  // Name stamped on records this session: the identified doer, else the login.
+  const stampName = (): string =>
+    activeDoer?.display_name || user?.email || user?.user_metadata?.full_name || 'Unknown';
 
   const addUnit = async (u: CompanyUnit) => {
     // Strip undefined keys so Supabase doesn't reject them; coerce empties to null
@@ -1048,6 +1079,10 @@ const mapEnquiryToDB = (e: any) => {
         updateTeamMember,
         deleteTeamMember,
         roleForDoer,
+        activeDoer,
+        setActiveDoer,
+        clearActiveDoer,
+        stampName,
         addUnit,
         updateUnit,
         deleteUnit,

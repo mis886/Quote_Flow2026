@@ -14,7 +14,7 @@ export function NewEnquiry() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id');
-  const { data, addEnquiry, updateEnquiry, addCustomer, user } = useAppStore();
+  const { data, addEnquiry, updateEnquiry, addCustomer, stampName } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
 
   // ── Unsaved-changes guard ──
@@ -306,7 +306,7 @@ export function NewEnquiry() {
         urg: urgency,
         status: editId ? (data.enquiries.find(x => x.id === editId)?.status || 'New') : 'New',
         assigned,
-        doer: editId ? (data.enquiries.find(x => x.id === editId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
+        doer: editId ? (data.enquiries.find(x => x.id === editId)?.doer) : stampName(),
         notes,
         ageH: editId ? (data.enquiries.find(x => x.id === editId)?.ageH || 0) : 0,
         qRef: editId ? (data.enquiries.find(x => x.id === editId)?.qRef || null) : null,

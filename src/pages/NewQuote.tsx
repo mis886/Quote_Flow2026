@@ -30,11 +30,11 @@ const defaultTnc = (): TncState => ({
 const selectCls = "w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'10\\' height=\\'6\\'%3E%3Cpath d=\\'M1 1l4 4 4-4\\' stroke=\\'%23888\\' stroke-width=\\'1.5\\' fill=\\'none\\' stroke-linecap=\\'round\\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt";
 
 export function NewQuote() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const enqRef = searchParams.get('enqRef');
   const editId = searchParams.get('id');
   const navigate = useNavigate();
-  const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory, user } = useAppStore();
+  const { data, addQuote, updateQuote, updateEnquiry, addCustomer, addSignatory, stampName } = useAppStore();
 
   // Linked enquiry reference. Seeded from the URL when converting an enquiry,
   // and re-hydrated from the saved quote when editing — so editing never wipes
@@ -120,11 +120,14 @@ export function NewQuote() {
     if (def) { setAuthName(def.name); setAuthDesignation(def.designation); setAuthPhone(def.phone); setSelectedSigId(def.id); }
   }, [data.signatories, editId, enqRef]);
 
-  // Load / init — runs once only to avoid wiping unsaved changes on store updates
-  const initDone = useRef(false);
+  // Load / init — runs once per target (editId/enqRef) to avoid wiping unsaved
+  // changes on store updates, but re-runs when the target changes (e.g. the
+  // duplicate dialog switches this page into editing the existing quote).
+  const initedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (initDone.current) return;
-    initDone.current = true;
+    const target = editId ? `id:${editId}` : enqRef ? `enq:${enqRef}` : 'new';
+    if (initedFor.current === target) return;
+    initedFor.current = target;
     if (editId) {
       const q = data.quotes.find(x => x.id === editId);
       if (q) {
@@ -169,7 +172,7 @@ export function NewQuote() {
       setItems([{ seq: 1, desc: '', mat: '', hsn: '40169930', qty: 1, uom: 'pcs', unitPrice: 0, gst: 18, total: 0 }]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editId, enqRef]);
 
   // Auto-load default unit
   useEffect(() => {
@@ -380,7 +383,7 @@ export function NewQuote() {
     unitId: unitId || undefined,
     custEnquiryDocNo: custEnquiryDocNo.trim() || undefined,
     // Preserve original doer on edit; stamp submitter email on new
-    doer: editId ? (data.quotes.find(q => q.id === editId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
+    doer: editId ? (data.quotes.find(q => q.id === editId)?.doer) : stampName(),
   });
 
   // Persist the quote (without PDF). Returns the qData used, so callers can
@@ -493,7 +496,14 @@ export function NewQuote() {
             </div>
           </div>
           <div className="flex gap-2 mt-5">
-            <Button variant="primary" onClick={() => navigate(`/quotes/new?id=${dupQuoteAlert.existingId}`)} className="flex-1">
+            <Button variant="primary" onClick={() => {
+              // Switch this same mounted page into edit mode for the existing quote.
+              // Clear the alert and change the id param; the load effect keys on
+              // editId and re-runs to hydrate the existing quote.
+              const id = dupQuoteAlert.existingId;
+              setDupQuoteAlert(null);
+              setSearchParams({ id });
+            }} className="flex-1">
               Edit {dupQuoteAlert.existingId}
             </Button>
             <Button variant="secondary" onClick={() => {

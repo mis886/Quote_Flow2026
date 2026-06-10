@@ -31,11 +31,11 @@ const OPTIONAL_TNC_CLAUSES = [
 const selectCls = "w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'10\\' height=\\'6\\'%3E%3Cpath d=\\'M1 1l4 4 4-4\\' stroke=\\'%23888\\' stroke-width=\\'1.5\\' fill=\\'none\\' stroke-linecap=\\'round\\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt";
 
 export function NewOrder() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const quoteRef = searchParams.get('quoteRef');
   const editOrderId = searchParams.get('orderId');
   const navigate = useNavigate();
-  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp, user } = useAppStore();
+  const { data, addOrder, updateOrder, updateQuote, addCustomer, addSignatory, closeFollowUp, stampName } = useAppStore();
 
   // Linked quote / enquiry references. Seeded from the URL when converting a
   // quote, and re-hydrated from the saved order when editing — so editing never
@@ -314,7 +314,7 @@ export function NewOrder() {
     hsn: defaultHsn || undefined,
     shipToAddress: shipAddr || undefined,
     // Preserve original doer on edit; stamp submitter email on new
-    doer: editOrderId ? (data.orders.find(o => o.id === editOrderId)?.doer) : (user?.email || user?.user_metadata?.full_name || undefined),
+    doer: editOrderId ? (data.orders.find(o => o.id === editOrderId)?.doer) : stampName(),
     };
   };
 
@@ -440,7 +440,13 @@ export function NewOrder() {
             </div>
           </div>
           <div className="flex gap-2 mt-5">
-            <Button variant="primary" onClick={() => navigate(`/orders/new?orderId=${dupOrderAlert.existingId}`)} className="flex-1">
+            <Button variant="primary" onClick={() => {
+              // Clear the alert and switch this page to edit the existing order.
+              // The hydrate effect keys on editOrderId and re-runs to load it.
+              const id = dupOrderAlert.existingId;
+              setDupOrderAlert(null);
+              setSearchParams({ orderId: id });
+            }} className="flex-1">
               Edit {dupOrderAlert.existingId}
             </Button>
             <Button variant="secondary" onClick={() => {

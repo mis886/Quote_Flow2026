@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, UserCircle2 } from 'lucide-react';
 import { SlaNotificationBell } from './SlaNotificationBell';
 import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../store';
@@ -20,7 +20,7 @@ const PATH_TITLES: Record<string, string> = {
 
 export function Topbar() {
   const location = useLocation();
-  const { globalSearchQuery, setGlobalSearchQuery, syncGmailEnquiries, data } = useAppStore();
+  const { globalSearchQuery, setGlobalSearchQuery, syncGmailEnquiries, data, activeDoer, clearActiveDoer } = useAppStore();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const basePath = '/' + location.pathname.split('/')[1];
@@ -70,6 +70,20 @@ export function Topbar() {
         >
           <RefreshCw size={11} className={isSyncing ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">{isSyncing ? 'Syncing…' : lastSync ? `Synced ${lastSync}` : 'Sync Gmail'}</span>
+        </button>
+      )}
+
+      {/* Active doer — who is being credited; click to switch on shared terminals */}
+      {activeDoer && (
+        <button
+          type="button"
+          onClick={clearActiveDoer}
+          title={`Working as ${activeDoer.display_name} (${activeDoer.role}) — click to switch doer`}
+          className="h-[30px] flex items-center gap-1.5 px-2.5 rounded-[5px] border border-g200 bg-g100 text-[11px] font-medium text-g600 hover:bg-g200 transition-colors"
+        >
+          <UserCircle2 size={13} className="text-red-mrt shrink-0" />
+          <span className="hidden md:inline max-w-[120px] truncate">{activeDoer.display_name}</span>
+          <span className="text-g400 hidden lg:inline">· switch</span>
         </button>
       )}
 
