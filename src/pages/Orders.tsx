@@ -22,6 +22,16 @@ function dlvDateClass(dlvDate: string, status: string): { text: string; title?: 
   return { text: 'text-emerald-600', title: `Due in ${days} day(s)` };
 }
 
+// Colour "Punched At" by recency: today = green, within 7 days = amber, older = neutral.
+function punchedAtClass(createdAt: string): { text: string; title?: string } {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const punched = new Date(createdAt); punched.setHours(0, 0, 0, 0);
+  const days = Math.round((now.getTime() - punched.getTime()) / 86400000);
+  if (days === 0) return { text: 'text-emerald-600 font-semibold', title: 'Punched today' };
+  if (days <= 7) return { text: 'text-amber-600 font-semibold', title: `${days} day(s) ago` };
+  return { text: 'text-g600' };
+}
+
 export function Orders() {
   const store = useAppStore();
   const { data, user, globalSearchQuery, setGlobalSearchQuery, updateOrder, openAttachmentModal } = store;
@@ -32,7 +42,7 @@ export function Orders() {
   const [downloadingPOId, setDownloadingPOId] = useState<string | null>(null);
   const [siteQuery, setSiteQuery] = useState('');
   const [siteDebounced, setSiteDebounced] = useState('');
-  const [sortCol, setSortCol] = useState('poDate');
+  const [sortCol, setSortCol] = useState('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
@@ -312,9 +322,10 @@ export function Orders() {
                           })() : <span className="text-g600">--</span>}
                         </td> */}
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
-                          {(o as any).created_at ? (
-                            <span className="text-g600">{fmtIST(new Date((o as any).created_at), 'dd MMM yyyy')}</span>
-                          ) : <span className="text-g600">--</span>}
+                          {(o as any).created_at ? (() => {
+                            const cls = punchedAtClass((o as any).created_at);
+                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date((o as any).created_at), 'dd MMM yyyy')}</span>;
+                          })() : <span className="text-g600">--</span>}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle"><Badge status={o.status} /></td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>

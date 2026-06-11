@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail, MessageCircle, MapPin, Star, ChevronRight, ExternalLink, FileText, Paperclip } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Customer, Contact, CustomerTier, Quote, Order, Enquiry, FollowUpLog } from '../lib/types';
@@ -440,11 +440,15 @@ type BoardView = 'customers' | 'quotations';
 export function IntelligenceBoard() {
   const { data } = useAppStore();
   const pin = data.settings?.intelligence_pin ?? '';
+  const [searchParams] = useSearchParams();
+  const custParam = searchParams.get('customer') ?? '';
 
   const [unlocked, setUnlocked] = useState(() =>
     !pin || sessionStorage.getItem('intel_unlocked') === '1'
   );
-  const [boardView, setBoardView] = useState<BoardView>('customers');
+  // If navigated from dashboard with ?customer=X, open All Quotations pre-filtered
+  const [boardView, setBoardView] = useState<BoardView>(custParam ? 'quotations' : 'customers');
+  const [quotationSearch, setQuotationSearch] = useState(custParam);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('pipeline');
   const [selId, setSelId] = useState<string | null>(null);
@@ -468,6 +472,14 @@ export function IntelligenceBoard() {
       setSelId(filtered[0].customer.id);
     }
   }, [filtered]);
+
+  // Sync ?customer= param changes (e.g. back/forward nav)
+  useEffect(() => {
+    if (custParam) {
+      setBoardView('quotations');
+      setQuotationSearch(custParam);
+    }
+  }, [custParam]);
 
   const selectedStats = filtered.find(s => s.customer.id === selId) ?? filtered[0] ?? null;
 
@@ -520,7 +532,7 @@ export function IntelligenceBoard() {
 
       {/* All Quotations view */}
       {boardView === 'quotations' && (
-        <AllQuotationsView quotes={data.quotes} customers={data.customers} />
+        <AllQuotationsView quotes={data.quotes} customers={data.customers} initialSearch={quotationSearch} />
       )}
 
       {/* Two-panel board — Customer view */}
@@ -618,13 +630,24 @@ export function IntelligenceBoard() {
 function AllQuotationsView({
   quotes,
   customers,
+  initialSearch = '',
 }: {
   quotes: Quote[];
   customers: Customer[];
+  initialSearch?: string;
 }) {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+
+  // If caller changes initialSearch (e.g. dashboard click), sync it in
+  const prevInitial = React.useRef(initialSearch);
+  React.useEffect(() => {
+    if (initialSearch !== prevInitial.current) {
+      prevInitial.current = initialSearch;
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -634,16 +657,17 @@ function AllQuotationsView({
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   }, [quotes, search, statusFilter]);
 
-  // Group by customer + site (unit) — key = "custName||siteId"
+  // Group by customer only — site/unit shown per quote row
   const groups = useMemo(() => {
-    const map = new Map<string, { cust: string; siteId: string | undefined; qs: Quote[] }>();
+    const map = new Map<string, Quote[]>();
     for (const qt of filtered) {
-      const key = `${qt.cust}||${qt.siteId ?? ''}`;
-      const existing = map.get(key);
-      if (existing) existing.qs.push(qt);
-      else map.set(key, { cust: qt.cust, siteId: qt.siteId, qs: [qt] });
+      const existing = map.get(qt.cust);
+      if (existing) existing.push(qt);
+      else map.set(qt.cust, [qt]);
     }
-    return Array.from(map.values()).sort((a, b) => a.cust.localeCompare(b.cust));
+    return Array.from(map.entries())
+      .map(([cust, qs]) => ({ cust, qs }))
+      .sort((a, b) => a.cust.localeCompare(b.cust));
   }, [filtered]);
 
   return (
@@ -682,39 +706,25 @@ function AllQuotationsView({
         {groups.length === 0 && (
           <div className="text-center py-16 text-[13px] text-g400 italic">No quotations match</div>
         )}
-        {groups.map(({ cust, siteId: grpSiteId, qs }) => {
+        {groups.map(({ cust, qs }) => {
           const custRec = customers.find(c => c.name === cust);
-          const site = grpSiteId
-            ? custRec?.sites?.find(s => s.id === grpSiteId)
-            : custRec?.sites?.find(s => s.isPrimary) ?? custRec?.sites?.[0];
-          // "Customer Name - Unit Name (City)" header
-          const unitName = site?.name && site.name !== cust ? site.name : '';
-          const cityLabel = site?.city ?? site?.state ?? '';
-          const unitDisplay = [unitName, cityLabel].filter(Boolean).join(', ');
+          const primarySite = custRec?.sites?.find(s => s.isPrimary) ?? custRec?.sites?.[0];
+          const cityLabel = primarySite?.city ?? primarySite?.state ?? '';
           const totalValue = qs.reduce((s, q) => s + (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0), 0);
           const wonCount = qs.filter(q => q.status === 'Won').length;
-          const groupKey = `${cust}||${grpSiteId ?? ''}`;
 
           return (
-            <div key={groupKey} className="bg-white border border-g200 rounded-[4px] overflow-hidden">
-              {/* Group header: Customer Name — Unit (City) */}
+            <div key={cust} className="bg-white border border-g200 rounded-[4px] overflow-hidden">
+              {/* Group header: Customer Name · City */}
               <div className="flex items-center gap-3 px-4 py-2.5 bg-g50 border-b border-g200">
                 <InitialAvatar name={cust} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-semibold text-blk leading-tight">{cust}</span>
-                    {unitDisplay && (
-                      <>
-                        <span className="text-g300 text-[11px]">—</span>
-                        <span className="flex items-center gap-1 text-[11px] text-blue-700 font-medium shrink-0">
-                          <MapPin size={10} className="text-blue-400 shrink-0" />{unitDisplay}
-                        </span>
-                      </>
-                    )}
-                    {!unitDisplay && cityLabel === '' && (
-                      <span className="text-[10px] text-g400 italic">No unit info</span>
-                    )}
-                  </div>
+                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                  <span className="text-[13px] font-semibold text-blk leading-tight">{cust}</span>
+                  {cityLabel && (
+                    <span className="flex items-center gap-1 text-[10px] text-g400 shrink-0">
+                      <MapPin size={9} className="shrink-0" />{cityLabel}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0 text-right">
                   <div className="text-[10px] text-g400">{qs.length} quote{qs.length !== 1 ? 's' : ''} · {wonCount} won</div>
@@ -722,19 +732,28 @@ function AllQuotationsView({
                 </div>
               </div>
 
-              {/* Quote rows */}
+              {/* Quote rows — unit/site shown inline per row */}
               <div className="divide-y divide-g100">
                 {qs.map(q => {
                   const subTotal = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
                   const gstTotal = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
                   const grand = subTotal + gstTotal;
                   const desc = (q.items ?? [])[0]?.desc ?? '';
+                  const qSite = q.siteId ? custRec?.sites?.find(s => s.id === q.siteId) : null;
+                  const qSiteLabel = qSite
+                    ? [qSite.name && qSite.name !== cust ? qSite.name : '', qSite.city].filter(Boolean).join(', ')
+                    : '';
 
                   return (
                     <div key={q.id} className="flex items-center gap-3 px-4 py-2 hover:bg-g50 transition-colors">
                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
                       <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
-                      <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
+                      <span className="text-[11px] text-g500 flex-1 truncate min-w-0">{desc || '—'}</span>
+                      {qSiteLabel && (
+                        <span className="flex items-center gap-1 text-[9.5px] text-blue-600 font-medium shrink-0 whitespace-nowrap">
+                          <MapPin size={9} className="text-blue-400 shrink-0" />{qSiteLabel}
+                        </span>
+                      )}
                       <span className="font-mono text-[11px] font-semibold text-blk whitespace-nowrap shrink-0">{fVal(grand)}</span>
                       <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
                       <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yy') : '—'}</span>

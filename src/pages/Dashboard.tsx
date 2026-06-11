@@ -424,12 +424,13 @@ export function Dashboard() {
       });
     });
 
-    // Orders placed this week
+    // Orders punched this week (use created_at — the system punch timestamp)
     data.orders.forEach(o => {
-      if (!inThisWeek(o.poDate)) return;
+      const punchedAt = (o as any).created_at;
+      if (!inThisWeek(punchedAt)) return;
       const val = o.items.reduce((s, i) => s + (i.total || 0), 0);
       items.push({
-        ts: o.poDate!,
+        ts: punchedAt,
         type: 'order',
         who: 'Team',
         title: `Order ${o.id} received from ${o.cust}`,
@@ -1131,6 +1132,41 @@ export function Dashboard() {
                 </div>
               </div>
 
+              {/* Open Quote Value By Customer */}
+              <div className="bg-white border border-g200 p-[16px] rounded-[6px] shadow-sm hover:shadow transition-shadow">
+                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 mb-3">Open Quote Value By Customer</div>
+                <div className="space-y-2.5">
+                  {openCustData.length > 0 ? openCustData.map((c, i) => {
+                    const pct = Math.round((c.val / maxOpenCustVal) * 100);
+                    const barColors = ['#D42027','#7C3AED','#2563EB','#059669','#d97706'];
+                    const col = barColors[i % barColors.length];
+                    return (
+                      <button
+                        key={c.cust}
+                        type="button"
+                        title={`View all open quotes for ${c.cust}`}
+                        onClick={() => navigate(`/intelligence?customer=${encodeURIComponent(c.cust)}`)}
+                        className="w-full text-left group cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-[11.5px] font-semibold text-blk truncate max-w-[130px] group-hover:text-red-mrt transition-colors">{c.cust}</div>
+                          <div className="font-mono text-[11px] font-bold text-blk whitespace-nowrap">{formatINR(c.val)}</div>
+                        </div>
+                        <div className="h-[8px] bg-g100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500 group-hover:opacity-80" style={{ width: `${pct}%`, backgroundColor: col }} />
+                        </div>
+                      </button>
+                    );
+                  }) : (
+                    <div className="text-[12px] text-g400 text-center mt-8 italic">No quotes awaiting PO.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom 2 panels */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+
               {/* Recent Enquiries */}
               <div className="bg-white border border-g200 rounded-[6px] overflow-hidden shadow-sm hover:shadow transition-shadow">
                 <div className="p-[10px_16px] border-b border-g200 flex items-center justify-between">
@@ -1147,7 +1183,7 @@ export function Dashboard() {
                         <div className="font-bold text-[13px] truncate">{e.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <span className="font-normal text-g400"> — {sl}</span> : null; })()}</div>
                       </div>
                       <div className="flex items-center justify-end shrink-0 w-[190px] gap-2.5">
-                        <span className="font-mono text-[10px] text-g400 bg-g50">{e.items.length} items</span> {/*border border-g200 px-1.5 py-0.5 rounded-full*/}
+                        <span className="font-mono text-[10px] text-g400 bg-g50">{e.items.length} items</span>
                         <div className="w-[68px] flex justify-center">
                           <Badge status={e.status} />
                         </div>
@@ -1159,10 +1195,6 @@ export function Dashboard() {
                   ))}
                 </div>
               </div>
-            </div>
-
-            {/* Bottom 3 panels */}
-            <div className="grid grid-cols-3 gap-3 mb-3">
 
               {/* Recent Quotations */}
               <div className="bg-white border border-g200 rounded-[6px] overflow-hidden shadow-sm hover:shadow transition-shadow">
@@ -1197,41 +1229,6 @@ export function Dashboard() {
                     })}
                   </>
                 )}
-              </div>
-
-              {/* Enquiry Sources — donut pie chart */}
-              <div className="bg-white border border-g200 p-[16px] rounded-[6px] shadow-sm hover:shadow transition-shadow">
-                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 mb-3">Enquiry Sources</div>
-                {totalSources === 0 ? (
-                  <div className="text-[12px] text-g400 text-center mt-6 italic">No enquiries yet.</div>
-                ) : (
-                  <SourcePieChart data={sourceCounts} total={totalSources} />
-                )}
-              </div>
-
-              {/* Open Quote Pipeline By Customer */}
-              <div className="bg-white border border-g200 p-[16px] rounded-[6px] shadow-sm hover:shadow transition-shadow">
-                <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-g500 mb-3">Open Quote Value By Customer</div>
-                <div className="space-y-2.5">
-                  {openCustData.length > 0 ? openCustData.map((c, i) => {
-                    const pct = Math.round((c.val / maxOpenCustVal) * 100);
-                    const barColors = ['#D42027','#7C3AED','#2563EB','#059669','#d97706'];
-                    const col = barColors[i % barColors.length];
-                    return (
-                      <div key={c.cust}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-[11.5px] font-semibold text-blk truncate max-w-[130px]">{c.cust}</div>
-                          <div className="font-mono text-[11px] font-bold text-blk whitespace-nowrap">{formatINR(c.val)}</div>
-                        </div>
-                        <div className="h-[8px] bg-g100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: col }} />
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div className="text-[12px] text-g400 text-center mt-8 italic">No quotes awaiting PO.</div>
-                  )}
-                </div>
               </div>
 
             </div>
