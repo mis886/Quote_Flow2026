@@ -123,8 +123,16 @@ export function Dashboard() {
     return true;
   };
 
+  // A quote counts as "sent" once it has left Draft — i.e. it reached the
+  // customer. Won/Lost quotes were necessarily sent first, so they're included;
+  // Draft/Parked are not. This keeps "Quotes Sent" consistent with the pipeline
+  // (Sent + Won + Lost) instead of counting unsent drafts.
+  const wasSent = (q: { status: string }) => q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost';
+
   // Quotes in current period — kept for display values; trends are now shown via rotating sub-text.
   const quotesInPeriod = data.quotes.filter(q => isWithinCurrentPeriod(q.date));
+  // Subset that has actually been sent — drives the "Quotes Sent" KPI.
+  const sentQuotesInPeriod = quotesInPeriod.filter(wasSent);
   const quoteValInPeriod = quotesInPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
   const wonQuotesInPeriod = quotesInPeriod.filter(q => q.status === 'Won');
   const q2oRate = quotesInPeriod.length ? Math.round((wonQuotesInPeriod.length / quotesInPeriod.length) * 100) : 0;
@@ -165,10 +173,10 @@ export function Dashboard() {
 
   // ── Per-KPI week / month deltas ────────────────────────────────────────────
   // Quotes sent
-  const quotesLast7  = data.quotes.filter(q => inLast(q.date, 7)).length;
-  const quotesPrev7  = data.quotes.filter(q => inPrevWindow(q.date, 7)).length;
-  const quotesLast30 = data.quotes.filter(q => inLast(q.date, 30)).length;
-  const quotesPrev30 = data.quotes.filter(q => inPrevWindow(q.date, 30)).length;
+  const quotesLast7  = data.quotes.filter(q => wasSent(q) && inLast(q.date, 7)).length;
+  const quotesPrev7  = data.quotes.filter(q => wasSent(q) && inPrevWindow(q.date, 7)).length;
+  const quotesLast30 = data.quotes.filter(q => wasSent(q) && inLast(q.date, 30)).length;
+  const quotesPrev30 = data.quotes.filter(q => wasSent(q) && inPrevWindow(q.date, 30)).length;
   const quotesSentWeekDelta  = quotesLast7  - quotesPrev7;
   const quotesSentMonthDelta = quotesLast30 - quotesPrev30;
 
@@ -356,9 +364,9 @@ export function Dashboard() {
     if (unlinked.length > 0)
       tips.push(`${unlinked.length} enquir${unlinked.length === 1 ? 'y' : 'ies'} not yet linked to a quote`);
     if (tips.length === 0)
-      tips.push(`${quotesInPeriod.length} quotes sent this period — on track`);
+      tips.push(`${sentQuotesInPeriod.length} quotes sent this period — on track`);
     return tips.slice(0, 3);
-  }, [data.quotes, data.enquiries, quotesSentMonthDelta, quotesInPeriod]);
+  }, [data.quotes, data.enquiries, quotesSentMonthDelta, sentQuotesInPeriod]);
 
   const quoteValTips = useMemo((): string[] => {
     const tips: string[] = [];
@@ -1036,7 +1044,7 @@ export function Dashboard() {
           />
           <StatCard
             label="Quotes Sent"
-            value={quotesInPeriod.length.toString()}
+            value={sentQuotesInPeriod.length.toString()}
             subIdx={kpiSubIdx}
             sub={buildSub(
               'Total quotations issued',
