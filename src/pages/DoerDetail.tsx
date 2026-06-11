@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { cn } from '../lib/utils';
@@ -8,7 +8,7 @@ import {
   computeDoerMetrics, doerRowKey, buildDoerTimeline, doerStageWorkload, ROLE_WEIGHTS,
   type DoerMetrics, type TimelineRow, type StageWorkload, type RosterMemberLike,
 } from '../lib/kpi';
-import { ArrowLeft, Clock, Layers, CheckCircle2, XCircle, CircleDashed } from 'lucide-react';
+import { ArrowLeft, Clock, Layers, CheckCircle2, XCircle, CircleDashed, AlertTriangle } from 'lucide-react';
 
 const MS_DAY = 86400000;
 
@@ -87,13 +87,6 @@ export function DoerDetail() {
   const prevM = prev.get(decodedKey);
   const delta = (m.composite != null && prevM?.composite != null) ? m.composite - prevM.composite : null;
 
-  // Group timeline rows by date (already newest-first).
-  const byDate = new Map<string, TimelineRow[]>();
-  for (const row of timeline) {
-    if (!byDate.has(row.date)) byDate.set(row.date, []);
-    byDate.get(row.date)!.push(row);
-  }
-
   return (
     <div className="p-6 lg:p-8 bg-cream min-h-full">
       <button onClick={() => navigate('/doer-kpi')} className="inline-flex items-center gap-1.5 text-[12px] text-g500 hover:text-blk mb-4">
@@ -161,51 +154,8 @@ export function DoerDetail() {
         </div>
       )}
 
-      {/* Behaviour timeline */}
-      <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-g100">
-          <Clock size={15} className="text-g500" />
-          <h2 className="font-mono text-[11px] font-bold tracking-[1.5px] uppercase text-g600">Work History</h2>
-          <span className="text-[10px] text-g400 ml-1">done &amp; overdue, newest first</span>
-        </div>
-        <div className="p-4">
-          {byDate.size === 0 ? (
-            <div className="text-[12px] text-g400 py-6 text-center">No activity in this period.</div>
-          ) : (
-            <div className="space-y-4">
-              {[...byDate.entries()].map(([date, dayRows]) => (
-                <div key={date}>
-                  <div className="font-mono text-[10px] font-bold tracking-[1px] uppercase text-g500 mb-2">
-                    {fmtIST(new Date(date), 'EEE, dd MMM yyyy')}
-                  </div>
-                  <ul className="space-y-1.5">
-                    {dayRows.map((row, i) => (
-                      <li key={i} className="flex gap-3 text-[12px]">
-                        <span className="font-mono text-[10.5px] text-g400 w-[58px] shrink-0 pt-0.5">
-                          {fmtIST(new Date(row.ts), 'hh:mm a')}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <StatusBadge row={row} />
-                            <span className="text-g700 truncate">{row.activity}</span>
-                            <span className="text-g400 truncate hidden sm:inline">· {row.cust}</span>
-                          </div>
-                          {row.note && <div className="text-[11px] text-g500 mt-0.5 leading-snug">{row.note}</div>}
-                          {row.nextSummary && (
-                            <div className="text-[10.5px] text-red-mrt/80 mt-0.5 leading-snug">
-                              <span className="font-semibold">next:</span> {row.nextSummary}
-                            </div>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Work History — tabular */}
+      <WorkHistoryTable timeline={timeline} />
     </div>
   );
 }
@@ -222,18 +172,168 @@ function MetricCard({ label, value, hint, plain }: { label: string; value: strin
   );
 }
 
-function StatusBadge({ row }: { row: TimelineRow }) {
-  if (row.kind === 'pending') {
-    // onTime === false → overdue (past due); null → upcoming (not yet due).
-    return row.onTime === false
-      ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-mrt shrink-0"><XCircle size={12} /> overdue</span>
-      : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 shrink-0"><Clock size={12} /> due</span>;
-  }
-  if (row.onTime === true) {
-    return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 shrink-0"><CheckCircle2 size={12} /> on-time</span>;
-  }
-  if (row.onTime === false) {
-    return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-mrt shrink-0"><XCircle size={12} /> late</span>;
-  }
-  return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-g400 shrink-0"><CircleDashed size={12} /> logged</span>;
+const STATUS_META = {
+  overdue:  { label: 'Overdue',  cls: 'bg-red-50 text-red-700 border-red-200',       icon: <AlertTriangle size={10} /> },
+  late:     { label: 'Late',     cls: 'bg-red-50 text-red-600 border-red-200',        icon: <XCircle size={10} /> },
+  'on-time':{ label: 'On-time',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 size={10} /> },
+  due:      { label: 'Pending',  cls: 'bg-amber-50 text-amber-700 border-amber-200',  icon: <Clock size={10} /> },
+  logged:   { label: 'Logged',   cls: 'bg-g100 text-g500 border-g200',                icon: <CircleDashed size={10} /> },
+};
+
+function rowStatusKey(row: TimelineRow): keyof typeof STATUS_META {
+  if (row.kind === 'pending') return row.onTime === false ? 'overdue' : 'due';
+  if (row.onTime === true)  return 'on-time';
+  if (row.onTime === false) return 'late';
+  return 'logged';
+}
+
+function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+
+  // Summary counts for the banner
+  const counts = useMemo(() => {
+    const c = { ontime: 0, late: 0, overdue: 0, logged: 0 };
+    for (const r of timeline) {
+      const s = rowStatusKey(r);
+      if (s === 'on-time') c.ontime++;
+      else if (s === 'late') c.late++;
+      else if (s === 'overdue') c.overdue++;
+      else c.logged++;
+    }
+    return c;
+  }, [timeline]);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === 'All') return timeline;
+    return timeline.filter(r => {
+      const s = rowStatusKey(r);
+      if (statusFilter === 'Overdue') return s === 'overdue';
+      if (statusFilter === 'Late') return s === 'late';
+      if (statusFilter === 'On-time') return s === 'on-time';
+      if (statusFilter === 'Pending') return s === 'due';
+      return true;
+    });
+  }, [timeline, statusFilter]);
+
+  const totalLate = counts.late + counts.overdue;
+  const lateRate = timeline.length ? Math.round(totalLate / timeline.length * 100) : 0;
+
+  return (
+    <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-g100">
+        <Clock size={15} className="text-g500 shrink-0" />
+        <h2 className="font-mono text-[11px] font-bold tracking-[1.5px] uppercase text-g600">Work History</h2>
+        <span className="text-[10px] text-g400">done &amp; overdue · newest first</span>
+
+        {/* Filter pills */}
+        <div className="flex gap-1 ml-auto flex-wrap">
+          {['All', 'Overdue', 'Late', 'On-time', 'Pending'].map(f => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setStatusFilter(f)}
+              className={cn(
+                'px-2.5 py-0.5 rounded-full border text-[10px] font-semibold transition-colors',
+                statusFilter === f ? 'bg-g800 text-white border-g800' : 'bg-white text-g500 border-g200 hover:border-g400'
+              )}
+            >{f}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary banner */}
+      {timeline.length > 0 && (
+        <div className="grid grid-cols-4 divide-x divide-g100 border-b border-g100 text-center">
+          <div className="px-3 py-2">
+            <div className="text-[18px] font-bold text-emerald-600 leading-tight">{counts.ontime}</div>
+            <div className="text-[9px] font-mono uppercase tracking-wide text-g400 mt-0.5">On-time</div>
+          </div>
+          <div className="px-3 py-2">
+            <div className={cn('text-[18px] font-bold leading-tight', totalLate > 0 ? 'text-red-mrt' : 'text-g300')}>{totalLate}</div>
+            <div className="text-[9px] font-mono uppercase tracking-wide text-g400 mt-0.5">Late / Overdue</div>
+          </div>
+          <div className="px-3 py-2">
+            <div className={cn('text-[18px] font-bold leading-tight', lateRate > 30 ? 'text-red-mrt' : lateRate > 10 ? 'text-amber-600' : 'text-g500')}>
+              {lateRate}%
+            </div>
+            <div className="text-[9px] font-mono uppercase tracking-wide text-g400 mt-0.5">Late Rate</div>
+          </div>
+          <div className="px-3 py-2">
+            <div className="text-[18px] font-bold text-amber-600 leading-tight">{counts.overdue}</div>
+            <div className="text-[9px] font-mono uppercase tracking-wide text-g400 mt-0.5">Pending Overdue</div>
+          </div>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="text-[12px] text-g400 py-10 text-center">No activity in this period.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px] border-collapse">
+            <thead>
+              <tr className="bg-g50 text-g500 font-mono text-[9px] tracking-[1px] uppercase border-b border-g200">
+                <th className="px-3 py-2.5 text-left font-bold w-[120px]">Date & Time</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[90px]">Status</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[80px]">Channel</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[100px]">Quote</th>
+                <th className="px-3 py-2.5 text-left font-bold">Customer</th>
+                <th className="px-3 py-2.5 text-left font-bold">Note</th>
+                <th className="px-3 py-2.5 text-left font-bold">Next Planned</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-g100">
+              {filtered.map((row, i) => {
+                const sKey = rowStatusKey(row);
+                const sm = STATUS_META[sKey];
+                // Stripe overdue/late rows faintly for quick visual scan
+                const rowBg = sKey === 'overdue' ? 'bg-red-50/40' : sKey === 'late' ? 'bg-orange-50/30' : '';
+                return (
+                  <tr key={i} className={cn('hover:bg-g50/60 transition-colors', rowBg)}>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="font-mono text-[10px] font-semibold text-g600">
+                        {fmtIST(new Date(row.ts), 'dd MMM yyyy')}
+                      </div>
+                      <div className="font-mono text-[9.5px] text-g400 mt-0.5">
+                        {fmtIST(new Date(row.ts), 'hh:mm a')}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9.5px] font-semibold whitespace-nowrap', sm.cls)}>
+                        {sm.icon} {sm.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-g600 font-medium whitespace-nowrap">
+                      {row.channel ?? '—'}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="font-mono text-[10px] font-semibold text-red-mrt">{row.refId}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-g700 max-w-[160px] truncate">{row.cust}</td>
+                    <td className="px-3 py-2.5 text-g500 max-w-[220px]">
+                      {row.note
+                        ? <span className="line-clamp-2 leading-snug">{row.note}</span>
+                        : <span className="text-g300 italic">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[180px]">
+                      {row.nextSummary
+                        ? <span className="text-[11px] text-blue-600 leading-snug">{row.nextSummary}</span>
+                        : <span className="text-g300 italic text-[11px]">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Footer count */}
+      {filtered.length > 0 && (
+        <div className="px-4 py-2 border-t border-g100 text-[10px] text-g400">
+          Showing {filtered.length} of {timeline.length} entries
+        </div>
+      )}
+    </div>
+  );
 }
