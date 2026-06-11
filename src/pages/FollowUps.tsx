@@ -1024,46 +1024,6 @@ export default function FollowUps() {
                 ))}
               </div>
 
-              {/* Contacts bar */}
-              {(() => {
-                const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
-                const site = custRec?.sites.find(s => s.id === selectedItem.quote.siteId) ?? custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
-                const contacts = site?.contacts ?? [];
-                if (contacts.length === 0) return null;
-                return (
-                  <div className="flex items-center gap-2 px-6 py-1.5 border-t border-g150 bg-g50 flex-wrap">
-                    {contacts.map(ct => (
-                      <div key={ct.id} className="flex items-center gap-2 bg-white border border-g200 rounded-[3px] px-3 py-1.5 hover:border-g300 hover:shadow-sm transition-all">
-                        <div>
-                          <div className="text-[11.5px] font-semibold text-blk leading-none">{ct.name}</div>
-                          {ct.role && <div className="text-[9px] text-g400 uppercase tracking-wide font-bold mt-0.5">{ct.role}</div>}
-                        </div>
-                        {(ct.phone || ct.email) && <div className="w-px h-5 bg-g200 mx-1" />}
-                        <div className="flex items-center gap-1.5">
-                          {ct.phone && (
-                            <a href={`tel:${ct.phone}`} title={ct.phone}
-                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-                              <Phone size={11} />
-                            </a>
-                          )}
-                          {ct.phone && (
-                            <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" title="WhatsApp"
-                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-                              <MessageCircle size={11} />
-                            </a>
-                          )}
-                          {ct.email && (
-                            <a href={`mailto:${ct.email}`} title={ct.email}
-                              className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
-                              <Mail size={11} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
             </div>
 
             {/* Content: Timeline (left) + Log Activity panel (right) */}
@@ -1071,6 +1031,47 @@ export default function FollowUps() {
 
               {/* Timeline column */}
               <div className="flex-1 overflow-hidden flex flex-col min-w-0 border-r border-g200">
+                {/* Contacts bar — lives in the timeline column (left) so it doesn't
+                    push the Log Activity panel down; panel starts right below the KPIs. */}
+                {(() => {
+                  const custRec = data.customers.find(c => c.name === selectedItem.quote.cust);
+                  const site = custRec?.sites.find(s => s.id === selectedItem.quote.siteId) ?? custRec?.sites.find(s => s.isPrimary) ?? custRec?.sites[0];
+                  const contacts = site?.contacts ?? [];
+                  if (contacts.length === 0) return null;
+                  return (
+                    <div className="shrink-0 flex items-center gap-2 px-6 py-1.5 border-b border-g150 bg-g50 flex-wrap">
+                      {contacts.map(ct => (
+                        <div key={ct.id} className="flex items-center gap-2 bg-white border border-g200 rounded-[3px] px-3 py-1.5 hover:border-g300 hover:shadow-sm transition-all">
+                          <div>
+                            <div className="text-[11.5px] font-semibold text-blk leading-none">{ct.name}</div>
+                            {ct.role && <div className="text-[9px] text-g400 uppercase tracking-wide font-bold mt-0.5">{ct.role}</div>}
+                          </div>
+                          {(ct.phone || ct.email) && <div className="w-px h-5 bg-g200 mx-1" />}
+                          <div className="flex items-center gap-1.5">
+                            {ct.phone && (
+                              <a href={`tel:${ct.phone}`} title={ct.phone}
+                                className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                                <Phone size={11} />
+                              </a>
+                            )}
+                            {ct.phone && (
+                              <a href={`https://wa.me/91${ct.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" title="WhatsApp"
+                                className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                                <MessageCircle size={11} />
+                              </a>
+                            )}
+                            {ct.email && (
+                              <a href={`mailto:${ct.email}`} title={ct.email}
+                                className="w-6 h-6 flex items-center justify-center rounded-[3px] bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+                                <Mail size={11} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {/* Nudge when this quote has no next step planned */}
                 {!isClosedTab && selectedItem.priority === 'unscheduled' && (
                   <div className="shrink-0 flex items-center gap-2 px-6 py-2.5 bg-orange-50 border-b border-orange-200">
