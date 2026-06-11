@@ -65,7 +65,7 @@ export function Quotes() {
       else if (sortCol === 'status') { av = a.status; bv = b.status; }
       else if (sortCol === 'value') { av = a.items.reduce((s, i) => s + i.total, 0); bv = b.items.reduce((s, i) => s + i.total, 0); }
       else if (sortCol === 'items') { av = a.items.length; bv = b.items.length; }
-      else if (sortCol === 'validity') { av = a.validity; bv = b.validity; }
+      else if (sortCol === 'sent_at') { av = a.sent_at || ''; bv = b.sent_at || ''; }
       else { av = a.date; bv = b.date; }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
@@ -201,7 +201,7 @@ export function Quotes() {
                 <SortTh col="value" right>Value (excl. GST)</SortTh>
                 <SortTh col="value" right>Grand Total</SortTh>
                 <SortTh col="status">Status</SortTh>
-                <SortTh col="validity">Valid Until</SortTh>
+                <SortTh col="sent_at">Punched At</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Actions</th>
               </tr>
             </thead>
@@ -248,7 +248,11 @@ export function Quotes() {
                           </div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {q.validity ? fmtIST(new Date(q.validity), 'dd MMM yyyy') : '--'}
+                          {q.sent_at
+                            ? fmtIST(new Date(q.sent_at), 'dd MMM HH:mm')
+                            : q.status === 'Draft'
+                              ? <span className="text-g400 italic">not sent</span>
+                              : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle" onClick={ev => ev.stopPropagation()}>
                           <div className="flex gap-1.5">
@@ -267,7 +271,7 @@ export function Quotes() {
                               <Button size="sm" variant="primary" onClick={async (ev) => {
                                 ev.stopPropagation();
                                 const now = new Date().toISOString();
-                                await updateQuote(q.id, { status: 'Sent' });
+                                await updateQuote(q.id, { status: 'Sent', sent_at: now });
                                 await addFollowUpLog(q.id, { ts: now, who: 'System', channel: 'Email', note: `Quote sent — ${q.id}` }, null, null, '');
                               }} className="gap-1.5">
                                 <Send size={12} /> Mark Sent

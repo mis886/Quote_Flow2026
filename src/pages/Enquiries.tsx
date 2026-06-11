@@ -55,6 +55,7 @@ export function Enquiries() {
     list.sort((a, b) => {
       let av: any, bv: any;
       if (sortCol === 'recv') { av = a.recv; bv = b.recv; }
+      else if (sortCol === 'created_at') { av = a.created_at || ''; bv = b.created_at || ''; }
       else if (sortCol === 'cust') { av = a.cust.toLowerCase(); bv = b.cust.toLowerCase(); }
       else if (sortCol === 'status') { av = a.status; bv = b.status; }
       else if (sortCol === 'urg') { const o = ['Hot','Urgent','Normal','Low']; av = o.indexOf(a.urg); bv = o.indexOf(b.urg); }
@@ -204,6 +205,7 @@ export function Enquiries() {
               <tr>
                 <SortTh col="id"     label="ENQ No." />
                 <SortTh col="recv"   label="Received" />
+                <SortTh col="created_at"   label="Punched At" />
                 <SortTh col="cust"   label="Customer - Unit" />
                 <SortTh col="src"    label="Source" />
                 <SortTh col="items"  label="Items" />
@@ -216,7 +218,7 @@ export function Enquiries() {
             </thead>
             <tbody>
               {filteredEnqs.length === 0 ? (
-                <tr><td colSpan={10} className="text-center p-8 text-g400 text-[13px]">No enquiries match this filter</td></tr>
+                <tr><td colSpan={11} className="text-center p-8 text-g400 text-[13px]">No enquiries match this filter</td></tr>
               ) : (
                 filteredEnqs.map(e => {
                   const d = new Date(e.recv); // Assuming ISO string is stored
@@ -230,6 +232,9 @@ export function Enquiries() {
                       >
                         <td className="px-[13px] py-[10px] align-middle"><span className="font-mono text-[10.5px] font-bold text-red-mrt">{e.id}</span></td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">{fmtIST(d, 'dd MMM HH:mm')}</td>
+                        <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
+                          {e.created_at ? fmtIST(new Date(e.created_at), 'dd MMM HH:mm') : '--'}
+                        </td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <div className="font-semibold">{e.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <span className="font-normal text-g500"> — {sl}</span> : null; })()}</div>
                           <div className="text-[11px] text-g500">{e.contact}</div>

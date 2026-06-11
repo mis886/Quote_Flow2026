@@ -120,7 +120,13 @@ export function DoerDetail() {
         <MetricCard label="On-time gap" value={deferred ? '—' : fmtPctShort(m.onTimePct)} hint="below 100% on-time" />
         <MetricCard label="Volume" value={deferred ? '—' : String(m.volume)} hint="items handled" plain />
         <MetricCard label="Speed" value={deferred ? '—' : fmtHours(m.avgCycleH)} hint="avg cycle time" plain />
-        <MetricCard label="Win gap" value={deferred ? '—' : fmtPctShort(m.winRate)} hint="below 100% win" />
+        {m.role === 'DEO' ? (
+          <MetricCard label="Enquiry Lap" value={fmtHours(m.enqLapH)} hint="received → punched" plain />
+        ) : m.role === 'Rate Entry' ? (
+          <MetricCard label="Quote Lap" value={fmtHours(m.quoteLapH)} hint="punched → quote sent" plain />
+        ) : (
+          <MetricCard label="Win gap" value={deferred ? '—' : fmtPctShort(m.winRate)} hint="below 100% win" />
+        )}
       </div>
 
       {/* Stage workload */}

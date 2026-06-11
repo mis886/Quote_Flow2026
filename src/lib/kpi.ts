@@ -122,6 +122,9 @@ export interface DoerMetrics {
   winRate: number | null;     // role-specific outcome %
   dueNextWeek: DueItem[];
   composite: number | null;   // 0–100 weighted by role (null for unscored roles)
+  // Time-lap KPIs (avg hours; lower is better). Surfaced on the doer cards.
+  enqLapH: number | null;     // DEO: enquiry received → punched in (recv → created_at)
+  quoteLapH: number | null;   // Rate Entry: enquiry punched → quote sent (created_at → sent_at)
 }
 
 // How each role's composite blends the metrics. Volume & speed are normalized to
@@ -184,7 +187,11 @@ export function computeDoerMetrics(
   // First pass: raw metrics per (identity, role). A single login (e.g. a shared
   // accounts@ account) can hold several roles, and one person can cover several
   // roles — so the unit of scoring is the (email, role) pair, not the email.
-  interface Raw extends DoerMetrics { _speedSum: number; _speedN: number; }
+  interface Raw extends DoerMetrics {
+    _speedSum: number; _speedN: number;
+    _enqLapSum: number; _enqLapN: number;     // recv → created_at
+    _quoteLapSum: number; _quoteLapN: number; // created_at → sent_at
+  }
   const rowKey = doerRowKey;
   const out = new Map<string, Raw>();
 
@@ -193,7 +200,9 @@ export function computeDoerMetrics(
     out.set(rowKey(m.email, m.role), {
       email: m.email, displayName: m.display_name, role: m.role,
       onTimePct: null, volume: 0, avgCycleH: null, winRate: null,
+      enqLapH: null, quoteLapH: null,
       dueNextWeek: [], composite: null, _speedSum: 0, _speedN: 0,
+      _enqLapSum: 0, _enqLapN: 0, _quoteLapSum: 0, _quoteLapN: 0,
     });
   }
   if (out.size === 0) return new Map();
@@ -216,9 +225,12 @@ export function computeDoerMetrics(
     const raw = matchDoer(e.doer, 'DEO');
     if (!raw) continue;
     raw.volume++;
-    if (e.recv && (e as any).created_at) {
-      const lag = (new Date((e as any).created_at).getTime() - new Date(e.recv).getTime()) / 3600000;
-      if (lag >= 0 && lag < 24 * 30) { raw._speedSum += lag; raw._speedN++; }
+    if (e.recv && e.created_at) {
+      const lag = (new Date(e.created_at).getTime() - new Date(e.recv).getTime()) / 3600000;
+      if (lag >= 0 && lag < 24 * 30) {
+        raw._speedSum += lag; raw._speedN++;       // feeds composite "speed"
+        raw._enqLapSum += lag; raw._enqLapN++;     // explicit Enquiry Lap KPI
+      }
     }
   }
 
@@ -234,6 +246,11 @@ export function computeDoerMetrics(
     if (enq?.recv && q.date) {
       const e2q = (new Date(q.date).getTime() - new Date(enq.recv).getTime()) / 3600000;
       if (e2q >= 0 && e2q < 24 * 60) { raw._speedSum += e2q; raw._speedN++; }
+    }
+    // Explicit Quote Lap KPI: enquiry punched (created_at) → quote sent (sent_at).
+    if (enq?.created_at && q.sent_at) {
+      const lap = (new Date(q.sent_at).getTime() - new Date(enq.created_at).getTime()) / 3600000;
+      if (lap >= 0 && lap < 24 * 90) { raw._quoteLapSum += lap; raw._quoteLapN++; }
     }
     const fu = data.followups.find(f => f.quote_id === q.id);
     if (q.status === 'Won' || q.status === 'Lost' || fu?.outcome) {
@@ -334,6 +351,8 @@ export function computeDoerMetrics(
   // Finalize per-member raw metrics.
   for (const raw of out.values()) {
     raw.avgCycleH = raw._speedN > 0 ? Math.round(raw._speedSum / raw._speedN) : null;
+    raw.enqLapH = raw._enqLapN > 0 ? Math.round(raw._enqLapSum / raw._enqLapN) : null;
+    raw.quoteLapH = raw._quoteLapN > 0 ? Math.round(raw._quoteLapSum / raw._quoteLapN) : null;
     const ot = onTimeAcc.get(raw);
     raw.onTimePct = ot && ot.tot > 0 ? Math.round(ot.on / ot.tot * 100) : null;
     const w = winAcc.get(raw);
@@ -370,7 +389,7 @@ export function computeDoerMetrics(
   // Strip private accumulators.
   const result = new Map<string, DoerMetrics>();
   for (const [k, raw] of out) {
-    const { _speedSum, _speedN, ...clean } = raw;
+    const { _speedSum, _speedN, _enqLapSum, _enqLapN, _quoteLapSum, _quoteLapN, ...clean } = raw;
     result.set(k, clean);
   }
   return result;

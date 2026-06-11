@@ -482,26 +482,36 @@ export function NewQuote() {
     return Object.keys(e).length === 0;
   };
 
-  const buildQuoteData = (statusOverride?: QuoteStatus): Quote => ({
-    id: quoteId, enqRef: linkedEnqRef || enqRef || '', cust: custName, date, validity,
-    siteId: siteId || undefined,
-    contactId: contactId || undefined,
-    contact: contact || undefined,
-    email: email || undefined,
-    phone: phone || undefined,
-    // Stays Draft until actually sent (email module / manual). Convert-to-order
-    // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
-    status: statusOverride ?? quoteStatus,
-    curr, pay, items,
-    notes: notes.filter(n => n.trim()),
-    authorizedPerson: { name: authName, designation: authDesignation, phone: authPhone },
-    terms: JSON.stringify(tnc),
-    inco: inco === 'OVERRIDE' ? customInco : inco,
-    unitId: unitId || undefined,
-    custEnquiryDocNo: custEnquiryDocNo.trim() || undefined,
-    // Preserve original doer on edit; stamp submitter email on new
-    doer: editId ? (data.quotes.find(q => q.id === editId)?.doer) : stampName(),
-  });
+  const buildQuoteData = (statusOverride?: QuoteStatus): Quote => {
+    const status = statusOverride ?? quoteStatus;
+    const existing = editId ? data.quotes.find(q => q.id === editId) : undefined;
+    // Stamp sent_at the first time the quote becomes Sent; never overwrite an
+    // earlier sent time. Drives the "Punched At" (sent) KPI on Rate Entry.
+    const sent_at = status === 'Sent'
+      ? (existing?.sent_at ?? new Date().toISOString())
+      : existing?.sent_at;
+    return {
+      id: quoteId, enqRef: linkedEnqRef || enqRef || '', cust: custName, date, validity,
+      siteId: siteId || undefined,
+      contactId: contactId || undefined,
+      contact: contact || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
+      // Stays Draft until actually sent (email module / manual). Convert-to-order
+      // sets Won separately. Don't auto-flip a saved draft to 'Sent'.
+      status,
+      curr, pay, items,
+      notes: notes.filter(n => n.trim()),
+      authorizedPerson: { name: authName, designation: authDesignation, phone: authPhone },
+      terms: JSON.stringify(tnc),
+      inco: inco === 'OVERRIDE' ? customInco : inco,
+      unitId: unitId || undefined,
+      custEnquiryDocNo: custEnquiryDocNo.trim() || undefined,
+      // Preserve original doer on edit; stamp submitter email on new
+      doer: editId ? (existing?.doer) : stampName(),
+      sent_at,
+    };
+  };
 
   // Persist the quote (without PDF). Returns the qData used, so callers can
   // reuse it for the PDF without rebuilding.

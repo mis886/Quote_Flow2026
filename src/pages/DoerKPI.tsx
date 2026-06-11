@@ -202,6 +202,7 @@ export function DoerKPI() {
                 <ThSort label="On-time" k="onTimePct" sortKey={sortKey} onSort={setSortKey} />
                 <ThSort label="Volume" k="volume" sortKey={sortKey} onSort={setSortKey} />
                 <ThSort label="Speed" k="avgCycleH" sortKey={sortKey} onSort={setSortKey} />
+                <Th>Time Lap</Th>
                 <ThSort label="Win %" k="winRate" sortKey={sortKey} onSort={setSortKey} />
                 <Th>Δ wk</Th>
               </tr>
@@ -236,6 +237,13 @@ export function DoerKPI() {
                     <td className="px-4 py-2.5 tabular-nums text-g600">{deferred ? '—' : fmtPct(m.onTimePct)}</td>
                     <td className="px-4 py-2.5 tabular-nums text-g600">{deferred ? '—' : m.volume}</td>
                     <td className="px-4 py-2.5 tabular-nums text-g600">{deferred ? '—' : fmtHours(m.avgCycleH)}</td>
+                    <td className="px-4 py-2.5 tabular-nums text-g600">
+                      {m.role === 'DEO'
+                        ? <span title="Enquiry received → punched in">{fmtHours(m.enqLapH)}<span className="text-g400 text-[9px] ml-1">enq</span></span>
+                        : m.role === 'Rate Entry'
+                          ? <span title="Enquiry punched → quote sent">{fmtHours(m.quoteLapH)}<span className="text-g400 text-[9px] ml-1">→sent</span></span>
+                          : <span className="text-g300">—</span>}
+                    </td>
                     <td className="px-4 py-2.5 tabular-nums text-g600">{deferred ? '—' : fmtPct(m.winRate)}</td>
                     <td className="px-4 py-2.5 tabular-nums">
                       {delta == null ? <span className="text-g300">—</span> : (

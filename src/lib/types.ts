@@ -101,6 +101,7 @@ export interface Enquiry {
   items: LineItem[];
   attachments?: Attachment[];
   gmailMessageId?: string;
+  created_at?: string;     // when the enquiry was punched into the system
 }
 
 export interface Quote {
@@ -130,6 +131,8 @@ export interface Quote {
   unitId?: string;
   custEnquiryDocNo?: string;
   doer?: string;
+  created_at?: string;        // when the quote was punched into the system
+  sent_at?: string;           // when "Mark Sent" was clicked (sent to customer)
 }
 
 export interface Order {

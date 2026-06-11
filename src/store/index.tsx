@@ -265,6 +265,7 @@ const mapEnquiryToDB = (e: any) => {
     if ('custEnquiryDocNo' in q) obj.cust_enquiry_doc_no = q.custEnquiryDocNo || null;
     if ('notes' in q) obj.notes = q.notes ?? [];
     if ('doer' in q) obj.doer = q.doer;
+    if ('sent_at' in q) obj.sent_at = q.sent_at || null;
 
     return obj;
   };
