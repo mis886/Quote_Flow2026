@@ -204,6 +204,7 @@ export function computeDoerMetrics(
       email: m.email, displayName: m.display_name, role: m.role,
       onTimePct: null, volume: 0, avgCycleH: null, winRate: null,
       enqLapH: null, quoteLapH: null,
+      enqCount: 0, orderCount: 0,
       dueNextWeek: [], composite: null, _speedSum: 0, _speedN: 0,
       _enqLapSum: 0, _enqLapN: 0, _quoteLapSum: 0, _quoteLapN: 0,
     });
@@ -228,6 +229,7 @@ export function computeDoerMetrics(
     const raw = matchDoer(e.doer, 'DEO');
     if (!raw) continue;
     raw.volume++;
+    raw.enqCount++;
     if (e.recv && e.created_at) {
       const lag = (new Date(e.created_at).getTime() - new Date(e.recv).getTime()) / 3600000;
       if (lag >= 0 && lag < 24 * 30) {
@@ -335,7 +337,7 @@ export function computeDoerMetrics(
   for (const o of data.orders) {
     if (!inRange((o as any).created_at ?? o.poDate, range)) continue;
     const raw = matchDoer(o.doer, 'DEO');
-    if (raw) raw.volume++;
+    if (raw) { raw.volume++; raw.orderCount++; }
   }
 
   // ── Draft quotes pending = Rate Entry due-next-week ──

@@ -118,7 +118,11 @@ export function DoerDetail() {
       {/* Metric strip (as shortfalls) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
         <MetricCard label="On-time gap" value={deferred ? '—' : fmtPctShort(m.onTimePct)} hint="below 100% on-time" />
-        <MetricCard label="Volume" value={deferred ? '—' : String(m.volume)} hint="items handled" plain />
+        {m.role === 'DEO' ? (
+          <MetricCardDeo enqCount={m.enqCount} orderCount={m.orderCount} />
+        ) : (
+          <MetricCard label="Volume" value={deferred ? '—' : String(m.volume)} hint="items handled" plain />
+        )}
         <MetricCard label="Speed" value={deferred ? '—' : fmtHours(m.avgCycleH)} hint="avg cycle time" plain />
         {m.role === 'DEO' ? (
           <MetricCard label="Enquiry Lap" value={fmtHours(m.enqLapH)} hint="received → punched" plain />
@@ -180,6 +184,25 @@ function MetricCard({ label, value, hint, plain }: { label: string; value: strin
   );
 }
 
+function MetricCardDeo({ enqCount, orderCount }: { enqCount: number; orderCount: number }) {
+  return (
+    <div className="bg-white rounded-[10px] border border-g200 p-4 shadow-sm">
+      <div className="font-mono text-[9px] font-bold tracking-[1.2px] uppercase text-g500">Volume</div>
+      <div className="flex items-end gap-3 mt-1.5">
+        <div>
+          <div className="font-sans text-[22px] leading-none font-bold tracking-tight text-blk">{enqCount}</div>
+          <div className="text-[9.5px] text-g400 mt-0.5">enquiries</div>
+        </div>
+        <div className="mb-0.5 text-g300 text-[14px] font-light leading-none">+</div>
+        <div>
+          <div className="font-sans text-[22px] leading-none font-bold tracking-tight text-blk">{orderCount}</div>
+          <div className="text-[9.5px] text-g400 mt-0.5">orders</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_META = {
   overdue:  { label: 'Overdue',  cls: 'bg-red-50 text-red-700 border-red-200',       icon: <AlertTriangle size={10} /> },
   late:     { label: 'Late',     cls: 'bg-red-50 text-red-600 border-red-200',        icon: <XCircle size={10} /> },
@@ -195,8 +218,13 @@ function rowStatusKey(row: TimelineRow): keyof typeof STATUS_META {
   return 'logged';
 }
 
+type SortCol = 'ts' | 'status' | 'channel' | 'refId' | 'cust' | 'lapH';
+type SortDir = 'asc' | 'desc';
+
 function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doerName: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [sortCol, setSortCol] = useState<SortCol>('ts');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   // Selection for bulk-logging an activity onto several quotes at once.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showPanel, setShowPanel] = useState(false);
@@ -221,16 +249,29 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
   }, [timeline]);
 
   const filtered = useMemo(() => {
-    if (statusFilter === 'All') return timeline;
-    return timeline.filter(r => {
-      const s = rowStatusKey(r);
-      if (statusFilter === 'Overdue') return s === 'overdue';
-      if (statusFilter === 'Late') return s === 'late';
-      if (statusFilter === 'On-time') return s === 'on-time';
-      if (statusFilter === 'Pending') return s === 'due';
-      return true;
+    let rows = timeline;
+    if (statusFilter !== 'All') {
+      rows = rows.filter(r => {
+        const s = rowStatusKey(r);
+        if (statusFilter === 'Overdue') return s === 'overdue';
+        if (statusFilter === 'Late') return s === 'late';
+        if (statusFilter === 'On-time') return s === 'on-time';
+        if (statusFilter === 'Pending') return s === 'due';
+        return true;
+      });
+    }
+    const mul = sortDir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      let av: string | number = 0, bv: string | number = 0;
+      if (sortCol === 'ts')      { av = a.ts;  bv = b.ts; }
+      else if (sortCol === 'status')  { av = rowStatusKey(a); bv = rowStatusKey(b); }
+      else if (sortCol === 'channel') { av = a.channel ?? ''; bv = b.channel ?? ''; }
+      else if (sortCol === 'refId')   { av = a.refId; bv = b.refId; }
+      else if (sortCol === 'cust')    { av = a.cust;  bv = b.cust; }
+      else if (sortCol === 'lapH')    { av = a.lapH ?? Infinity; bv = b.lapH ?? Infinity; return mul * ((av as number) - (bv as number)); }
+      return mul * (av < bv ? -1 : av > bv ? 1 : 0);
     });
-  }, [timeline, statusFilter]);
+  }, [timeline, statusFilter, sortCol, sortDir]);
 
   const totalLate = counts.late + counts.overdue;
   const lateRate = timeline.length ? Math.round(totalLate / timeline.length * 100) : 0;
@@ -256,6 +297,12 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
   // customer-site so a single logged note never lands on an unrelated site.
   const selectedSites = Array.from(new Set(selectedQuotes.map(q => `${q.cust}__${q.siteId ?? q.site}`)));
   const mixedSites = selectedSites.length > 1;
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir(col === 'lapH' ? 'asc' : 'desc'); }
+  };
+  const sortArrow = (col: SortCol) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
 
   return (
     <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
@@ -311,7 +358,7 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
         <div className="overflow-x-auto">
           <table className="w-full text-[12px] border-collapse">
             <thead>
-              <tr className="bg-g50 text-g500 font-mono text-[9px] tracking-[1px] uppercase border-b border-g200">
+              <tr className="bg-g50 text-g500 font-mono text-[9px] tracking-[1px] uppercase border-b border-g200 select-none">
                 {!isLapTimeline && (
                   <th className="px-3 py-2.5 text-center font-bold w-[34px]">
                     <input
@@ -323,14 +370,26 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                     />
                   </th>
                 )}
-                <th className="px-3 py-2.5 text-left font-bold w-[120px]">Date & Time</th>
-                <th className="px-3 py-2.5 text-left font-bold w-[90px]">Status</th>
-                <th className="px-3 py-2.5 text-left font-bold w-[80px]">{isLapTimeline ? 'Type' : 'Channel'}</th>
-                <th className="px-3 py-2.5 text-left font-bold w-[100px]">{isLapTimeline ? 'Ref' : 'Quote'}</th>
-                <th className="px-3 py-2.5 text-left font-bold">Customer · Site</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[120px] cursor-pointer hover:text-g700 whitespace-nowrap" onClick={() => handleSort('ts')}>
+                  Date & Time{sortArrow('ts')}
+                </th>
+                <th className="px-3 py-2.5 text-left font-bold w-[90px] cursor-pointer hover:text-g700" onClick={() => handleSort('status')}>
+                  Status{sortArrow('status')}
+                </th>
+                <th className="px-3 py-2.5 text-left font-bold w-[80px] cursor-pointer hover:text-g700" onClick={() => handleSort('channel')}>
+                  {isLapTimeline ? 'Type' : 'Channel'}{sortArrow('channel')}
+                </th>
+                <th className="px-3 py-2.5 text-left font-bold w-[100px] cursor-pointer hover:text-g700" onClick={() => handleSort('refId')}>
+                  {isLapTimeline ? 'Ref' : 'Quote'}{sortArrow('refId')}
+                </th>
+                <th className="px-3 py-2.5 text-left font-bold cursor-pointer hover:text-g700" onClick={() => handleSort('cust')}>
+                  Customer · Site{sortArrow('cust')}
+                </th>
                 <th className="px-3 py-2.5 text-left font-bold">Note</th>
                 {isLapTimeline
-                  ? <th className="px-3 py-2.5 text-left font-bold w-[100px]">Time Lap</th>
+                  ? <th className="px-3 py-2.5 text-left font-bold w-[100px] cursor-pointer hover:text-g700" onClick={() => handleSort('lapH')}>
+                      Time Lap{sortArrow('lapH')}
+                    </th>
                   : <th className="px-3 py-2.5 text-left font-bold">Next Planned</th>}
               </tr>
             </thead>
