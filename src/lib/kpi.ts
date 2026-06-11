@@ -487,6 +487,7 @@ export interface StageWorkload {
 export function doerStageWorkload(
   data: DataStore,
   member: RosterMemberLike,
+  range: GlobalDateRangeLike | null = null,
 ): StageWorkload[] {
   const settings = data.settings;
   const now = Date.now();
@@ -504,6 +505,9 @@ export function doerStageWorkload(
   const bump = (lane: BoardLane, enteredAt: string | null | undefined) => {
     const w = acc.get(lane);
     if (!w) return;
+    // Honour the global date range: only count items that entered the lane
+    // within the selected window. No range → count everything (live backlog).
+    if (range && !inRange(enteredAt, range)) return;
     w.total++;
     const tatMs = w.tatHours * 3600000;
     const elapsed = enteredAt ? now - new Date(enteredAt).getTime() : 0;

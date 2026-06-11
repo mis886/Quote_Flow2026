@@ -678,7 +678,7 @@ export default function FollowUps() {
 
       {/* Board view — full width, no left panel */}
       {viewTab === 'board' && (
-        <PipelineBoard ownerFilter={filterOwner} search={searchQuery} />
+        <PipelineBoard ownerFilter={filterOwner} search={searchQuery} dateRange={globalDateRange} />
       )}
 
       {/* Left Panel: Queue / Calendar */}
@@ -1021,31 +1021,29 @@ export default function FollowUps() {
                 </div>
               </div>
 
-              {/* KPI strip — compact 3×2 grid pinned left so it stays short and the
-                  Log Activity panel sits at the same height as these cards */}
-              <div className="border-t border-g150 mt-2">
-                <div className="grid grid-cols-3 max-w-[560px] border-b border-r border-g150">
-                  {[
-                    { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
-                    { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
-                      color: (() => { const ms = new Date(selectedItem.quote.validity).getTime() - Date.now(); return ms < 0 ? 'text-red-700 font-bold' : ms < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold'; })() },
-                    { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
-                      mono: true,
-                      color: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? (p >= 70 ? 'text-sW' : p >= 40 ? 'text-amber-600' : 'text-red-mrt') : undefined; })() },
-                    { label: 'Next Step', value: selectedItem.followUp?.next_date
-                      ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
-                      : 'Not scheduled',
-                      mono: false,
-                      color: selectedItem.priority === 'overdue' ? 'text-red-700 font-bold' : selectedItem.priority === 'today' ? 'text-amber-700 font-bold' : 'text-slate-700 font-semibold' },
-                    { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
-                    { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
-                  ].map((kpi, i) => (
-                    <div key={i} className="px-4 py-2 border-t border-l border-g150 flex flex-col gap-0.5 min-w-0">
-                      <span className="font-mono text-[8.5px] font-bold tracking-[1.2px] uppercase text-g400">{kpi.label}</span>
-                      <span className={cn("text-[12px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[11.5px]", kpi.color)}>{kpi.value}</span>
-                    </div>
-                  ))}
-                </div>
+              {/* KPI strip — single compact row so the header stays short and the
+                  Log Activity panel below starts at the same height as the cards */}
+              <div className="flex border-t border-g150 mt-2">
+                {[
+                  { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
+                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
+                    color: (() => { const ms = new Date(selectedItem.quote.validity).getTime() - Date.now(); return ms < 0 ? 'text-red-700 font-bold' : ms < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold'; })() },
+                  { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
+                    mono: true,
+                    color: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? (p >= 70 ? 'text-sW' : p >= 40 ? 'text-amber-600' : 'text-red-mrt') : undefined; })() },
+                  { label: 'Next Step', value: selectedItem.followUp?.next_date
+                    ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
+                    : 'Not scheduled',
+                    mono: false,
+                    color: selectedItem.priority === 'overdue' ? 'text-red-700 font-bold' : selectedItem.priority === 'today' ? 'text-amber-700 font-bold' : 'text-slate-700 font-semibold' },
+                  { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
+                  { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
+                ].map((kpi, i) => (
+                  <div key={i} className="flex-1 min-w-0 px-3 py-2 border-r border-g150 last:border-r-0 flex flex-col gap-0.5">
+                    <span className="font-mono text-[8.5px] font-bold tracking-[1.2px] uppercase text-g400">{kpi.label}</span>
+                    <span className={cn("text-[12.5px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[12px]", kpi.color)}>{kpi.value}</span>
+                  </div>
+                ))}
               </div>
 
               {/* Contacts bar */}

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseISO, isToday } from 'date-fns';
 import { useAppStore } from '../store';
-import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth, siteLabel } from '../lib/utils';
+import { cn, fmtIST, tatHealth, fmtElapsed, type TatHealth, siteLabel, isInDateRange } from '../lib/utils';
 import { generateQuotePDF, generatePIPDF } from '../lib/pdfGenerator';
 import {
   BOARD_LANES,
@@ -107,7 +107,8 @@ const OUTCOME_META: Record<PipelineOutcome, { icon: React.ReactNode; cls: string
 export default function PipelineBoard({
   ownerFilter = 'All Owners',
   search = '',
-}: { ownerFilter?: string; search?: string }) {
+  dateRange = null,
+}: { ownerFilter?: string; search?: string; dateRange?: { startDate: string; endDate: string } | null }) {
   const navigate = useNavigate();
   const { data, setFollowUpStage, closeFollowUp } = useAppStore();
   const [closing, setClosing] = useState<BoardCard | null>(null);
@@ -149,6 +150,7 @@ export default function PipelineBoard({
         enq.status === 'In Review' ? 'To Quote' : null;
       if (!lane) continue;
       if (!matches(enq.cust, enq.id)) continue;
+      if (dateRange && !isInDateRange(enq.recv, dateRange)) continue;
       if (ownerFilter !== 'All Owners' && (enq.assigned || 'Unassigned') !== ownerFilter) continue;
 
       const enteredAt = enq.recv;
@@ -177,6 +179,7 @@ export default function PipelineBoard({
          quote.status === 'Lost' ? 'Closed' : 'Sent Quotation');
       const lane = stage as BoardLane;
       if (!matches(quote.cust, quote.id)) continue;
+      if (dateRange && !isInDateRange(quote.date, dateRange)) continue;
       const owner = followUp?.owner || 'Unassigned';
       if (ownerFilter !== 'All Owners' && owner !== ownerFilter) continue;
 
@@ -211,7 +214,7 @@ export default function PipelineBoard({
       });
     }
     return map;
-  }, [data.enquiries, data.quotes, data.followups, data.settings, ownerFilter, search]);
+  }, [data.enquiries, data.quotes, data.followups, data.settings, ownerFilter, search, dateRange]);
 
   const laneBreaches = (lane: BoardLane) => lanes[lane].filter(c => c.tat.health === 'breach').length;
 

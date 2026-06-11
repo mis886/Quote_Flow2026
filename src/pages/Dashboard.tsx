@@ -64,6 +64,9 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashTab>('overview');
   const [expandedMdo, setExpandedMdo] = useState<Record<string, boolean>>({});
   const [calendarWeekOffset, setCalendarWeekOffset] = useState<number>(0);
+  // "Show next" paging for the Needs Attention & Open Quote Value panels.
+  const [attnPage, setAttnPage] = useState(0);
+  const [openCustPage, setOpenCustPage] = useState(0);
 
   // Rotating sub-text index for KPI cards: 0=current, 1=vs last week, 2=vs last month. Ticks every 15s.
   const [kpiSubIdx, setKpiSubIdx] = useState(0);
@@ -257,11 +260,13 @@ export function Dashboard() {
   openQuotes.forEach(q => {
     custQuotes[q.cust] = (custQuotes[q.cust] || 0) + q.items.reduce((acc, i) => acc + i.total + (i.total * i.gst / 100), 0);
   });
-  const openCustData = Object.entries(custQuotes)
+  const openCustDataAll = Object.entries(custQuotes)
     .map(([cust, val]) => ({ cust, val }))
-    .sort((a, b) => b.val - a.val)
-    .slice(0, 5);
-  const maxOpenCustVal = Math.max(...openCustData.map(c => c.val), 1);
+    .sort((a, b) => b.val - a.val);
+  const maxOpenCustVal = Math.max(...openCustDataAll.map(c => c.val), 1);
+  // Page through 5 at a time; bar width stays relative to the overall max.
+  const OPEN_CUST_PAGE = 5;
+  const openCustData = openCustDataAll.slice(openCustPage * OPEN_CUST_PAGE, openCustPage * OPEN_CUST_PAGE + OPEN_CUST_PAGE);
 
   // ── Real-time tips derived from live data ─────────────────────────────────
   const SLA_H_TIPS: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
@@ -1104,7 +1109,7 @@ export function Dashboard() {
                       <div className="text-[12.5px] text-g500">All open enquiries are within SLA.</div>
                     </div>
                   ) : (
-                    attnEnqs.slice(0, 3).map(e => (
+                    attnEnqs.slice(attnPage * 3, attnPage * 3 + 3).map(e => (
                       <div key={e.id} className="flex flex-col gap-1 p-[10px_16px] border-b border-g100 last:border-0 cursor-pointer hover:bg-g50 transition-colors" onClick={() => navigate(`/enquiries/new?id=${e.id}`)}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
@@ -1128,6 +1133,27 @@ export function Dashboard() {
                         </div>
                       </div>
                     ))
+                  )}
+                  {attnEnqs.length > 3 && (
+                    <div className="flex items-center justify-between p-[8px_16px] border-t border-g100">
+                      <span className="text-[10.5px] text-g400">
+                        {attnPage * 3 + 1}–{Math.min(attnPage * 3 + 3, attnEnqs.length)} of {attnEnqs.length}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          disabled={attnPage === 0}
+                          onClick={() => setAttnPage(p => Math.max(0, p - 1))}
+                          className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 hover:text-blk disabled:opacity-30 disabled:cursor-default px-1.5 focus:outline-none"
+                        >← Prev</button>
+                        <button
+                          type="button"
+                          disabled={(attnPage + 1) * 3 >= attnEnqs.length}
+                          onClick={() => setAttnPage(p => p + 1)}
+                          className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-red-mrt hover:opacity-70 disabled:opacity-30 disabled:cursor-default px-1.5 focus:outline-none"
+                        >Show next →</button>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1161,6 +1187,27 @@ export function Dashboard() {
                     <div className="text-[12px] text-g400 text-center mt-8 italic">No quotes awaiting PO.</div>
                   )}
                 </div>
+                {openCustDataAll.length > OPEN_CUST_PAGE && (
+                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-g100">
+                    <span className="text-[10.5px] text-g400">
+                      {openCustPage * OPEN_CUST_PAGE + 1}–{Math.min(openCustPage * OPEN_CUST_PAGE + OPEN_CUST_PAGE, openCustDataAll.length)} of {openCustDataAll.length}
+                    </span>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        disabled={openCustPage === 0}
+                        onClick={() => setOpenCustPage(p => Math.max(0, p - 1))}
+                        className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500 hover:text-blk disabled:opacity-30 disabled:cursor-default px-1.5 focus:outline-none"
+                      >← Prev</button>
+                      <button
+                        type="button"
+                        disabled={(openCustPage + 1) * OPEN_CUST_PAGE >= openCustDataAll.length}
+                        onClick={() => setOpenCustPage(p => p + 1)}
+                        className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-red-mrt hover:opacity-70 disabled:opacity-30 disabled:cursor-default px-1.5 focus:outline-none"
+                      >Show next →</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

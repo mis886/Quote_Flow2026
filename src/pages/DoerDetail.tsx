@@ -67,8 +67,9 @@ export function DoerDetail() {
   const timeline = useMemo(() => member ? buildDoerTimeline(data, member, range) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, member, range.startDate, range.endDate]);
-  const workload = useMemo(() => member ? doerStageWorkload(data, member) : [],
-    [data, member]);
+  const workload = useMemo(() => member ? doerStageWorkload(data, member, range) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, member, range.startDate, range.endDate]);
 
   if (!member || !m) {
     return (
