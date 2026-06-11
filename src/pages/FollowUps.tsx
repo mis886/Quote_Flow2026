@@ -758,28 +758,20 @@ export default function FollowUps() {
               />
             </div>
             <div className="flex items-center gap-1">
-              {activeDoer && (
-                <button
-                  type="button"
-                  title="Toggle my tasks / all owners"
-                  onClick={() => setFilterOwner(f => f === activeDoer.display_name ? 'All Owners' : activeDoer.display_name)}
-                  className={cn(
-                    'px-2 py-1 rounded-[3px] border text-[10px] font-bold uppercase tracking-wide transition-colors whitespace-nowrap',
-                    filterOwner === activeDoer.display_name
-                      ? 'bg-blk text-white border-blk'
-                      : 'bg-g50 border-g200 text-g500 hover:border-g400'
-                  )}
-                >
-                  My Tasks
-                </button>
-              )}
+              {/* "My Tasks" is the first option (maps to the active doer's name);
+                  no separate toggle button needed. */}
               <select
                 title="Filter by owner"
                 className="bg-g50 border border-g200 rounded-[3px] px-2 py-1 text-[11px] font-medium appearance-none pr-5"
                 value={filterOwner}
                 onChange={e => setFilterOwner(e.target.value)}
               >
-                {owners.map(o => <option key={o} value={o}>{o}</option>)}
+                {activeDoer && (
+                  <option value={activeDoer.display_name}>★ My Tasks ({activeDoer.display_name})</option>
+                )}
+                {owners
+                  .filter(o => !activeDoer || o !== activeDoer.display_name)
+                  .map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
           </div>
@@ -995,23 +987,16 @@ export default function FollowUps() {
                     );
                   })()}
                 </div>
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {isClosedTab ? (
+                {/* Action buttons — Won / Lost / Close all live in the Log Activity
+                    panel footer now; the header only offers Re-open on closed quotes. */}
+                {isClosedTab && (
+                  <div className="flex items-center gap-2 shrink-0">
                     <button type="button" onClick={handleReopen}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
                       <RotateCcw size={11} /> Re-open
                     </button>
-                  ) : (
-                    // Win / Lost live in the Log Activity panel footer; the header
-                    // keeps only Close (no equivalent there) to mark a quote done
-                    // without a win/loss outcome.
-                    <button type="button" onClick={handleClose}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
-                      <CheckCircle2 size={11} /> Close
-                    </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* KPI strip — single compact row so the header stays short and the
@@ -1247,7 +1232,7 @@ export default function FollowUps() {
 
               {/* Log Activity panel — right side, fixed width, hidden on closed tab */}
               {!isClosedTab && (
-                <form onSubmit={handleLogActivity} className="w-[360px] shrink-0 bg-white flex flex-col overflow-hidden">
+                <form onSubmit={handleLogActivity} className="w-[420px] shrink-0 bg-white flex flex-col overflow-hidden">
                   {/* Panel header */}
                   <div className="flex items-center justify-between px-5 py-1.5 border-b border-g150 shrink-0">
                     <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
@@ -1307,7 +1292,7 @@ export default function FollowUps() {
                         ref={noteRef}
                         required
                         placeholder="What did the customer say? Any commitments made?"
-                        className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[88px]"
+                        className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[140px]"
                         value={note}
                         onChange={e => setNote(e.target.value)}
                       />
@@ -1416,6 +1401,14 @@ export default function FollowUps() {
                         className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors"
                       >
                         <XCircle size={11} /> Mark Lost
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        title="Close this quote without a win/loss outcome"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors"
+                      >
+                        <CheckCircle2 size={11} /> Close
                       </button>
                     </div>
 
