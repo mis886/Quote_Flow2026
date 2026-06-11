@@ -195,7 +195,7 @@ export function Quotes() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">ENQ Ref</th>
-                <SortTh col="cust">Customer - Site/Branch</SortTh>
+                <SortTh col="cust">Customer - Unit</SortTh>
                 <SortTh col="date">Date</SortTh>
                 <SortTh col="items">Items</SortTh>
                 <SortTh col="value" right>Value (excl. GST)</SortTh>

@@ -346,7 +346,7 @@ export function NewCustomer() {
           <div className="flex items-center justify-between mb-4">
             <div className="font-mono text-[10px] font-bold tracking-[1px] uppercase text-blk flex items-center gap-2">
               <MapPin size={13} className="text-red-mrt" />
-              Manufacturing Sites &amp; Branches
+              Manufacturing Units
               <span className="ml-1 px-1.5 py-0.5 bg-g200 rounded font-mono text-[9px] text-g500">{sites.length}</span>
             </div>
             <Button size="sm" variant="secondary" onClick={addSite} className="gap-1.5">
@@ -362,7 +362,7 @@ export function NewCustomer() {
                   <input
                     type="text" value={site.name}
                     onChange={e => updateSite(sIdx, 'name', e.target.value)}
-                    placeholder="Site Name (e.g. Pune Plant)"
+                    placeholder="Unit Name (e.g. Pune Plant)"
                     className="bg-transparent border-none outline-none font-sans font-bold text-sm text-blk placeholder:text-g400 flex-1"
                   />
                   <input

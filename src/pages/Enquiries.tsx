@@ -204,7 +204,7 @@ export function Enquiries() {
               <tr>
                 <SortTh col="id"     label="ENQ No." />
                 <SortTh col="recv"   label="Received" />
-                <SortTh col="cust"   label="Customer - Site/Branch" />
+                <SortTh col="cust"   label="Customer - Unit" />
                 <SortTh col="src"    label="Source" />
                 <SortTh col="items"  label="Items" />
                 <SortTh col="urg"    label="Urgency" />

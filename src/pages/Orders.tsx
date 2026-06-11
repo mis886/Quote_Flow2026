@@ -237,7 +237,7 @@ export function Orders() {
               <tr>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Order No.</th>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">Quote Ref</th>
-                <SortTh col="cust">Customer - Site/Branch</SortTh>
+                <SortTh col="cust">Customer - Unit</SortTh>
                 <th className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g500 px-[13px] py-[9px] text-left whitespace-nowrap border-b border-g200">PO Number</th>
                 <SortTh col="poDate">PO Date</SortTh>
                 <SortTh col="items">Items</SortTh>

@@ -421,17 +421,17 @@ export function NewEnquiry() {
                     return (
                       <>
                         <label className="block text-[10px] font-bold tracking-[0.5px] uppercase mb-[4px] flex items-center gap-1.5">
-                          <span className={mustPick ? 'text-red-mrt' : 'text-g600'}>Site / Branch</span>
+                          <span className={mustPick ? 'text-red-mrt' : 'text-g600'}>Unit</span>
                           {mustPick && <span className="text-[9px] font-bold text-red-mrt">— Select required</span>}
                         </label>
                         <select
-                          title="Site / Branch"
+                          title="Unit"
                           value={siteId}
                           onChange={e => { setSiteId(e.target.value); setContactId(''); setContact(''); setEmail(''); setPhone(''); setContactManual(false); }}
                           disabled={!custName}
                           className={`w-full font-sans text-[13px] text-blk bg-white rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt disabled:bg-g50 disabled:cursor-not-allowed border ${mustPick ? 'border-red-mrt ring-[3px] ring-red-lt' : 'border-g300'}`}
                         >
-                          <option value="">{custSites.length > 1 ? 'Select Site / Branch...' : 'Select Site...'}</option>
+                          <option value="">{custSites.length > 1 ? 'Select Unit...' : 'Select Unit...'}</option>
                           {custSites.map(s => <option key={s.id} value={s.id}>{s.name} ({s.city})</option>)}
                         </select>
                       </>
