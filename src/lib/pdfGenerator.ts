@@ -380,9 +380,13 @@ export function generateQuotePDF(
     ' | ' + person.name + ' | ' + person.designation + (person.phone ? ' | Tel.: ' + person.phone : '');
   doc.text(restPart, mx + boldW, y);
 
-  // ── Page number ──────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(100, 100, 100);
-  doc.text('Page 1 of 1', rx, ph - 8, { align: 'right' });
+  // ── Page numbers — stamp "Page X of N" on every page ─────────────────────
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(100, 100, 100);
+    doc.text(`Page ${p} of ${pageCount}`, rx, ph - 8, { align: 'right' });
+  }
 
   if (download !== false) doc.save(quote.id + '.pdf');
   return doc;
@@ -699,8 +703,13 @@ export function generatePIPDF(
   doc.setFont('helvetica', 'normal');
   doc.text(' | ' + person.name + ' | ' + person.designation + (person.phone ? ' | Tel.: ' + person.phone : ''), mx + boldW, y);
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(100, 100, 100);
-  doc.text('Page 1 of 1', rx, ph - 8, { align: 'right' });
+  // ── Page numbers — stamp "Page X of N" on every page ─────────────────────
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(100, 100, 100);
+    doc.text(`Page ${p} of ${pageCount}`, rx, ph - 8, { align: 'right' });
+  }
 
   if (download !== false) doc.save(order.id + '_PI.pdf');
   return doc;
