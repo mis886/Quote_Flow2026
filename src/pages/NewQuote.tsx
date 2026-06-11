@@ -171,8 +171,7 @@ export function NewQuote() {
   const [selectedSigId, setSelectedSigId] = useState('');
   const [quoteStatus, setQuoteStatus] = useState<QuoteStatus>('Draft');
   const [tnc, setTnc] = useState<TncState>(defaultTnc);
-  const [tncManual, setTncManual] = useState(false);
-  const setTncField = (k: keyof TncState, v: string) => { setTncManual(true); setTnc((p: TncState) => ({ ...p, [k]: v })); };
+  const setTncField = (k: keyof TncState, v: string) => setTnc((p: TncState) => ({ ...p, [k]: v }));
 
   // Collect unique historical values per T&C field from all saved quotes
   const tncSuggestions = useMemo(() => {
@@ -247,7 +246,7 @@ export function NewQuote() {
         setQuoteStatus(q.status);
         if (q.unitId) setUnitId(q.unitId);
         if (q.custEnquiryDocNo) setCustEnquiryDocNo(q.custEnquiryDocNo);
-        if (q.terms) { try { setTnc({ ...defaultTnc(), ...JSON.parse(q.terms) }); setTncManual(true); } catch { /**/ } }
+        if (q.terms) { try { setTnc({ ...defaultTnc(), ...JSON.parse(q.terms) }); } catch { /**/ } }
         setItems(q.items);
         setNotes(q.notes ?? []);
         const matched = data.signatories.find((s: AuthorizedSignatory) => s.name === q.authorizedPerson?.name);
@@ -314,9 +313,10 @@ export function NewQuote() {
     } else { if (sites.length === 1) setSiteId(sites[0].id); }
   }, [custName, siteId, contactId, contactManual, data.customers, editId]);
 
-  // T&C auto-fill from incoterms — skipped once user has manually edited any field
+  // T&C auto-fill: always re-derives delivery/pnf/freight from incoterms, payment
+  // from pay, validity from validity — so changing the select is always instant.
+  // leadTime and taxes are never overwritten (user-only fields).
   useEffect(() => {
-    if (editId || tncManual) return;
     const sel = inco === 'OVERRIDE' ? customInco : inco;
     let delivery = 'As per schedule', pnf = 'Extra @ 2%', freight = 'Courier charges extra at actuals';
     if (sel.includes('EXW')) { delivery = 'Ex-works, Meerut'; }
@@ -326,7 +326,7 @@ export function NewQuote() {
     else if (sel.includes('CIF') || sel.includes('CIP')) { delivery = 'CIF/CIP Destination'; pnf = 'Included'; freight = 'Included up to destination'; }
     else if (sel.includes('DDP') || sel.includes('DAP')) { delivery = 'Door Delivery, Customer Site'; pnf = 'Included'; freight = 'Included'; }
     setTnc(p => ({ ...p, delivery, pnf, freight, payment: pay, validity }));
-  }, [inco, customInco, pay, validity, editId, tncManual]);
+  }, [inco, customInco, pay, validity]);
 
   // Item helpers
   const updateItem = (idx: number, field: keyof QuoteItem, value: any) => {
@@ -1126,7 +1126,7 @@ export function NewQuote() {
               <div className="col-span-8 bg-white border border-g200">
                 <div className="p-[11px_16px] border-b border-g200 flex items-center justify-between">
                   <span className="font-mono text-[8.5px] font-bold tracking-[2.5px] uppercase text-red-mrt">Terms & Conditions</span>
-                  <button type="button" onClick={() => { setTncManual(false); setTnc(p => ({ ...p, ...defaultTnc(), payment: pay, validity })); }} className="text-[9px] font-bold text-g400 uppercase hover:text-red-mrt hover:underline">Reset</button>
+                  <button type="button" onClick={() => setTnc(p => ({ ...p, ...defaultTnc(), payment: pay, validity }))} className="text-[9px] font-bold text-g400 uppercase hover:text-red-mrt hover:underline">Reset</button>
                 </div>
                 <div className="p-[12px_16px]">
                   <table className="w-full border border-g200 text-[12px] border-collapse">
