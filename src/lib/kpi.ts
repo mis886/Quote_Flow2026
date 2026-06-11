@@ -125,6 +125,9 @@ export interface DoerMetrics {
   // Time-lap KPIs (avg hours; lower is better). Surfaced on the doer cards.
   enqLapH: number | null;     // DEO: enquiry received → punched in (recv → created_at)
   quoteLapH: number | null;   // Rate Entry: enquiry punched → quote sent (created_at → sent_at)
+  // DEO sub-counts (visible on detail card so manager can read enquiries vs orders separately).
+  enqCount: number;           // DEO: enquiries entered in period
+  orderCount: number;         // DEO: orders converted in period
 }
 
 // How each role's composite blends the metrics. Volume & speed are normalized to
@@ -466,6 +469,56 @@ export function buildDoerTimeline(
     const c = data.customers.find(x => x.name === cust);
     return siteLabel(c, siteId) || 'Head Office / General';
   };
+
+  // ── Rate Entry work history: quotes created (punched → sent lap). A Rate
+  // Entry operator's job is to enter rates after an enquiry is punched and
+  // mark the quote sent. History rows = one per quote they authored, scored
+  // on the enquiry-punched → quote-sent lap vs the stage TAT.
+  if (member.role === 'Rate Entry') {
+    const TAT_H = stageTatHours(settings, 'Sent Quotation'); // default quote TAT
+    const enquiryById = new Map(data.enquiries.map(e => [e.id, e]));
+
+    for (const q of data.quotes) {
+      if (!isMine(q.doer)) continue;
+      // Use sent_at as the primary timestamp; fall back to quote.date for Drafts.
+      const stamp = q.sent_at ?? q.date;
+      if (!stamp) continue;
+      if (!inRange(stamp, range)) continue;
+
+      const enq = q.enqRef ? enquiryById.get(q.enqRef) : undefined;
+      // Lap: enquiry punched (enq.created_at) → quote sent (q.sent_at).
+      // Fall back to recv → quote.date if timestamps are missing.
+      const fromTs = enq?.created_at ?? enq?.recv ?? null;
+      const toTs = q.sent_at ?? null;
+      const lapH = (fromTs && toTs)
+        ? Math.round((new Date(toTs).getTime() - new Date(fromTs).getTime()) / 3600000)
+        : null;
+      const onTime = lapH == null ? null : lapH <= TAT_H;
+      const wasSent = q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost';
+
+      rows.push({
+        date: stamp.slice(0, 10),
+        ts: stamp,
+        kind: 'done',
+        activity: `Quote ${q.status} · ${q.id}`,
+        channel: wasSent ? 'Sent' : 'Draft',
+        refId: q.id,
+        cust: q.cust,
+        siteId: q.siteId ?? null,
+        site: siteOf(q.cust, q.siteId),
+        onTime: wasSent ? onTime : null,
+        lapH: wasSent ? lapH : null,
+        kindLabel: wasSent ? 'Quote sent' : 'Draft',
+        note: wasSent
+          ? (lapH == null
+              ? `Sent ${q.id}${enq ? ` · ${enq.id}` : ''}`
+              : `Sent ${fmtLapShort(lapH)} after enquiry punched`)
+          : `Draft — not yet sent`,
+      });
+    }
+
+    return rows.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+  }
 
   // ── DEO work history: enquiries entered (recv → punched lap) + quote→order
   // conversions. A DEO doesn't run follow-ups, so its history is these two
