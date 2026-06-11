@@ -343,11 +343,13 @@ export function Orders() {
                               const sig = unitSig ?? data.signatories.find(s => s.is_default);
                               generatePIPDF(o, qt, cust, data.settings, sig, true, unit, bank);
                             }}>PI</Button>
-                            <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); setSendModalOrder(o); }}>
-                              <Mail size={11} className="mr-1" />Email
-                            </Button>
+                            {false && (
+                              <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); setSendModalOrder(o); }}>
+                                <Mail size={11} className="mr-1" />Email
+                              </Button>
+                            )}
                             <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openAttachmentModal('order', o.id); }}>Docs</Button>
-                            {false && data.settings?.sheets_webhook_url && (
+                            {data.settings?.sheets_webhook_url && (
                               o.sheetsExportedAt ? (
                                 <button type="button" disabled title={`Exported ${fmtIST(new Date(o.sheetsExportedAt!), 'dd MMM yyyy')}`} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-[#A2DEBD] bg-[#EAF8F1] cursor-not-allowed shrink-0">
                                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="#0F9D58" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
