@@ -944,7 +944,7 @@ export default function FollowUps() {
             {/* ── DETAIL HEADER ── */}
             <div className="bg-white border-b border-g200 shrink-0">
               {/* Top row: customer name + city · ref + badges · action buttons */}
-              <div className="flex items-center gap-4 px-6 pt-4 pb-3 border-b border-g150">
+              <div className="flex items-center gap-4 px-6 pt-2.5 pb-2 border-b border-g150">
                 {/* Customer identity block */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1003,27 +1003,20 @@ export default function FollowUps() {
                       <RotateCcw size={11} /> Re-open
                     </button>
                   ) : (
-                    <>
-                      <button type="button" onClick={e => handleMarkWon(selectedItem.quote.id, e)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                        <Trophy size={11} /> WON
-                      </button>
-                      <button type="button" onClick={e => handleMarkLost(selectedItem.quote.id, e)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors">
-                        <XCircle size={11} /> LOST
-                      </button>
-                      <button type="button" onClick={handleClose}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
-                        <CheckCircle2 size={11} /> Close
-                      </button>
-                    </>
+                    // Win / Lost live in the Log Activity panel footer; the header
+                    // keeps only Close (no equivalent there) to mark a quote done
+                    // without a win/loss outcome.
+                    <button type="button" onClick={handleClose}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors">
+                      <CheckCircle2 size={11} /> Close
+                    </button>
                   )}
                 </div>
               </div>
 
               {/* KPI strip — single compact row so the header stays short and the
                   Log Activity panel below starts at the same height as the cards */}
-              <div className="flex border-t border-g150 mt-2">
+              <div className="flex border-t border-g150">
                 {[
                   { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
                   { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
@@ -1039,7 +1032,7 @@ export default function FollowUps() {
                   { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
                   { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
                 ].map((kpi, i) => (
-                  <div key={i} className="flex-1 min-w-0 px-3 py-2 border-r border-g150 last:border-r-0 flex flex-col gap-0.5">
+                  <div key={i} className="flex-1 min-w-0 px-3 py-1.5 border-r border-g150 last:border-r-0 flex flex-col gap-0.5">
                     <span className="font-mono text-[8.5px] font-bold tracking-[1.2px] uppercase text-g400">{kpi.label}</span>
                     <span className={cn("text-[12.5px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[12px]", kpi.color)}>{kpi.value}</span>
                   </div>
@@ -1053,7 +1046,7 @@ export default function FollowUps() {
                 const contacts = site?.contacts ?? [];
                 if (contacts.length === 0) return null;
                 return (
-                  <div className="flex items-center gap-2 px-6 py-2.5 border-t border-g150 bg-g50 flex-wrap">
+                  <div className="flex items-center gap-2 px-6 py-1.5 border-t border-g150 bg-g50 flex-wrap">
                     {contacts.map(ct => (
                       <div key={ct.id} className="flex items-center gap-2 bg-white border border-g200 rounded-[3px] px-3 py-1.5 hover:border-g300 hover:shadow-sm transition-all">
                         <div>
