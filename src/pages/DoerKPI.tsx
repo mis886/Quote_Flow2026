@@ -299,7 +299,10 @@ export function DoerKPI() {
               <DueGroup
                 key={doerRowKey(m.email, m.role)}
                 member={m}
-                onBulkLog={(items) => setBulkLog({ context: `Due Next Week · ${m.displayName}`, items })}
+                onBulkLog={(items) => setBulkLog({
+                  context: items[0] ? `${items[0].cust} · ${items[0].site}` : `Due Next Week · ${m.displayName}`,
+                  items,
+                })}
               />
             ))}
           </div>
@@ -345,22 +348,19 @@ function ThSort({ label, k, sortKey, onSort }: {
 
 function DueGroup({ member, onBulkLog }: { member: DoerMetrics; onBulkLog: (items: DueItem[]) => void }) {
   const [open, setOpen] = useState(true);
-  // Only follow-up items map to a quote we can log against.
-  const loggable = member.dueNextWeek.filter(d => d.kind === 'followup');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const toggle = (refId: string) =>
-    setSelected(s => {
-      const next = new Set(s);
-      next.has(refId) ? next.delete(refId) : next.add(refId);
-      return next;
-    });
-
-  const selectedItems = loggable.filter(d => selected.has(d.refId));
-  const logSelected = () => {
-    const items = selectedItems.length > 0 ? selectedItems : loggable;
-    if (items.length > 0) onBulkLog(items);
-  };
+  // Group every due item by customer + site/branch. Bulk-log is scoped to a
+  // single customer-site so one call clears all that site's open follow-ups
+  // (mirrors the Customer Intel Board) — no cross-customer batching.
+  const siteGroups = useMemo(() => {
+    const map = new Map<string, { cust: string; site: string; items: DueItem[] }>();
+    for (const d of member.dueNextWeek) {
+      const key = `${d.cust}__${d.siteId ?? d.site}`;
+      if (!map.has(key)) map.set(key, { cust: d.cust, site: d.site, items: [] });
+      map.get(key)!.items.push(d);
+    }
+    return [...map.values()];
+  }, [member.dueNextWeek]);
 
   return (
     <div className="border border-g100 rounded-[8px] overflow-hidden">
@@ -375,48 +375,83 @@ function DueGroup({ member, onBulkLog }: { member: DoerMetrics; onBulkLog: (item
         </span>
       </button>
       {open && (
-        <>
-          <ul className="divide-y divide-g50">
-            {member.dueNextWeek.map((d, i) => {
-              const canLog = d.kind === 'followup';
-              const checked = selected.has(d.refId);
-              return (
-                <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
-                  {canLog ? (
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(d.refId)}
-                      title={`Select ${d.refId}`}
-                      className="shrink-0 accent-indigo-600 cursor-pointer"
-                    />
-                  ) : (
-                    <span className="w-3 shrink-0" />
-                  )}
-                  <span className="text-g700 truncate flex-1">{d.label}</span>
-                  <span className="text-g400 shrink-0 ml-2 tabular-nums">
-                    {d.dueDate ? new Date(d.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          {loggable.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 bg-indigo-50/40 border-t border-indigo-100">
-              <span className="text-[10px] text-indigo-600 font-medium">
-                {selectedItems.length > 0 ? `${selectedItems.length} selected` : `Log all ${loggable.length} follow-ups`}
+        <div className="divide-y divide-g100">
+          {siteGroups.map((g, gi) => (
+            <SiteDueGroup key={gi} cust={g.cust} site={g.site} items={g.items} onBulkLog={onBulkLog} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One customer + site/branch block: its own checkboxes and a "Log all" that
+// fans a single activity across just this site's loggable follow-ups.
+function SiteDueGroup({ cust, site, items, onBulkLog }: {
+  cust: string; site: string; items: DueItem[]; onBulkLog: (items: DueItem[]) => void;
+}) {
+  const loggable = items.filter(d => d.kind === 'followup');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (refId: string) =>
+    setSelected(s => {
+      const next = new Set(s);
+      next.has(refId) ? next.delete(refId) : next.add(refId);
+      return next;
+    });
+
+  const selectedItems = loggable.filter(d => selected.has(d.refId));
+  const logHere = () => {
+    const batch = selectedItems.length > 0 ? selectedItems : loggable;
+    if (batch.length > 0) onBulkLog(batch);
+  };
+
+  return (
+    <div>
+      {/* Customer · site header */}
+      <div className="px-3 py-1.5 bg-g50/70">
+        <div className="text-[11px] font-semibold text-blk truncate">{cust}</div>
+        <div className="text-[9.5px] text-g400 truncate">{site}</div>
+      </div>
+      <ul className="divide-y divide-g50">
+        {items.map((d, i) => {
+          const canLog = d.kind === 'followup';
+          const checked = selected.has(d.refId);
+          return (
+            <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
+              {canLog ? (
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(d.refId)}
+                  title={`Select ${d.refId}`}
+                  className="shrink-0 accent-indigo-600 cursor-pointer"
+                />
+              ) : (
+                <span className="w-3 shrink-0" />
+              )}
+              <span className="text-g700 truncate flex-1">{d.label}</span>
+              <span className="text-g400 shrink-0 ml-2 tabular-nums">
+                {d.dueDate ? new Date(d.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
               </span>
-              <button
-                type="button"
-                onClick={logSelected}
-                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold tracking-wider uppercase rounded-[3px]"
-              >
-                <CheckSquare size={10} />
-                Log {selectedItems.length > 0 ? selectedItems.length : 'All'}
-              </button>
-            </div>
-          )}
-        </>
+            </li>
+          );
+        })}
+      </ul>
+      {loggable.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-50/40">
+          <span className="text-[10px] text-indigo-600 font-medium">
+            {selectedItems.length > 0 ? `${selectedItems.length} selected` : `One call · all ${loggable.length} open`}
+          </span>
+          <button
+            type="button"
+            onClick={logHere}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold tracking-wider uppercase rounded-[3px]"
+          >
+            <CheckSquare size={10} />
+            Log {selectedItems.length > 0 ? selectedItems.length : `All ${loggable.length}`}
+          </button>
+        </div>
       )}
     </div>
   );

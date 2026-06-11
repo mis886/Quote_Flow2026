@@ -9,6 +9,7 @@ import type {
   AppSettings, DataStore, FollowUp, FollowUpLog, Quote, DoerRole, BoardLane, GlobalDateRangeLike,
 } from './types';
 import { DEFAULT_STAGE_TAT_H, DEFAULT_STAGE_ROLE } from './types';
+import { siteLabel } from './utils';
 
 // ── TAT resolution (mirrors PipelineBoard / FollowUps) ──────────────
 // hours → settings.pipeline_tat_h, then legacy pipeline_tat (×24), then default.
@@ -105,6 +106,8 @@ export interface DueItem {
   kind: 'followup' | 'draft-quote' | 'stale-enquiry';
   refId: string;            // quote id / enquiry id
   cust: string;
+  siteId: string | null;    // customer site/branch this item belongs to
+  site: string;             // resolved site/branch label (city — branch)
   label: string;            // human description
   dueDate: string | null;   // ISO date the action is due
 }
@@ -170,6 +173,13 @@ export function computeDoerMetrics(
   const settings = data.settings;
   const now = Date.now();
   const nextWeekEnd = now + 7 * MS_DAY;
+
+  // Resolve a customer + siteId to a human site/branch label, with a stable
+  // fallback so unscoped quotes still group together (one "call" per site).
+  const siteOf = (cust: string, siteId: string | null | undefined): string => {
+    const c = data.customers.find(x => x.name === cust);
+    return siteLabel(c, siteId) || 'Head Office / General';
+  };
 
   // First pass: raw metrics per (identity, role). A single login (e.g. a shared
   // accounts@ account) can hold several roles, and one person can cover several
@@ -293,6 +303,7 @@ export function computeDoerMetrics(
           const raw = matchDoer(fu.owner, role);
           if (raw) raw.dueNextWeek.push({
             kind: 'followup', refId: fu.quote_id, cust: quote.cust,
+            siteId: quote.siteId ?? null, site: siteOf(quote.cust, quote.siteId),
             label: `Follow-up ${quote.id} · ${quote.cust}`, dueDate: fu.next_date,
           });
         }
@@ -314,6 +325,7 @@ export function computeDoerMetrics(
     if (raw) {
       raw.dueNextWeek.push({
         kind: 'draft-quote', refId: q.id, cust: q.cust,
+        siteId: q.siteId ?? null, site: siteOf(q.cust, q.siteId),
         label: `Send quote ${q.id} · ${q.cust}`, dueDate: null,
       });
     }

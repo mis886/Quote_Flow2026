@@ -240,6 +240,10 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
   const selectedQuotes = Array.from(
     new Map(selectedRows.map(r => [r.refId, { refId: r.refId, cust: r.cust }])).values()
   );
+  // One call = one customer. Block batches that span multiple customers so a
+  // single logged note never lands on unrelated customers' quotes.
+  const selectedCusts = Array.from(new Set(selectedQuotes.map(q => q.cust)));
+  const mixedCustomers = selectedCusts.length > 1;
 
   return (
     <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
@@ -375,14 +379,19 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
           <span className="text-[10px] text-g400">
             Showing {filtered.length} of {timeline.length} entries
             {selectedQuotes.length > 0 && (
-              <span className="ml-2 text-indigo-600 font-medium">· {selectedQuotes.length} quote{selectedQuotes.length === 1 ? '' : 's'} selected</span>
+              <span className={cn('ml-2 font-medium', mixedCustomers ? 'text-red-mrt' : 'text-indigo-600')}>
+                · {selectedQuotes.length} quote{selectedQuotes.length === 1 ? '' : 's'} selected
+                {mixedCustomers && ' — one call covers one customer only'}
+              </span>
             )}
           </span>
           {selectedQuotes.length > 0 && (
             <button
               type="button"
+              disabled={mixedCustomers}
+              title={mixedCustomers ? 'Select quotes from a single customer to log in one call' : undefined}
               onClick={() => setShowPanel(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold tracking-wider uppercase rounded-[4px]"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold tracking-wider uppercase rounded-[4px] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CheckSquare size={11} />
               Log on {selectedQuotes.length}
@@ -391,10 +400,10 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
         </div>
       )}
 
-      {showPanel && selectedQuotes.length > 0 && (
+      {showPanel && selectedQuotes.length > 0 && !mixedCustomers && (
         <BulkLogSidePanel
           quoteIds={selectedQuotes.map(q => q.refId)}
-          context={`Work History · ${doerName}`}
+          context={`${selectedCusts[0]} · ${doerName}`}
           items={selectedQuotes}
           onClose={() => { setShowPanel(false); setSelected(new Set()); }}
         />
