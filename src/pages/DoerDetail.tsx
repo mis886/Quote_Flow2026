@@ -201,6 +201,10 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showPanel, setShowPanel] = useState(false);
 
+  // DEO timelines carry entry/conversion laps (lapH) rather than follow-up logs;
+  // they show a "Time Lap" column and have no bulk-log (no follow-up quotes).
+  const isDeoTimeline = timeline.some(r => r.kindLabel === 'Enquiry entry' || r.kindLabel === 'Order');
+
   // Summary counts for the banner
   const counts = useMemo(() => {
     const c = { ontime: 0, late: 0, overdue: 0, logged: 0 };
@@ -306,22 +310,26 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
           <table className="w-full text-[12px] border-collapse">
             <thead>
               <tr className="bg-g50 text-g500 font-mono text-[9px] tracking-[1px] uppercase border-b border-g200">
-                <th className="px-3 py-2.5 text-center font-bold w-[34px]">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleAll}
-                    title="Select all"
-                    className="accent-indigo-600 cursor-pointer align-middle"
-                  />
-                </th>
+                {!isDeoTimeline && (
+                  <th className="px-3 py-2.5 text-center font-bold w-[34px]">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      title="Select all"
+                      className="accent-indigo-600 cursor-pointer align-middle"
+                    />
+                  </th>
+                )}
                 <th className="px-3 py-2.5 text-left font-bold w-[120px]">Date & Time</th>
                 <th className="px-3 py-2.5 text-left font-bold w-[90px]">Status</th>
-                <th className="px-3 py-2.5 text-left font-bold w-[80px]">Channel</th>
-                <th className="px-3 py-2.5 text-left font-bold w-[100px]">Quote</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[80px]">{isDeoTimeline ? 'Type' : 'Channel'}</th>
+                <th className="px-3 py-2.5 text-left font-bold w-[100px]">{isDeoTimeline ? 'Ref' : 'Quote'}</th>
                 <th className="px-3 py-2.5 text-left font-bold">Customer · Site</th>
                 <th className="px-3 py-2.5 text-left font-bold">Note</th>
-                <th className="px-3 py-2.5 text-left font-bold">Next Planned</th>
+                {isDeoTimeline
+                  ? <th className="px-3 py-2.5 text-left font-bold w-[100px]">Time Lap</th>
+                  : <th className="px-3 py-2.5 text-left font-bold">Next Planned</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-g100">
@@ -332,15 +340,17 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                 const rowBg = sKey === 'overdue' ? 'bg-red-50/40' : sKey === 'late' ? 'bg-orange-50/30' : '';
                 return (
                   <tr key={i} className={cn('hover:bg-g50/60 transition-colors', rowBg, selected.has(String(i)) && 'bg-indigo-50/50')}>
-                    <td className="px-3 py-2.5 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(String(i))}
-                        onChange={() => toggleRow(i)}
-                        title={`Select ${row.refId}`}
-                        className="accent-indigo-600 cursor-pointer align-middle"
-                      />
-                    </td>
+                    {!isDeoTimeline && (
+                      <td className="px-3 py-2.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(String(i))}
+                          onChange={() => toggleRow(i)}
+                          title={`Select ${row.refId}`}
+                          className="accent-indigo-600 cursor-pointer align-middle"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="font-mono text-[10px] font-semibold text-g600">
                         {fmtIST(new Date(row.ts), 'dd MMM yyyy')}
@@ -369,11 +379,22 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                         ? <span className="line-clamp-2 leading-snug">{row.note}</span>
                         : <span className="text-g300 italic">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 max-w-[180px]">
-                      {row.nextSummary
-                        ? <span className="text-[11px] text-blue-600 leading-snug">{row.nextSummary}</span>
-                        : <span className="text-g300 italic text-[11px]">—</span>}
-                    </td>
+                    {isDeoTimeline ? (
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {row.lapH != null
+                          ? <span className={cn('font-mono text-[11px] font-bold',
+                              row.onTime === true ? 'text-emerald-600' : row.onTime === false ? 'text-red-mrt' : 'text-g600')}>
+                              {fmtHours(row.lapH)}
+                            </span>
+                          : <span className="text-g300 italic text-[11px]">—</span>}
+                      </td>
+                    ) : (
+                      <td className="px-3 py-2.5 max-w-[180px]">
+                        {row.nextSummary
+                          ? <span className="text-[11px] text-blue-600 leading-snug">{row.nextSummary}</span>
+                          : <span className="text-g300 italic text-[11px]">—</span>}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -387,14 +408,14 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
         <div className="flex items-center justify-between px-4 py-2 border-t border-g100">
           <span className="text-[10px] text-g400">
             Showing {filtered.length} of {timeline.length} entries
-            {selectedQuotes.length > 0 && (
+            {!isDeoTimeline && selectedQuotes.length > 0 && (
               <span className={cn('ml-2 font-medium', mixedSites ? 'text-red-mrt' : 'text-indigo-600')}>
                 · {selectedQuotes.length} quote{selectedQuotes.length === 1 ? '' : 's'} selected
                 {mixedSites && ' — one call covers one customer-site only'}
               </span>
             )}
           </span>
-          {selectedQuotes.length > 0 && (
+          {!isDeoTimeline && selectedQuotes.length > 0 && (
             <button
               type="button"
               disabled={mixedSites}

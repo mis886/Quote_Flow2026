@@ -420,6 +420,16 @@ export interface TimelineRow {
   onTime: boolean | null;  // done: met step deadline?; pending: false = overdue
   note?: string;           // what happened (log note)
   nextSummary?: string;    // planned-next: "12 Jun · Email — send revised quote"
+  lapH?: number | null;    // entry/conversion lap in hours (DEO rows)
+  kindLabel?: string;      // row-type label for DEO rows ("Enquiry entry" / "Order")
+}
+
+// Short human duration for a lap in hours: "3h", "1d 4h", "2d".
+function fmtLapShort(h: number): string {
+  if (h < 1) return '<1h';
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24); const r = h % 24;
+  return r ? `${d}d ${r}h` : `${d}d`;
 }
 
 // Compose a "planned next" one-liner from a log's next* fields (or a followup's
@@ -456,6 +466,66 @@ export function buildDoerTimeline(
     const c = data.customers.find(x => x.name === cust);
     return siteLabel(c, siteId) || 'Head Office / General';
   };
+
+  // ── DEO work history: enquiries entered (recv → punched lap) + quote→order
+  // conversions. A DEO doesn't run follow-ups, so its history is these two
+  // activities, scored on the punch lap (≤ urgency SLA = on-time).
+  if (member.role === 'DEO') {
+    const SLA_H: Record<string, number> = { Hot: 4, Urgent: 24, Normal: 48, Low: 72 };
+    // Enquiry-entry rows.
+    for (const e of data.enquiries) {
+      if (!isMine(e.doer)) continue;
+      const stamp = e.created_at ?? e.recv;          // when punched in
+      if (!inRange(stamp, range)) continue;
+      const lapH = (e.recv && e.created_at)
+        ? Math.round((new Date(e.created_at).getTime() - new Date(e.recv).getTime()) / 3600000)
+        : null;
+      const sla = SLA_H[e.urg] ?? 48;
+      const onTime = lapH == null ? null : lapH <= sla;
+      rows.push({
+        date: stamp.slice(0, 10),
+        ts: stamp,
+        kind: 'done',
+        activity: `Enquiry entry · ${e.id}`,
+        channel: e.src || 'RFQ',
+        refId: e.id,
+        cust: e.cust,
+        siteId: e.siteId ?? null,
+        site: siteOf(e.cust, e.siteId),
+        onTime,
+        lapH,
+        kindLabel: 'Enquiry entry',
+        note: lapH == null ? 'Entered (no received-time recorded)' : `Punched ${fmtLapShort(lapH)} after receipt`,
+      });
+    }
+    // Quote → order conversion rows.
+    for (const o of data.orders) {
+      if (!isMine(o.doer)) continue;
+      const stamp = (o as any).created_at ?? o.poDate;
+      if (!inRange(stamp, range)) continue;
+      const q = o.quoteRef ? quoteById.get(o.quoteRef) : undefined;
+      const fromTs = q?.sent_at ?? q?.date ?? null;
+      const lapH = (fromTs && stamp)
+        ? Math.round((new Date(stamp).getTime() - new Date(fromTs).getTime()) / 3600000)
+        : null;
+      rows.push({
+        date: stamp.slice(0, 10),
+        ts: stamp,
+        kind: 'done',
+        activity: `Order ${o.id} · ${o.quoteRef || '—'}`,
+        channel: 'Order',
+        refId: o.quoteRef || o.id,
+        cust: o.cust,
+        siteId: o.siteId ?? null,
+        site: siteOf(o.cust, o.siteId),
+        onTime: null,                                  // conversion has no SLA bar
+        lapH,
+        kindLabel: 'Order',
+        note: `PO ${o.poNo || ''} converted${lapH != null ? ` ${fmtLapShort(lapH)} after quote sent` : ''}`.trim(),
+      });
+    }
+    return rows.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+  }
 
   for (const fu of data.followups) {
     const quote = quoteById.get(fu.quote_id);

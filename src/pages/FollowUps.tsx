@@ -999,9 +999,9 @@ export default function FollowUps() {
                 )}
               </div>
 
-              {/* KPI strip — single compact row so the header stays short and the
-                  Log Activity panel below starts at the same height as the cards */}
-              <div className="flex border-t border-g150">
+              {/* KPI strip — ultra-compact single inline row (label: value · …) so
+                  the header is minimal and the Log Activity panel reaches the top. */}
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-0.5 border-t border-g150 px-6 py-1.5">
                 {[
                   { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
                   { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
@@ -1017,9 +1017,9 @@ export default function FollowUps() {
                   { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
                   { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
                 ].map((kpi, i) => (
-                  <div key={i} className="flex-1 min-w-0 px-3 py-1.5 border-r border-g150 last:border-r-0 flex flex-col gap-0.5">
-                    <span className="font-mono text-[8.5px] font-bold tracking-[1.2px] uppercase text-g400">{kpi.label}</span>
-                    <span className={cn("text-[12.5px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[12px]", kpi.color)}>{kpi.value}</span>
+                  <div key={i} className="flex items-baseline gap-1 min-w-0">
+                    <span className="font-mono text-[8.5px] font-bold tracking-[1px] uppercase text-g400 shrink-0">{kpi.label}</span>
+                    <span className={cn("text-[12px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[11.5px]", kpi.color)}>{kpi.value}</span>
                   </div>
                 ))}
               </div>
