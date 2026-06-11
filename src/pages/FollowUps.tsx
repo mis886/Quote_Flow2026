@@ -999,65 +999,38 @@ export default function FollowUps() {
                 )}
               </div>
 
-              {/* KPI strip — 3-column micro-grid so values never wrap and the
-                  header stays one compact row, maximising Log Activity height. */}
-              {(() => {
-                const chain = buildFullChain(selectedItem.quote, selectedItem.followUp);
-                const onTimePct = cardOnTimeRate(chain);
-                const validMs = new Date(selectedItem.quote.validity).getTime() - Date.now();
-                const kpis = [
-                  {
-                    label: 'Value',
-                    value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`,
-                    cls: 'font-mono text-blk',
-                  },
-                  {
-                    label: 'Valid Till',
-                    value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yy'),
-                    cls: validMs < 0 ? 'text-red-700 font-bold' : validMs < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold',
-                  },
-                  {
-                    label: 'On-Time',
-                    value: onTimePct !== null ? `${onTimePct}%` : '—',
-                    cls: onTimePct !== null ? (onTimePct >= 70 ? 'text-sW font-bold' : onTimePct >= 40 ? 'text-amber-600 font-bold' : 'text-red-mrt font-bold') : 'text-g400',
-                  },
-                  {
-                    label: 'Next',
-                    value: selectedItem.followUp?.next_date
-                      ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
-                      : 'Not scheduled',
-                    cls: selectedItem.priority === 'overdue' ? 'text-red-700 font-bold' : selectedItem.priority === 'today' ? 'text-amber-700 font-bold' : 'text-slate-700',
-                  },
-                  {
-                    label: 'Owner',
-                    value: selectedItem.followUp?.owner || 'Unassigned',
-                    cls: 'text-slate-700',
-                  },
-                  {
-                    label: 'F/Ups',
-                    value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length),
-                    cls: 'font-mono text-blk',
-                  },
-                ];
-                return (
-                  <div className="grid grid-cols-3 divide-x divide-g100 border-t border-g150">
-                    {kpis.map((kpi, i) => (
-                      <div key={i} className="flex flex-col px-3 py-1 min-w-0">
-                        <span className="font-mono text-[7.5px] font-bold tracking-[1px] uppercase text-g400 leading-none mb-0.5">{kpi.label}</span>
-                        <span className={cn('text-[11px] leading-tight truncate', kpi.cls)}>{kpi.value}</span>
-                      </div>
-                    ))}
+              {/* KPI strip — ultra-compact single inline row (label: value · …) so
+                  the header is minimal and the Log Activity panel reaches the top. */}
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-0.5 border-t border-g150 px-6 py-1.5">
+                {[
+                  { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
+                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
+                    color: (() => { const ms = new Date(selectedItem.quote.validity).getTime() - Date.now(); return ms < 0 ? 'text-red-700 font-bold' : ms < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold'; })() },
+                  { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
+                    mono: true,
+                    color: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? (p >= 70 ? 'text-sW' : p >= 40 ? 'text-amber-600' : 'text-red-mrt') : undefined; })() },
+                  { label: 'Next Step', value: selectedItem.followUp?.next_date
+                    ? `${formatDue(selectedItem.followUp.next_date, selectedItem.followUp.next_time)} · ${selectedItem.followUp.next_date < new Date().toISOString().slice(0,10) ? '⚠ ' : ''}${selectedItem.followUp?.stage ?? ''}`
+                    : 'Not scheduled',
+                    mono: false,
+                    color: selectedItem.priority === 'overdue' ? 'text-red-700 font-bold' : selectedItem.priority === 'today' ? 'text-amber-700 font-bold' : 'text-slate-700 font-semibold' },
+                  { label: 'Owner', value: selectedItem.followUp?.owner || 'Unassigned', mono: false },
+                  { label: 'Follow-Ups', value: String((selectedItem.followUp?.logs ?? []).filter(l => !isQuoteSentLog(l.note)).length), mono: true },
+                ].map((kpi, i) => (
+                  <div key={i} className="flex items-baseline gap-1 min-w-0">
+                    <span className="font-mono text-[8.5px] font-bold tracking-[1px] uppercase text-g400 shrink-0">{kpi.label}</span>
+                    <span className={cn("text-[12px] font-semibold text-blk truncate", kpi.mono && "font-mono text-[11.5px]", kpi.color)}>{kpi.value}</span>
                   </div>
-                );
-              })()}
+                ))}
+              </div>
 
             </div>
 
-            {/* Content: Timeline (left) + Log Activity panel (right) */}
+            {/* Content: Timeline (left, fixed) + Log Activity panel (right, flex-1) */}
             <div className="flex-1 overflow-hidden flex bg-g50">
 
-              {/* Timeline column */}
-              <div className="flex-1 overflow-hidden flex flex-col min-w-0 border-r border-g200">
+              {/* Timeline column — fixed width so Log Activity gets the rest */}
+              <div className="w-[460px] shrink-0 overflow-hidden flex flex-col border-r border-g200">
                 {/* Contacts bar — lives in the timeline column (left) so it doesn't
                     push the Log Activity panel down; panel starts right below the KPIs. */}
                 {(() => {
@@ -1258,9 +1231,9 @@ export default function FollowUps() {
                 </div>
               </div>
 
-              {/* Log Activity panel — right side, fixed width, hidden on closed tab */}
+              {/* Log Activity panel — takes all remaining width */}
               {!isClosedTab && (
-                <form onSubmit={handleLogActivity} className="w-[420px] shrink-0 bg-white flex flex-col overflow-hidden">
+                <form onSubmit={handleLogActivity} className="flex-1 min-w-0 bg-white flex flex-col overflow-hidden">
                   {/* Panel header */}
                   <div className="flex items-center justify-between px-5 py-1.5 border-b border-g150 shrink-0">
                     <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
