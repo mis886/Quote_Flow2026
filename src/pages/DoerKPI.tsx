@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { cn } from '../lib/utils';
 import { DOER_ROLES, type DoerRole, type GlobalDateRangeLike } from '../lib/types';
-import { computeDoerMetrics, doerRowKey, ROLE_WEIGHTS, type DoerMetrics } from '../lib/kpi';
-import { Gauge, Trophy, Clock, TrendingUp, Users, ChevronDown } from 'lucide-react';
+import { computeDoerMetrics, doerRowKey, ROLE_WEIGHTS, type DoerMetrics, type DueItem } from '../lib/kpi';
+import { Gauge, Trophy, Clock, TrendingUp, Users, ChevronDown, CheckSquare } from 'lucide-react';
+import { BulkLogSidePanel } from '../components/BulkLogSidePanel';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const MS_DAY = 86400000;
@@ -99,6 +100,9 @@ export function DoerKPI() {
   const trendData = useMemo(() => buildTrend(data, roster, activeTrendKey),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, activeTrendKey]);
+
+  // Bulk-log slide-over: opened from Due Next Week with a batch of follow-up items.
+  const [bulkLog, setBulkLog] = useState<{ context: string; items: DueItem[] } | null>(null);
 
   // Headline metric per role for the top cards (best performer in that role).
   const roleCards = DOER_ROLES.filter(r => r !== 'Other').map(role => {
@@ -292,11 +296,24 @@ export function DoerKPI() {
               <div className="text-[12px] text-g400 py-6 text-center">Nothing scheduled for the next 7 days.</div>
             )}
             {rows.filter(m => m.dueNextWeek.length > 0).map(m => (
-              <DueGroup key={doerRowKey(m.email, m.role)} member={m} />
+              <DueGroup
+                key={doerRowKey(m.email, m.role)}
+                member={m}
+                onBulkLog={(items) => setBulkLog({ context: `Due Next Week · ${m.displayName}`, items })}
+              />
             ))}
           </div>
         </div>
       </div>
+
+      {bulkLog && (
+        <BulkLogSidePanel
+          quoteIds={bulkLog.items.map(it => it.refId)}
+          context={bulkLog.context}
+          items={bulkLog.items.map(it => ({ refId: it.refId, cust: it.cust, label: it.label }))}
+          onClose={() => setBulkLog(null)}
+        />
+      )}
     </div>
   );
 }
@@ -326,8 +343,25 @@ function ThSort({ label, k, sortKey, onSort }: {
   );
 }
 
-function DueGroup({ member }: { member: DoerMetrics }) {
+function DueGroup({ member, onBulkLog }: { member: DoerMetrics; onBulkLog: (items: DueItem[]) => void }) {
   const [open, setOpen] = useState(true);
+  // Only follow-up items map to a quote we can log against.
+  const loggable = member.dueNextWeek.filter(d => d.kind === 'followup');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (refId: string) =>
+    setSelected(s => {
+      const next = new Set(s);
+      next.has(refId) ? next.delete(refId) : next.add(refId);
+      return next;
+    });
+
+  const selectedItems = loggable.filter(d => selected.has(d.refId));
+  const logSelected = () => {
+    const items = selectedItems.length > 0 ? selectedItems : loggable;
+    if (items.length > 0) onBulkLog(items);
+  };
+
   return (
     <div className="border border-g100 rounded-[8px] overflow-hidden">
       <button type="button" onClick={() => setOpen(o => !o)}
@@ -341,16 +375,48 @@ function DueGroup({ member }: { member: DoerMetrics }) {
         </span>
       </button>
       {open && (
-        <ul className="divide-y divide-g50">
-          {member.dueNextWeek.map((d, i) => (
-            <li key={i} className="flex items-center justify-between px-3 py-1.5 text-[11px]">
-              <span className="text-g700 truncate">{d.label}</span>
-              <span className="text-g400 shrink-0 ml-2 tabular-nums">
-                {d.dueDate ? new Date(d.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+        <>
+          <ul className="divide-y divide-g50">
+            {member.dueNextWeek.map((d, i) => {
+              const canLog = d.kind === 'followup';
+              const checked = selected.has(d.refId);
+              return (
+                <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
+                  {canLog ? (
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(d.refId)}
+                      title={`Select ${d.refId}`}
+                      className="shrink-0 accent-indigo-600 cursor-pointer"
+                    />
+                  ) : (
+                    <span className="w-3 shrink-0" />
+                  )}
+                  <span className="text-g700 truncate flex-1">{d.label}</span>
+                  <span className="text-g400 shrink-0 ml-2 tabular-nums">
+                    {d.dueDate ? new Date(d.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {loggable.length > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 bg-indigo-50/40 border-t border-indigo-100">
+              <span className="text-[10px] text-indigo-600 font-medium">
+                {selectedItems.length > 0 ? `${selectedItems.length} selected` : `Log all ${loggable.length} follow-ups`}
               </span>
-            </li>
-          ))}
-        </ul>
+              <button
+                type="button"
+                onClick={logSelected}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold tracking-wider uppercase rounded-[3px]"
+              >
+                <CheckSquare size={10} />
+                Log {selectedItems.length > 0 ? selectedItems.length : 'All'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

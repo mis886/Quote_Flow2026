@@ -8,7 +8,8 @@ import {
   computeDoerMetrics, doerRowKey, buildDoerTimeline, doerStageWorkload, ROLE_WEIGHTS,
   type DoerMetrics, type TimelineRow, type StageWorkload, type RosterMemberLike,
 } from '../lib/kpi';
-import { ArrowLeft, Clock, Layers, CheckCircle2, XCircle, CircleDashed, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clock, Layers, CheckCircle2, XCircle, CircleDashed, AlertTriangle, CheckSquare } from 'lucide-react';
+import { BulkLogSidePanel } from '../components/BulkLogSidePanel';
 
 const MS_DAY = 86400000;
 
@@ -156,7 +157,7 @@ export function DoerDetail() {
       )}
 
       {/* Work History — tabular */}
-      <WorkHistoryTable timeline={timeline} />
+      <WorkHistoryTable timeline={timeline} doerName={member.display_name} />
     </div>
   );
 }
@@ -188,8 +189,11 @@ function rowStatusKey(row: TimelineRow): keyof typeof STATUS_META {
   return 'logged';
 }
 
-function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
+function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doerName: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  // Selection for bulk-logging an activity onto several quotes at once.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showPanel, setShowPanel] = useState(false);
 
   // Summary counts for the banner
   const counts = useMemo(() => {
@@ -218,6 +222,24 @@ function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
 
   const totalLate = counts.late + counts.overdue;
   const lateRate = timeline.length ? Math.round(totalLate / timeline.length * 100) : 0;
+
+  // Selection keyed by row index (each visible row is selectable); the resulting
+  // bulk log dedupes to unique quote ids so a quote is logged at most once.
+  const toggleRow = (idx: number) =>
+    setSelected(s => {
+      const next = new Set(s);
+      next.has(String(idx)) ? next.delete(String(idx)) : next.add(String(idx));
+      return next;
+    });
+  const allSelected = filtered.length > 0 && filtered.every((_, i) => selected.has(String(i)));
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(filtered.map((_, i) => String(i))));
+
+  const selectedRows = filtered.filter((_, i) => selected.has(String(i)));
+  // Unique quotes (by refId) the chosen rows point at.
+  const selectedQuotes = Array.from(
+    new Map(selectedRows.map(r => [r.refId, { refId: r.refId, cust: r.cust }])).values()
+  );
 
   return (
     <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
@@ -274,6 +296,15 @@ function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
           <table className="w-full text-[12px] border-collapse">
             <thead>
               <tr className="bg-g50 text-g500 font-mono text-[9px] tracking-[1px] uppercase border-b border-g200">
+                <th className="px-3 py-2.5 text-center font-bold w-[34px]">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    title="Select all"
+                    className="accent-indigo-600 cursor-pointer align-middle"
+                  />
+                </th>
                 <th className="px-3 py-2.5 text-left font-bold w-[120px]">Date & Time</th>
                 <th className="px-3 py-2.5 text-left font-bold w-[90px]">Status</th>
                 <th className="px-3 py-2.5 text-left font-bold w-[80px]">Channel</th>
@@ -290,7 +321,16 @@ function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
                 // Stripe overdue/late rows faintly for quick visual scan
                 const rowBg = sKey === 'overdue' ? 'bg-red-50/40' : sKey === 'late' ? 'bg-orange-50/30' : '';
                 return (
-                  <tr key={i} className={cn('hover:bg-g50/60 transition-colors', rowBg)}>
+                  <tr key={i} className={cn('hover:bg-g50/60 transition-colors', rowBg, selected.has(String(i)) && 'bg-indigo-50/50')}>
+                    <td className="px-3 py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(String(i))}
+                        onChange={() => toggleRow(i)}
+                        title={`Select ${row.refId}`}
+                        className="accent-indigo-600 cursor-pointer align-middle"
+                      />
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="font-mono text-[10px] font-semibold text-g600">
                         {fmtIST(new Date(row.ts), 'dd MMM yyyy')}
@@ -329,11 +369,35 @@ function WorkHistoryTable({ timeline }: { timeline: TimelineRow[] }) {
         </div>
       )}
 
-      {/* Footer count */}
+      {/* Footer count + bulk-log action */}
       {filtered.length > 0 && (
-        <div className="px-4 py-2 border-t border-g100 text-[10px] text-g400">
-          Showing {filtered.length} of {timeline.length} entries
+        <div className="flex items-center justify-between px-4 py-2 border-t border-g100">
+          <span className="text-[10px] text-g400">
+            Showing {filtered.length} of {timeline.length} entries
+            {selectedQuotes.length > 0 && (
+              <span className="ml-2 text-indigo-600 font-medium">· {selectedQuotes.length} quote{selectedQuotes.length === 1 ? '' : 's'} selected</span>
+            )}
+          </span>
+          {selectedQuotes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowPanel(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold tracking-wider uppercase rounded-[4px]"
+            >
+              <CheckSquare size={11} />
+              Log on {selectedQuotes.length}
+            </button>
+          )}
         </div>
+      )}
+
+      {showPanel && selectedQuotes.length > 0 && (
+        <BulkLogSidePanel
+          quoteIds={selectedQuotes.map(q => q.refId)}
+          context={`Work History · ${doerName}`}
+          items={selectedQuotes}
+          onClose={() => { setShowPanel(false); setSelected(new Set()); }}
+        />
       )}
     </div>
   );
