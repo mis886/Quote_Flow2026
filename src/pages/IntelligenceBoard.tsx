@@ -345,7 +345,7 @@ function CustomerDetail({ stats, allFollowups }: {
                         )}
                         <span className="text-[10px] text-g400">{group.quotes.length} quote{group.quotes.length !== 1 ? 's' : ''}</span>
                         <span className="text-[11px] font-semibold text-blk">{fVal(groupTotal)}</span>
-                        {group.quotes.length > 1 && (
+                        {group.quotes.length >= 1 && (
                           <button
                             type="button"
                             title="Log follow-up for all quotes at this site"
@@ -886,7 +886,7 @@ function AllQuotationsView({
                           )}
                           <span className="text-[10px] text-g400">{group.quotes.length} quote{group.quotes.length !== 1 ? 's' : ''}</span>
                           <span className="text-[11px] font-semibold text-blk">{fVal(groupTotal)}</span>
-                          {group.quotes.length > 1 && (
+                          {group.quotes.length >= 1 && (
                             <button
                               type="button"
                               title="Log follow-up for all quotes at this site"
