@@ -225,10 +225,18 @@ function useCountdown(targetIso: string | null | undefined): string | null {
 export default function FollowUps() {
   const navigate = useNavigate();
   const store = useAppStore();
-  const { data, addFollowUpLog, closeFollowUp, reopenFollowUp, openAttachmentModal, user } = store;
+  const { data, addFollowUpLog, closeFollowUp, reopenFollowUp, openAttachmentModal, user, activeDoer } = store;
   const { globalDateRange, setGlobalDateRange } = store as any;
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
-  const [filterOwner, setFilterOwner] = useState<string>('All Owners');
+  // Default to the active doer's name so they only see their own queue on login.
+  const [filterOwner, setFilterOwner] = useState<string>(
+    () => activeDoer?.display_name ?? 'All Owners'
+  );
+
+  // When the active doer changes (e.g. switch doer), re-lock the filter.
+  useEffect(() => {
+    setFilterOwner(activeDoer?.display_name ?? 'All Owners');
+  }, [activeDoer?.display_name]);
   const [searchQuery, setSearchQuery] = useState('');
   const [queueTab, setQueueTab] = useState<'open' | 'closed'>('open');
   const [quickFilter, setQuickFilter] = useState<'all' | 'urgent' | 'today' | 'upcoming'>('all');
@@ -749,14 +757,31 @@ export default function FollowUps() {
                 onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
-            <select
-              title="Filter by owner"
-              className="bg-g50 border border-g200 rounded-[3px] px-2 py-1 text-[11px] font-medium appearance-none pr-5"
-              value={filterOwner}
-              onChange={e => setFilterOwner(e.target.value)}
-            >
-              {owners.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <div className="flex items-center gap-1">
+              {activeDoer && (
+                <button
+                  type="button"
+                  title="Toggle my tasks / all owners"
+                  onClick={() => setFilterOwner(f => f === activeDoer.display_name ? 'All Owners' : activeDoer.display_name)}
+                  className={cn(
+                    'px-2 py-1 rounded-[3px] border text-[10px] font-bold uppercase tracking-wide transition-colors whitespace-nowrap',
+                    filterOwner === activeDoer.display_name
+                      ? 'bg-blk text-white border-blk'
+                      : 'bg-g50 border-g200 text-g500 hover:border-g400'
+                  )}
+                >
+                  My Tasks
+                </button>
+              )}
+              <select
+                title="Filter by owner"
+                className="bg-g50 border border-g200 rounded-[3px] px-2 py-1 text-[11px] font-medium appearance-none pr-5"
+                value={filterOwner}
+                onChange={e => setFilterOwner(e.target.value)}
+              >
+                {owners.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
           </div>
         </div>
 

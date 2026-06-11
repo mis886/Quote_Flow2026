@@ -6,12 +6,14 @@ import { cn } from '../lib/utils';
 import type { TeamMember } from '../lib/types';
 
 // Post-login "who are you?" prompt. A Google login may be shared by several
-// doers (e.g. accounts@ → Data Entry Operator / Pankaj / PI Sender); the person
-// picks which doer they are (+ password if set). The chosen display_name is then
-// stamped on everything they do this session. Shown by Layout when no activeDoer.
+// doers (e.g. accounts@ → Pankaj / Harsh Deo / PI Sender); the person picks
+// their name so their work is tracked separately. Shown by Layout when no activeDoer.
 export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
   const { setActiveDoer, user } = useAppStore();
-  const [selKey, setSelKey] = useState<string | null>(candidates.length === 1 ? keyOf(candidates[0]) : null);
+  // Never auto-skip — always show the modal so the right person consciously picks.
+  const [selKey, setSelKey] = useState<string | null>(null);
+  const [customName, setCustomName] = useState('');
+  const [showCustom, setShowCustom] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -22,6 +24,13 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
   );
 
   const confirm = async () => {
+    if (showCustom) {
+      // Custom name — use the first candidate's email+role for attribution but stamp the typed name.
+      const base = candidates[0];
+      if (!customName.trim()) { setError('Enter your name to continue.'); return; }
+      setActiveDoer({ email: base.email, display_name: customName.trim(), role: base.role });
+      return;
+    }
     if (!selected) { setError('Pick your name to continue.'); return; }
     setBusy(true);
     try {
@@ -35,42 +44,82 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
 
   return (
     <div className="fixed inset-0 z-[200] bg-cream flex items-center justify-center p-6">
-      <div className="w-[360px] bg-white border border-g200 rounded-[8px] shadow-lg p-7 flex flex-col gap-5">
+      <div className="w-[380px] bg-white border border-g200 rounded-[8px] shadow-lg p-7 flex flex-col gap-5">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full bg-red-lt text-red-mrt flex items-center justify-center mx-auto mb-3">
             <UserCircle2 size={24} />
           </div>
           <div className="font-serif text-[18px] text-blk tracking-tight">Who's working?</div>
           <div className="text-[11.5px] text-g400 mt-1">
-            Signed in as {user?.email}. Pick your name so your work is tracked to you.
+            Signed in as <span className="font-medium text-g600">{user?.email}</span>. Pick your name so your work is tracked to you.
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          {candidates.map(c => {
-            const k = keyOf(c);
-            const active = selKey === k;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => { setSelKey(k); setError(''); setPassword(''); }}
-                className={cn(
-                  'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-[4px] border text-left transition-colors',
-                  active ? 'border-red-mrt bg-red-lt/40' : 'border-g200 hover:bg-g50',
-                )}
-              >
-                <span>
-                  <span className="text-[13px] font-semibold text-blk">{c.display_name}</span>
-                  <span className="text-[11px] text-g400 ml-1.5">{c.role}</span>
-                </span>
-                {hasPassword(c) && <Lock size={12} className="text-g400 shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
+        {!showCustom ? (
+          <>
+            <div className="space-y-1.5">
+              {candidates.map(c => {
+                const k = keyOf(c);
+                const active = selKey === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => { setSelKey(k); setError(''); setPassword(''); }}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-[4px] border text-left transition-colors',
+                      active ? 'border-red-mrt bg-red-lt/40' : 'border-g200 hover:bg-g50',
+                    )}
+                  >
+                    <span>
+                      <span className="text-[13px] font-semibold text-blk">{c.display_name}</span>
+                      <span className="text-[11px] text-g400 ml-1.5">{c.role}</span>
+                    </span>
+                    {hasPassword(c) && <Lock size={12} className="text-g400 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
 
-        {selected && hasPassword(selected) && (
+            {/* "Not you?" — lets a different person on the same login identify themselves */}
+            <button
+              type="button"
+              onClick={() => { setShowCustom(true); setSelKey(null); setError(''); setPassword(''); }}
+              className="text-[11px] text-g400 hover:text-g600 underline underline-offset-2 text-center transition-colors"
+            >
+              Not listed? Enter your name instead
+            </button>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.5px] text-g500 mb-1.5">
+                Your name
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={customName}
+                onChange={e => { setCustomName(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && confirm()}
+                placeholder="e.g. Harsh Deo"
+                className="w-full font-sans text-[13px] border border-g300 rounded-[3px] px-3 py-2.5 outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
+              />
+              <p className="text-[10.5px] text-g400 mt-1.5">
+                Your name will be stamped on tasks this session. Ask admin to add you to the roster for KPI tracking.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setShowCustom(false); setCustomName(''); setError(''); }}
+              className="text-[11px] text-g400 hover:text-g600 underline underline-offset-2 text-center transition-colors"
+            >
+              ← Back to list
+            </button>
+          </>
+        )}
+
+        {selected && !showCustom && hasPassword(selected) && (
           <input
             type="password"
             autoFocus
@@ -87,10 +136,10 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
         <button
           type="button"
           onClick={confirm}
-          disabled={busy || !selected}
+          disabled={busy || (!showCustom && !selected)}
           className="w-full h-10 bg-blk text-white text-[13px] font-semibold rounded-[3px] hover:bg-g700 disabled:opacity-50 transition-colors"
         >
-          {busy ? 'Checking…' : 'Continue'}
+          {busy ? 'Checking…' : 'Start Working'}
         </button>
       </div>
     </div>

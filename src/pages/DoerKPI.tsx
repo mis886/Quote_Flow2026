@@ -92,12 +92,13 @@ export function DoerKPI() {
     });
   }, [rows, sortKey]);
 
-  // Trend is selected by row key (email|role) so a shared login's roles differ.
-  // Inline trend shows the top performer; per-doer drill-down lives on the detail page.
+  // Trend picker — user can switch who's shown; default = top performer.
   const firstKey = rows[0] ? doerRowKey(rows[0].email, rows[0].role) : undefined;
-  const trendData = useMemo(() => buildTrend(data, roster, firstKey),
+  const [trendKey, setTrendKey] = useState<string | undefined>(undefined);
+  const activeTrendKey = trendKey ?? firstKey;
+  const trendData = useMemo(() => buildTrend(data, roster, activeTrendKey),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, rows]);
+    [data, activeTrendKey]);
 
   // Headline metric per role for the top cards (best performer in that role).
   const roleCards = DOER_ROLES.filter(r => r !== 'Other').map(role => {
@@ -250,11 +251,22 @@ export function DoerKPI() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* ── Trend ── */}
         <div className="bg-white rounded-[10px] border border-g200 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp size={15} className="text-g500" />
-            <h2 className="font-mono text-[11px] font-bold tracking-[1.5px] uppercase text-g600">
-              Score trend — {trendData.name}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <TrendingUp size={15} className="text-g500 shrink-0" />
+            <h2 className="font-mono text-[11px] font-bold tracking-[1.5px] uppercase text-g600 shrink-0">
+              Score Trend
             </h2>
+            <select
+              title="Select doer for trend"
+              value={activeTrendKey ?? ''}
+              onChange={e => setTrendKey(e.target.value || undefined)}
+              className="ml-auto text-[11px] bg-white border border-g200 rounded-[4px] px-2 py-1 outline-none focus:border-g400 text-g600 cursor-pointer"
+            >
+              {rows.map(r => {
+                const k = doerRowKey(r.email, r.role);
+                return <option key={k} value={k}>{r.displayName} · {r.role}</option>;
+              })}
+            </select>
           </div>
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
