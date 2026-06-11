@@ -29,6 +29,53 @@ const defaultTnc = (): TncState => ({
 
 const selectCls = "w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'10\\' height=\\'6\\'%3E%3Cpath d=\\'M1 1l4 4 4-4\\' stroke=\\'%23888\\' stroke-width=\\'1.5\\' fill=\\'none\\' stroke-linecap=\\'round\\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt";
 
+function TncComboCell({ value, suggestions, onChange, label }: {
+  value: string;
+  suggestions: string[];
+  onChange: (v: string) => void;
+  label: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        type="text"
+        title={label}
+        placeholder={`Enter ${label}`}
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        className="w-full font-sans text-[12px] text-blk bg-transparent px-2 py-1 outline-none focus:bg-g50 rounded-[2px]"
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-white border border-g300 rounded-[3px] shadow-lg max-h-44 overflow-y-auto">
+          {filtered.map(s => (
+            <li key={s}>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onChange(s); setOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-[11.5px] text-blk hover:bg-red-lt/40 hover:text-red-mrt transition-colors"
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function NewQuote() {
   const [searchParams, setSearchParams] = useSearchParams();
   const enqRef = searchParams.get('enqRef');
@@ -98,6 +145,31 @@ export function NewQuote() {
   const [tnc, setTnc] = useState<TncState>(defaultTnc);
   const [tncManual, setTncManual] = useState(false);
   const setTncField = (k: keyof TncState, v: string) => { setTncManual(true); setTnc((p: TncState) => ({ ...p, [k]: v })); };
+
+  // Collect unique historical values per T&C field from all saved quotes
+  const tncSuggestions = useMemo(() => {
+    const acc: Record<keyof TncState, Set<string>> = {
+      delivery: new Set(), leadTime: new Set(), pnf: new Set(),
+      freight: new Set(), payment: new Set(), validity: new Set(), taxes: new Set(),
+    };
+    for (const q of data.quotes) {
+      if (!q.terms) continue;
+      try {
+        const parsed: Partial<TncState> = JSON.parse(q.terms);
+        for (const k of Object.keys(acc) as (keyof TncState)[]) {
+          const v = parsed[k];
+          if (v && v.trim()) acc[k].add(v.trim());
+        }
+      } catch { /**/ }
+    }
+    // Also seed with known defaults so new users get suggestions immediately
+    const d = defaultTnc();
+    for (const k of Object.keys(acc) as (keyof TncState)[]) acc[k].add(d[k]);
+    return Object.fromEntries(
+      Object.entries(acc).map(([k, s]) => [k, [...s].sort()])
+    ) as Record<keyof TncState, string[]>;
+  }, [data.quotes]);
+
   const [sigMsg, setSigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
@@ -1030,8 +1102,12 @@ export function NewQuote() {
                           <td className="border border-g200 px-2 py-1 font-mono text-[9px] text-g400 text-center">{idx + 1}</td>
                           <td className="border border-g200 px-2 py-1 font-bold text-g600 whitespace-nowrap text-[11px]">{label}</td>
                           <td className="border border-g200 px-1 py-0.5">
-                            <input type="text" value={tnc[key]} onChange={e => setTncField(key, e.target.value)} title={label}
-                              className="w-full font-sans text-[12px] text-blk bg-transparent px-2 py-1 outline-none focus:bg-g50 rounded-[2px]" />
+                            <TncComboCell
+                              label={label}
+                              value={tnc[key]}
+                              suggestions={tncSuggestions[key]}
+                              onChange={v => setTncField(key, v)}
+                            />
                           </td>
                         </tr>
                       ))}
