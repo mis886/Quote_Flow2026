@@ -29,25 +29,44 @@ const defaultTnc = (): TncState => ({
 
 const selectCls = "w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'10\\' height=\\'6\\'%3E%3Cpath d=\\'M1 1l4 4 4-4\\' stroke=\\'%23888\\' stroke-width=\\'1.5\\' fill=\\'none\\' stroke-linecap=\\'round\\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_9px_center] pr-[26px] cursor-pointer focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt";
 
-function TncComboCell({ value, suggestions, onChange, label }: {
+const INCO_OPTIONS = [
+  'EXW - Ex Works',
+  'FOR - Free On Rail (Your Works)',
+  'FOR - Free On Rail (Your Transport Godown)',
+  'FOB - Free On Board',
+  'CIF - Cost, Insurance & Freight',
+  'CIP - Carriage and Insurance Paid To',
+  'DAP - Delivered At Place',
+  'DDP - Delivered Duty Paid',
+  'FCA - Free Carrier',
+  'CPT - Carriage Paid To',
+];
+
+function TncComboCell({ value, suggestions, onChange, label, standalone }: {
   value: string;
   suggestions: string[];
   onChange: (v: string) => void;
   label: string;
+  standalone?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value);
 
+  // Close only when focus leaves the container entirely — avoids the race where
+  // a document mousedown listener fires before the button click registers.
   React.useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: FocusEvent) => {
+      if (!el.contains(e.relatedTarget as Node | null)) setOpen(false);
+    };
+    el.addEventListener('focusout', handler);
+    return () => el.removeEventListener('focusout', handler);
+  }, []);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={`relative${standalone ? ' mt-2' : ''}`}>
       <input
         type="text"
         title={label}
@@ -55,7 +74,9 @@ function TncComboCell({ value, suggestions, onChange, label }: {
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        className="w-full font-sans text-[12px] text-blk bg-transparent px-2 py-1 outline-none focus:bg-g50 rounded-[2px]"
+        className={standalone
+          ? 'w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt'
+          : 'w-full font-sans text-[12px] text-blk bg-transparent px-2 py-1 outline-none focus:bg-g50 rounded-[2px]'}
       />
       {open && filtered.length > 0 && (
         <ul className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-white border border-g300 rounded-[3px] shadow-lg max-h-44 overflow-y-auto">
@@ -63,7 +84,7 @@ function TncComboCell({ value, suggestions, onChange, label }: {
             <li key={s}>
               <button
                 type="button"
-                onMouseDown={e => { e.preventDefault(); onChange(s); setOpen(false); }}
+                onClick={() => { onChange(s); setOpen(false); }}
                 className="w-full text-left px-3 py-1.5 text-[11.5px] text-blk hover:bg-red-lt/40 hover:text-red-mrt transition-colors"
               >
                 {s}
@@ -131,6 +152,13 @@ export function NewQuote() {
   const [contactManual, setContactManual] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const contactRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = contactRef.current;
+    if (!el) return;
+    const handler = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) setContactOpen(false); };
+    el.addEventListener('focusout', handler);
+    return () => el.removeEventListener('focusout', handler);
+  }, []);
   const [inco, setInco] = useState('EXW - Ex Works');
   const [customInco, setCustomInco] = useState('');
   const [curr, setCurr] = useState('INR');
@@ -170,6 +198,11 @@ export function NewQuote() {
     ) as Record<keyof TncState, string[]>;
   }, [data.quotes]);
 
+  // Past custom inco values (those that were OVERRIDE saves — not in the fixed list)
+  const customIncoSuggestions = useMemo(() =>
+    [...new Set(data.quotes.map(q => q.inco).filter(v => v && !INCO_OPTIONS.includes(v)) as string[])].sort()
+  , [data.quotes]);
+
   const [sigMsg, setSigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
@@ -206,7 +239,9 @@ export function NewQuote() {
       if (q) {
         if (q.enqRef) setLinkedEnqRef(q.enqRef);
         setQuoteId(q.id); setDate(q.date); setValidity(q.validity || '');
-        setCustName(q.cust); setInco(q.inco || 'EXW - Ex Works');
+        setCustName(q.cust);
+        const savedInco = q.inco || 'EXW - Ex Works';
+        if (INCO_OPTIONS.includes(savedInco)) { setInco(savedInco); } else { setInco('OVERRIDE'); setCustomInco(savedInco); }
         setCurr(q.curr || 'INR'); setPay(q.pay || '30 days');
         setAuthName(q.authorizedPerson?.name || ''); setAuthDesignation(q.authorizedPerson?.designation || ''); setAuthPhone(q.authorizedPerson?.phone || '');
         setQuoteStatus(q.status);
@@ -285,6 +320,8 @@ export function NewQuote() {
     const sel = inco === 'OVERRIDE' ? customInco : inco;
     let delivery = 'As per schedule', pnf = 'Extra @ 2%', freight = 'Courier charges extra at actuals';
     if (sel.includes('EXW')) { delivery = 'Ex-works, Meerut'; }
+    else if (sel.includes('FOR') && sel.toLowerCase().includes('transport godown')) { delivery = 'FOR, Your Transport Godown'; pnf = 'Included'; freight = 'Up to transport godown'; }
+    else if (sel.includes('FOR')) { delivery = 'FOR, Your Works'; pnf = 'Included'; freight = 'Included up to your works'; }
     else if (sel.includes('FOB')) { delivery = 'FOB Port of Loading'; pnf = 'Included'; freight = "Buyer's account from port"; }
     else if (sel.includes('CIF') || sel.includes('CIP')) { delivery = 'CIF/CIP Destination'; pnf = 'Included'; freight = 'Included up to destination'; }
     else if (sel.includes('DDP') || sel.includes('DAP')) { delivery = 'Door Delivery, Customer Site'; pnf = 'Included'; freight = 'Included'; }
@@ -731,7 +768,6 @@ export function NewQuote() {
                             disabled={!siteId}
                             onChange={e => { setContact(e.target.value); setContactId(''); setContactManual(true); setContactOpen(true); }}
                             onFocus={() => { if (siteId) setContactOpen(true); }}
-                            onBlur={() => setTimeout(() => setContactOpen(false), 150)}
                             className={`w-full font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt disabled:bg-g50 disabled:cursor-not-allowed`}
                           />
                           {contactOpen && siteContacts.length > 0 && (
@@ -740,7 +776,7 @@ export function NewQuote() {
                                 <div className="px-3 py-2 text-[11px] text-g400 italic">No match — name will be saved as typed</div>
                               ) : (
                                 filtered.map((ct: any) => (
-                                  <button key={ct.id} type="button" onMouseDown={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setPhone(ct.phone || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
+                                  <button key={ct.id} type="button" onClick={() => { setContactId(ct.id); setContact(ct.name); setEmail(ct.email || ''); setPhone(ct.phone || ''); setContactManual(false); setContactOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] hover:bg-g50 flex items-center justify-between gap-2">
                                     <span className="font-medium text-blk">{ct.name}</span>
                                     {ct.role && <span className="text-[10px] text-g400 font-mono">{ct.role}</span>}
                                   </button>
@@ -771,13 +807,18 @@ export function NewQuote() {
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Incoterms</label>
                     <select value={inco} onChange={e => setInco(e.target.value)} className={selectCls}>
-                      <option>EXW - Ex Works</option><option>FOB - Free On Board</option>
-                      <option>CIF - Cost, Insurance & Freight</option><option>CIP - Carriage and Insurance Paid To</option>
-                      <option>DAP - Delivered At Place</option><option>DDP - Delivered Duty Paid</option>
-                      <option>FCA - Free Carrier</option><option>CPT - Carriage Paid To</option>
-                      <option value="OVERRIDE">Override...</option>
+                      {INCO_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      <option value="OVERRIDE">Other / Override…</option>
                     </select>
-                    {inco === 'OVERRIDE' && <input type="text" value={customInco} placeholder="e.g. FCA Mumbai" onChange={e => setCustomInco(e.target.value)} className="w-full mt-2 font-sans text-[13px] text-blk bg-white border border-g300 rounded-[3px] p-[8px_10px] outline-none focus:border-red-mrt" />}
+                    {inco === 'OVERRIDE' && (
+                      <TncComboCell
+                        label="Custom Incoterm"
+                        value={customInco}
+                        suggestions={customIncoSuggestions}
+                        onChange={setCustomInco}
+                        standalone
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Payment Terms</label>
