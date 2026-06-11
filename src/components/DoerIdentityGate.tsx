@@ -12,7 +12,6 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
   const { setActiveDoer, user } = useAppStore();
   // Never auto-skip — always show the modal so the right person consciously picks.
   const [selKey, setSelKey] = useState<string | null>(null);
-  const [customName, setCustomName] = useState('');
   const [showCustom, setShowCustom] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,13 +23,6 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
   );
 
   const confirm = async () => {
-    if (showCustom) {
-      // Custom name — use the first candidate's email+role for attribution but stamp the typed name.
-      const base = candidates[0];
-      if (!customName.trim()) { setError('Enter your name to continue.'); return; }
-      setActiveDoer({ email: base.email, display_name: customName.trim(), role: base.role });
-      return;
-    }
     if (!selected) { setError('Pick your name to continue.'); return; }
     setBusy(true);
     try {
@@ -81,37 +73,26 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
               })}
             </div>
 
-            {/* "Not you?" — lets a different person on the same login identify themselves */}
+            {/* "Not you?" — shows a hard stop, not a bypass */}
             <button
               type="button"
-              onClick={() => { setShowCustom(true); setSelKey(null); setError(''); setPassword(''); }}
+              onClick={() => { setShowCustom(true); setSelKey(null); setError(''); }}
               className="text-[11px] text-g400 hover:text-g600 underline underline-offset-2 text-center transition-colors"
             >
-              Not listed? Enter your name instead
+              Not listed?
             </button>
           </>
         ) : (
           <>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.5px] text-g500 mb-1.5">
-                Your name
-              </label>
-              <input
-                type="text"
-                autoFocus
-                value={customName}
-                onChange={e => { setCustomName(e.target.value); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && confirm()}
-                placeholder="e.g. Harsh Deo"
-                className="w-full font-sans text-[13px] border border-g300 rounded-[3px] px-3 py-2.5 outline-none focus:border-red-mrt focus:ring-[3px] focus:ring-red-lt"
-              />
-              <p className="text-[10.5px] text-g400 mt-1.5">
-                Your name will be stamped on tasks this session. Ask admin to add you to the roster for KPI tracking.
+            <div className="bg-amber-50 border border-amber-200 rounded-[6px] px-4 py-3 text-center space-y-1.5">
+              <p className="text-[13px] font-semibold text-amber-800">You're not on the roster</p>
+              <p className="text-[11.5px] text-amber-700">
+                Ask your admin to add you in <span className="font-semibold">Settings → Team Roster</span> with this login email before you can use the system.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => { setShowCustom(false); setCustomName(''); setError(''); }}
+              onClick={() => { setShowCustom(false); setError(''); }}
               className="text-[11px] text-g400 hover:text-g600 underline underline-offset-2 text-center transition-colors"
             >
               ← Back to list
@@ -136,7 +117,7 @@ export function DoerIdentityGate({ candidates }: { candidates: TeamMember[] }) {
         <button
           type="button"
           onClick={confirm}
-          disabled={busy || (!showCustom && !selected)}
+          disabled={busy || showCustom || !selected}
           className="w-full h-10 bg-blk text-white text-[13px] font-semibold rounded-[3px] hover:bg-g700 disabled:opacity-50 transition-colors"
         >
           {busy ? 'Checking…' : 'Start Working'}
