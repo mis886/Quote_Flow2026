@@ -238,12 +238,12 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
   const selectedRows = filtered.filter((_, i) => selected.has(String(i)));
   // Unique quotes (by refId) the chosen rows point at.
   const selectedQuotes = Array.from(
-    new Map(selectedRows.map(r => [r.refId, { refId: r.refId, cust: r.cust }])).values()
+    new Map(selectedRows.map(r => [r.refId, { refId: r.refId, cust: r.cust, site: r.site, siteId: r.siteId }])).values()
   );
-  // One call = one customer. Block batches that span multiple customers so a
-  // single logged note never lands on unrelated customers' quotes.
-  const selectedCusts = Array.from(new Set(selectedQuotes.map(q => q.cust)));
-  const mixedCustomers = selectedCusts.length > 1;
+  // One call = one customer + site/branch. Block batches that span more than one
+  // customer-site so a single logged note never lands on an unrelated site.
+  const selectedSites = Array.from(new Set(selectedQuotes.map(q => `${q.cust}__${q.siteId ?? q.site}`)));
+  const mixedSites = selectedSites.length > 1;
 
   return (
     <div className="bg-white rounded-[10px] border border-g200 mt-6 overflow-hidden shadow-sm">
@@ -313,7 +313,7 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                 <th className="px-3 py-2.5 text-left font-bold w-[90px]">Status</th>
                 <th className="px-3 py-2.5 text-left font-bold w-[80px]">Channel</th>
                 <th className="px-3 py-2.5 text-left font-bold w-[100px]">Quote</th>
-                <th className="px-3 py-2.5 text-left font-bold">Customer</th>
+                <th className="px-3 py-2.5 text-left font-bold">Customer · Site</th>
                 <th className="px-3 py-2.5 text-left font-bold">Note</th>
                 <th className="px-3 py-2.5 text-left font-bold">Next Planned</th>
               </tr>
@@ -354,7 +354,10 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                     <td className="px-3 py-2.5">
                       <span className="font-mono text-[10px] font-semibold text-red-mrt">{row.refId}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-g700 max-w-[160px] truncate">{row.cust}</td>
+                    <td className="px-3 py-2.5 max-w-[180px]">
+                      <div className="text-g700 truncate">{row.cust}</div>
+                      {row.site && <div className="text-[10px] text-g400 truncate">{row.site}</div>}
+                    </td>
                     <td className="px-3 py-2.5 text-g500 max-w-[220px]">
                       {row.note
                         ? <span className="line-clamp-2 leading-snug">{row.note}</span>
@@ -379,17 +382,17 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
           <span className="text-[10px] text-g400">
             Showing {filtered.length} of {timeline.length} entries
             {selectedQuotes.length > 0 && (
-              <span className={cn('ml-2 font-medium', mixedCustomers ? 'text-red-mrt' : 'text-indigo-600')}>
+              <span className={cn('ml-2 font-medium', mixedSites ? 'text-red-mrt' : 'text-indigo-600')}>
                 · {selectedQuotes.length} quote{selectedQuotes.length === 1 ? '' : 's'} selected
-                {mixedCustomers && ' — one call covers one customer only'}
+                {mixedSites && ' — one call covers one customer-site only'}
               </span>
             )}
           </span>
           {selectedQuotes.length > 0 && (
             <button
               type="button"
-              disabled={mixedCustomers}
-              title={mixedCustomers ? 'Select quotes from a single customer to log in one call' : undefined}
+              disabled={mixedSites}
+              title={mixedSites ? 'Select quotes from a single customer-site to log in one call' : undefined}
               onClick={() => setShowPanel(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold tracking-wider uppercase rounded-[4px] disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -400,10 +403,10 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
         </div>
       )}
 
-      {showPanel && selectedQuotes.length > 0 && !mixedCustomers && (
+      {showPanel && selectedQuotes.length > 0 && !mixedSites && (
         <BulkLogSidePanel
           quoteIds={selectedQuotes.map(q => q.refId)}
-          context={`${selectedCusts[0]} · ${doerName}`}
+          context={`${selectedQuotes[0].cust} · ${selectedQuotes[0].site}`}
           items={selectedQuotes}
           onClose={() => { setShowPanel(false); setSelected(new Set()); }}
         />

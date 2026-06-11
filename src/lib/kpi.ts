@@ -396,6 +396,8 @@ export interface TimelineRow {
   channel?: string;        // log channel when kind === 'done'
   refId: string;           // quote / enquiry id
   cust: string;
+  siteId: string | null;   // customer site/branch this quote belongs to
+  site: string;            // resolved site/branch label (city — branch)
   onTime: boolean | null;  // done: met step deadline?; pending: false = overdue
   note?: string;           // what happened (log note)
   nextSummary?: string;    // planned-next: "12 Jun · Email — send revised quote"
@@ -429,6 +431,12 @@ export function buildDoerTimeline(
   const rows: TimelineRow[] = [];
   const quoteById = new Map(data.quotes.map(q => [q.id, q]));
   const now = new Date();
+  // Resolve a quote's customer + site to a human label; fallback keeps unscoped
+  // quotes grouped together (one call per site).
+  const siteOf = (cust: string, siteId: string | null | undefined): string => {
+    const c = data.customers.find(x => x.name === cust);
+    return siteLabel(c, siteId) || 'Head Office / General';
+  };
 
   for (const fu of data.followups) {
     const quote = quoteById.get(fu.quote_id);
@@ -450,6 +458,8 @@ export function buildDoerTimeline(
         channel: log.channel,
         refId: quote.id,
         cust: quote.cust,
+        siteId: quote.siteId ?? null,
+        site: siteOf(quote.cust, quote.siteId),
         onTime,
         note: log.note,
         nextSummary: nextSummaryOf({ date: log.nextDate, time: log.nextTime, channel: log.nextChannel, note: log.nextNote }),
@@ -473,6 +483,8 @@ export function buildDoerTimeline(
         activity: `Follow-up due · ${quote.id}`,
         refId: quote.id,
         cust: quote.cust,
+        siteId: quote.siteId ?? null,
+        site: siteOf(quote.cust, quote.siteId),
         onTime: overdue ? false : null, // false = overdue, null = upcoming
         nextSummary: nextSummaryOf({ date: fu.next_date, time: fu.next_time }),
       });
