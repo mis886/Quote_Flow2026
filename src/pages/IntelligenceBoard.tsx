@@ -8,6 +8,7 @@ import { cn } from '../lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { generateQuotePDF } from '../lib/pdfGenerator';
 import { PinGate } from '../components/PinGate';
+import { BulkFollowUpForm } from '../components/BulkFollowUpForm';
 
 // ── shared helpers (mirrors Customers.tsx) ────────────────────────────────────
 
@@ -185,6 +186,8 @@ function CustomerDetail({ stats, allFollowups }: {
   const toggleSite = (key: string) =>
     setExpandedSites(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
+  const [bulkFormSite, setBulkFormSite] = useState<string | null>(null);
+
   // Activity timeline: all follow-up logs for this customer's quotes
   const quoteIds = new Set(quotes.map(q => q.id));
   const timeline: (FollowUpLog & { quoteId: string })[] = allFollowups
@@ -342,8 +345,31 @@ function CustomerDetail({ stats, allFollowups }: {
                         )}
                         <span className="text-[10px] text-g400">{group.quotes.length} quote{group.quotes.length !== 1 ? 's' : ''}</span>
                         <span className="text-[11px] font-semibold text-blk">{fVal(groupTotal)}</span>
+                        {group.quotes.length > 1 && (
+                          <button
+                            type="button"
+                            title="Log follow-up for all quotes at this site"
+                            onClick={e => { e.stopPropagation(); setBulkFormSite(bulkFormSite === group.siteKey ? null : group.siteKey); }}
+                            className={cn(
+                              'h-5 inline-flex items-center gap-1 px-2 rounded-full border text-[9px] font-semibold transition-colors',
+                              bulkFormSite === group.siteKey
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+                            )}
+                          >
+                            + Log All
+                          </button>
+                        )}
                       </div>
                     </button>
+
+                    {bulkFormSite === group.siteKey && (
+                      <BulkFollowUpForm
+                        quoteIds={group.quotes.map(q => q.id)}
+                        siteName={group.siteName}
+                        onClose={() => setBulkFormSite(null)}
+                      />
+                    )}
 
                     {/* Expanded: individual quote rows */}
                     {isSiteOpen && (
@@ -697,8 +723,12 @@ function AllQuotationsView({
   initialSearch?: string;
 }) {
   const navigate = useNavigate();
+  const { data, openAttachmentModal } = useAppStore();
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [search, setSearch] = useState(initialSearch);
+  const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+  const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
+  const [bulkFormSiteAQ, setBulkFormSiteAQ] = useState<string | null>(null);
 
   // If caller changes initialSearch (e.g. dashboard click), sync it in
   const prevInitial = React.useRef(initialSearch);
@@ -717,18 +747,35 @@ function AllQuotationsView({
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   }, [quotes, search, statusFilter]);
 
-  // Group by customer only — site/unit shown per quote row
+  // Group by customer, then by site within each customer
   const groups = useMemo(() => {
-    const map = new Map<string, Quote[]>();
+    const custMap = new Map<string, Quote[]>();
     for (const qt of filtered) {
-      const existing = map.get(qt.cust);
+      const existing = custMap.get(qt.cust);
       if (existing) existing.push(qt);
-      else map.set(qt.cust, [qt]);
+      else custMap.set(qt.cust, [qt]);
     }
-    return Array.from(map.entries())
-      .map(([cust, qs]) => ({ cust, qs }))
+    return Array.from(custMap.entries())
+      .map(([cust, qs]) => {
+        const custRec = customers.find(c => c.name === cust);
+        const siteMap = new Map<string, { siteKey: string; siteName: string; siteCity: string; quotes: Quote[] }>();
+        for (const q of qs) {
+          const site = q.siteId ? custRec?.sites?.find(s => s.id === q.siteId) : null;
+          const key = site?.id ?? '__general__';
+          const name = site?.name ?? (custRec?.sites?.find(s => s.isPrimary)?.name ?? 'Head Office / General');
+          const city = site?.city ?? (custRec?.sites?.find(s => s.isPrimary)?.city ?? '');
+          if (!siteMap.has(key)) siteMap.set(key, { siteKey: key, siteName: name, siteCity: city, quotes: [] });
+          siteMap.get(key)!.quotes.push(q);
+        }
+        return { cust, custRec, siteGroups: [...siteMap.values()] };
+      })
       .sort((a, b) => a.cust.localeCompare(b.cust));
-  }, [filtered]);
+  }, [filtered, customers]);
+
+  const toggleSite = (key: string) =>
+    setExpandedSites(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  const totalQuotes = groups.reduce((s, g) => s + g.siteGroups.reduce((ss, sg) => ss + sg.quotes.length, 0), 0);
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col bg-cream">
@@ -758,7 +805,7 @@ function AllQuotationsView({
             </button>
           ))}
         </div>
-        <span className="ml-auto text-[10px] text-g400 font-mono">{filtered.length} quotes · {groups.length} groups</span>
+        <span className="ml-auto text-[10px] text-g400 font-mono">{totalQuotes} quotes · {groups.length} customers</span>
       </div>
 
       {/* Groups */}
@@ -766,16 +813,21 @@ function AllQuotationsView({
         {groups.length === 0 && (
           <div className="text-center py-16 text-[13px] text-g400 italic">No quotations match</div>
         )}
-        {groups.map(({ cust, qs }) => {
-          const custRec = customers.find(c => c.name === cust);
+        {groups.map(({ cust, custRec, siteGroups }) => {
           const primarySite = custRec?.sites?.find(s => s.isPrimary) ?? custRec?.sites?.[0];
           const cityLabel = primarySite?.city ?? primarySite?.state ?? '';
-          const totalValue = qs.reduce((s, q) => s + (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0), 0);
-          const wonCount = qs.filter(q => q.status === 'Won').length;
+          const totalValue = siteGroups.reduce((s, sg) => s + sg.quotes.reduce((ss, q) => {
+            const sub = (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0);
+            const gst = (q.items ?? []).reduce((a, i) => a + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+            return ss + sub + gst;
+          }, 0), 0);
+          const allQuotes = siteGroups.flatMap(sg => sg.quotes);
+          const wonCount = allQuotes.filter(q => q.status === 'Won').length;
+          const openCount = allQuotes.filter(q => q.status === 'Sent').length;
 
           return (
             <div key={cust} className="bg-white border border-g200 rounded-[4px] overflow-hidden">
-              {/* Group header: Customer Name · City */}
+              {/* Customer header */}
               <div className="flex items-center gap-3 px-4 py-2.5 bg-g50 border-b border-g200">
                 <InitialAvatar name={cust} size="sm" />
                 <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
@@ -787,44 +839,188 @@ function AllQuotationsView({
                   )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0 text-right">
-                  <div className="text-[10px] text-g400">{qs.length} quote{qs.length !== 1 ? 's' : ''} · {wonCount} won</div>
+                  {openCount > 0 && (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      {openCount} open
+                    </span>
+                  )}
+                  <div className="text-[10px] text-g400">{allQuotes.length} quote{allQuotes.length !== 1 ? 's' : ''} · {wonCount} won</div>
                   <div className="font-mono text-[12px] font-bold text-blk">{fVal(totalValue)}</div>
                 </div>
               </div>
 
-              {/* Quote rows — unit/site shown inline per row */}
+              {/* Site groups within customer */}
               <div className="divide-y divide-g100">
-                {qs.map(q => {
-                  const subTotal = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
-                  const gstTotal = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
-                  const grand = subTotal + gstTotal;
-                  const desc = (q.items ?? [])[0]?.desc ?? '';
-                  const qSite = q.siteId ? custRec?.sites?.find(s => s.id === q.siteId) : null;
-                  const qSiteLabel = qSite
-                    ? [qSite.name && qSite.name !== cust ? qSite.name : '', qSite.city].filter(Boolean).join(', ')
-                    : '';
+                {siteGroups.map(group => {
+                  const siteKey = `${cust}__${group.siteKey}`;
+                  const isSiteOpen = expandedSites.has(siteKey);
+                  const groupTotal = group.quotes.reduce((s, q) => {
+                    const sub = (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0);
+                    const gst = (q.items ?? []).reduce((a, i) => a + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                    return s + sub + gst;
+                  }, 0);
+                  const siteOpenCount = group.quotes.filter(q => q.status === 'Sent').length;
 
                   return (
-                    <div key={q.id} className="flex items-center gap-3 px-4 py-2 hover:bg-g50 transition-colors">
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
-                      <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
-                      <span className="text-[11px] text-g500 flex-1 truncate min-w-0">{desc || '—'}</span>
-                      {qSiteLabel && (
-                        <span className="flex items-center gap-1 text-[9.5px] text-blue-600 font-medium shrink-0 whitespace-nowrap">
-                          <MapPin size={9} className="text-blue-400 shrink-0" />{qSiteLabel}
-                        </span>
-                      )}
-                      <span className="font-mono text-[11px] font-semibold text-blk whitespace-nowrap shrink-0">{fVal(grand)}</span>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                      <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yy') : '—'}</span>
+                    <div key={group.siteKey}>
+                      {/* Site/branch row */}
                       <button
                         type="button"
-                        onClick={() => navigate(`/quotes/new?id=${q.id}`)}
-                        title="Edit quote"
-                        className="w-6 h-6 flex items-center justify-center text-g400 hover:text-red-mrt transition-colors shrink-0"
+                        onClick={() => toggleSite(siteKey)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left cursor-pointer',
+                          isSiteOpen ? 'bg-indigo-50' : 'hover:bg-indigo-50/60'
+                        )}
                       >
-                        <ExternalLink size={11} />
+                        <ChevronRight size={12} className={cn('text-indigo-400 shrink-0 transition-transform duration-200', isSiteOpen && 'rotate-90')} />
+                        <MapPin size={11} className="text-indigo-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-semibold text-g700">{group.siteName}</span>
+                          {group.siteCity && <span className="text-[10px] text-g400 ml-1.5">{group.siteCity}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {siteOpenCount > 0 && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                              {siteOpenCount} open
+                            </span>
+                          )}
+                          <span className="text-[10px] text-g400">{group.quotes.length} quote{group.quotes.length !== 1 ? 's' : ''}</span>
+                          <span className="text-[11px] font-semibold text-blk">{fVal(groupTotal)}</span>
+                          {group.quotes.length > 1 && (
+                            <button
+                              type="button"
+                              title="Log follow-up for all quotes at this site"
+                              onClick={e => { e.stopPropagation(); setBulkFormSiteAQ(bulkFormSiteAQ === siteKey ? null : siteKey); }}
+                              className={cn(
+                                'h-5 inline-flex items-center gap-1 px-2 rounded-full border text-[9px] font-semibold transition-colors',
+                                bulkFormSiteAQ === siteKey
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+                              )}
+                            >
+                              + Log All
+                            </button>
+                          )}
+                        </div>
                       </button>
+
+                      {bulkFormSiteAQ === siteKey && (
+                        <BulkFollowUpForm
+                          quoteIds={group.quotes.map(q => q.id)}
+                          siteName={group.siteName}
+                          onClose={() => setBulkFormSiteAQ(null)}
+                        />
+                      )}
+
+                      {/* Expanded quote rows */}
+                      {isSiteOpen && (
+                        <div className="divide-y divide-g100 bg-g50/30">
+                          {group.quotes.map(q => {
+                            const subTotal = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
+                            const gstTotal = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                            const grand = subTotal + gstTotal;
+                            const desc = (q.items ?? [])[0]?.desc ?? '';
+                            const isExpanded = expandedQuote === q.id;
+
+                            return (
+                              <div key={q.id}>
+                                <button
+                                  type="button"
+                                  title={`Toggle ${q.id}`}
+                                  onClick={() => setExpandedQuote(isExpanded ? null : q.id)}
+                                  className={cn(
+                                    'w-full flex items-center gap-3 pl-9 pr-4 py-2 transition-colors text-left cursor-pointer',
+                                    isExpanded ? 'bg-blue-50' : 'hover:bg-blue-50'
+                                  )}
+                                >
+                                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
+                                  <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
+                                  <span className="text-[11px] text-g500 flex-1 truncate min-w-0">{desc || '—'}</span>
+                                  <span className="font-mono text-[11px] font-semibold text-blk whitespace-nowrap shrink-0">{fVal(grand)}</span>
+                                  <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
+                                  <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yy') : '—'}</span>
+                                  <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
+                                </button>
+
+                                {isExpanded && (
+                                  <div className="bg-blue-50/30 border-t border-blue-100 px-4 py-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-blue-600">Line Items — {q.id}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          title="Download Quote PDF"
+                                          onClick={() => {
+                                            const cust2 = data.customers.find(x => x.name === q.cust);
+                                            const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
+                                            const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+                                            const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
+                                            generateQuotePDF(q, cust2, data.settings, sig, true, unit);
+                                          }}
+                                          className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                        >
+                                          <FileText size={9} /> PDF
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="View quote documents"
+                                          onClick={() => openAttachmentModal('quote', q.id)}
+                                          className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                        >
+                                          <Paperclip size={9} /> Docs
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => navigate(`/quotes/new?id=${q.id}`)}
+                                          title="Edit quote"
+                                          className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                        >
+                                          <ExternalLink size={9} /> Edit
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="bg-white border border-g200 rounded-[3px] overflow-x-auto">
+                                      <table className="w-full border-collapse text-[11px]">
+                                        <thead className="bg-g100">
+                                          <tr>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200 w-6">#</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Description</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Material</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">Qty</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">UOM</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Unit Rate</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">GST%</th>
+                                            <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Amount</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(q.items ?? []).map((item, idx) => (
+                                            <tr key={idx} className="hover:bg-g50/50">
+                                              <td className="px-2.5 py-1.5 border-b border-g100 font-mono text-g400">{idx + 1}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-blk">{item.desc || <span className="text-g300 italic">—</span>}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-g500">{item.mat || '—'}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-blk">{item.qty}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-center text-g500">{item.uom}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono text-blk">{formatINR(item.unitPrice ?? 0)}</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-g500">{item.gst ?? 0}%</td>
+                                              <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono font-semibold text-blk">{formatINR(item.total ?? 0)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                    <div className="flex justify-end gap-5 items-center pt-2">
+                                      <span className="text-[10px] text-g600">Sub-Total: <strong className="text-blk font-bold font-mono">{formatINR(subTotal)}</strong></span>
+                                      <span className="text-[10px] text-g600">GST: <strong className="text-blk font-bold font-mono">{formatINR(gstTotal)}</strong></span>
+                                      <span className="text-[11px] text-red-mrt font-bold font-mono tracking-tight">Grand: {formatINR(grand)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

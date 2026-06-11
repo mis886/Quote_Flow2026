@@ -36,6 +36,7 @@ interface AppContextType {
   updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   addFollowUpLog: (quoteId: string, log: FollowUpLog, nextDate?: string | null, nextTime?: string | null, owner?: string, stageOverride?: string | null) => Promise<void>;
+  addFollowUpLogBulk: (quoteIds: string[], log: FollowUpLog, nextDate?: string | null, nextTime?: string | null) => Promise<void>;
   closeFollowUp: (quoteId: string, outcome?: PipelineOutcome) => Promise<void>;
   reopenFollowUp: (quoteId: string) => Promise<void>;
   setFollowUpStage: (quoteId: string, stage: PipelineStage, outcome?: PipelineOutcome | null) => Promise<void>;
@@ -661,6 +662,10 @@ const mapEnquiryToDB = (e: any) => {
     }
   };
 
+  const addFollowUpLogBulk = async (quoteIds: string[], log: FollowUpLog, nextDate: string | null = null, nextTime: string | null = null) => {
+    await Promise.all(quoteIds.map(qid => addFollowUpLog(qid, log, nextDate, nextTime)));
+  };
+
   // Propagate a quote outcome to its parent enquiry so enquiry-based views
   // (Enquiries Won/Lost tabs, Analytics, funnel) stay consistent with the quote.
   // `enqStatus` null = no change. Updates both DB and local state.
@@ -1091,6 +1096,7 @@ const mapEnquiryToDB = (e: any) => {
         updateCustomer,
         deleteCustomer,
         addFollowUpLog,
+        addFollowUpLogBulk,
         closeFollowUp,
         reopenFollowUp,
         setFollowUpStage,
