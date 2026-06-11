@@ -4,7 +4,7 @@ import { useAppStore } from '../store';
 import { cn } from '../lib/utils';
 import { DOER_ROLES, type DoerRole, type GlobalDateRangeLike } from '../lib/types';
 import { computeDoerMetrics, doerRowKey, ROLE_WEIGHTS, type DoerMetrics, type DueItem } from '../lib/kpi';
-import { Gauge, Trophy, Clock, TrendingUp, Users, ChevronDown, CheckSquare } from 'lucide-react';
+import { Gauge, Trophy, Clock, TrendingUp, Users, ChevronDown } from 'lucide-react';
 import { BulkLogSidePanel } from '../components/BulkLogSidePanel';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -406,12 +406,17 @@ function SiteDueGroup({ cust, site, items, onBulkLog }: {
     if (batch.length > 0) onBulkLog(batch);
   };
 
+  // Show the site/branch inline after the customer (app convention), but skip
+  // the bare "Head Office / General" fallback so single-site customers stay clean.
+  const showSite = site && site !== 'Head Office / General';
+
   return (
     <div>
-      {/* Customer · site header */}
+      {/* Customer — site/branch header (inline) */}
       <div className="px-3 py-1.5 bg-g50/70">
-        <div className="text-[11px] font-semibold text-blk truncate">{cust}</div>
-        <div className="text-[9.5px] text-g400 truncate">{site}</div>
+        <div className="text-[11px] font-semibold text-blk truncate">
+          {cust}{showSite && <span className="font-normal text-g400"> — {site}</span>}
+        </div>
       </div>
       <ul className="divide-y divide-g50">
         {items.map((d, i) => {
@@ -445,11 +450,11 @@ function SiteDueGroup({ cust, site, items, onBulkLog }: {
           </span>
           <button
             type="button"
+            title="Log follow-up for all quotes at this customer-site"
             onClick={logHere}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold tracking-wider uppercase rounded-[3px]"
+            className="h-5 inline-flex items-center gap-1 px-2 rounded-full border text-[9px] font-semibold transition-colors bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50"
           >
-            <CheckSquare size={10} />
-            Log {selectedItems.length > 0 ? selectedItems.length : `All ${loggable.length}`}
+            + Log {selectedItems.length > 0 ? selectedItems.length : 'All'}
           </button>
         </div>
       )}
