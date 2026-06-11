@@ -150,6 +150,8 @@ export interface Order {
   value: number;
   inco?: string;
   items: OrderItem[];
+  created_at?: string;
+  updated_at?: string;
   adjustments?: OrderAdjustment[];   // line taxes & charges applied between GST and Grand Total
   poFileName?: string;
   attachments?: Attachment[];

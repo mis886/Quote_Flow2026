@@ -162,9 +162,28 @@ function CustomerDetail({ stats, allFollowups }: {
   const { data, openAttachmentModal } = useAppStore();
   const { customer: c, enqs, quotes, orders, winRate, pipeline, wonRev, vsAvg } = stats;
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+  const [expandedSites, setExpandedSites] = useState<Set<string>>(() => new Set());
   const contact = getPrimaryContact(c);
   const revTrend = useRevTrend(orders);
   const maxRev = Math.max(...revTrend.map(r => r.value), 1);
+
+  // Group quotes by site — quotes with no siteId go into a synthetic "Head Office / General" group
+  const siteGroups = useMemo(() => {
+    const map = new Map<string, { siteKey: string; siteName: string; siteCity: string; quotes: Quote[] }>();
+    const sorted = [...quotes].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    for (const q of sorted) {
+      const site = q.siteId ? c.sites?.find(s => s.id === q.siteId) : null;
+      const key = site?.id ?? '__general__';
+      const name = site?.name ?? (c.sites?.find(s => s.isPrimary)?.name ?? 'Head Office / General');
+      const city = site?.city ?? (c.sites?.find(s => s.isPrimary)?.city ?? '');
+      if (!map.has(key)) map.set(key, { siteKey: key, siteName: name, siteCity: city, quotes: [] });
+      map.get(key)!.quotes.push(q);
+    }
+    return [...map.values()];
+  }, [quotes, c.sites]);
+
+  const toggleSite = (key: string) =>
+    setExpandedSites(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   // Activity timeline: all follow-up logs for this customer's quotes
   const quoteIds = new Set(quotes.map(q => q.id));
@@ -280,113 +299,154 @@ function CustomerDetail({ stats, allFollowups }: {
           </div>
         </div>
 
-        {/* Quotations */}
+        {/* Quotations — grouped by site/branch */}
         <div className="bg-white border border-g200 rounded-[4px] overflow-hidden">
           <div className="px-4 py-3 border-b border-g200 flex items-center justify-between">
             <span className="text-[9px] font-bold tracking-[1.5px] uppercase text-g400">All Quotations</span>
-            <span className="text-[10px] text-g400">{quotes.length} quotes</span>
+            <span className="text-[10px] text-g400">{quotes.length} quotes · {siteGroups.length} site{siteGroups.length !== 1 ? 's' : ''}</span>
           </div>
           {quotes.length === 0 ? (
             <div className="px-4 py-6 text-center text-[12px] text-g400 italic">No quotes yet</div>
           ) : (
             <div className="divide-y divide-g100">
-              {quotes.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(q => {
-                const desc = (q.items ?? [])[0]?.desc ?? '';
-                const isExpanded = expandedQuote === q.id;
-                const subTotal  = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
-                const gstTotal  = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
-                const grandTotal = subTotal + gstTotal;
+              {siteGroups.map(group => {
+                const isSiteOpen = expandedSites.has(group.siteKey);
+                const groupTotal = group.quotes.reduce((s, q) => {
+                  const sub = (q.items ?? []).reduce((a, i) => a + (i.total ?? 0), 0);
+                  const gst = (q.items ?? []).reduce((a, i) => a + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                  return s + sub + gst;
+                }, 0);
+                const openCount = group.quotes.filter(q => q.status === 'Sent').length;
                 return (
-                  <div key={q.id}>
-                    <button type="button" title={`Toggle ${q.id}`} onClick={() => setExpandedQuote(isExpanded ? null : q.id)}
+                  <div key={group.siteKey}>
+                    {/* Site/branch header row */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSite(group.siteKey)}
                       className={cn(
                         'w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left cursor-pointer',
-                        isExpanded ? 'bg-blue-50' : 'hover:bg-blue-50'
-                      )}>
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
-                      <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
-                      <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
-                      <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(grandTotal)}</span>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                      <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy, HH:mm') : '—'}</span>
-                      <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
+                        isSiteOpen ? 'bg-indigo-50' : 'hover:bg-indigo-50/60'
+                      )}
+                    >
+                      <ChevronRight size={12} className={cn('text-indigo-400 shrink-0 transition-transform duration-200', isSiteOpen && 'rotate-90')} />
+                      <MapPin size={11} className="text-indigo-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[11px] font-semibold text-g700">{group.siteName}</span>
+                        {group.siteCity && <span className="text-[10px] text-g400 ml-1.5">{group.siteCity}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {openCount > 0 && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {openCount} open
+                          </span>
+                        )}
+                        <span className="text-[10px] text-g400">{group.quotes.length} quote{group.quotes.length !== 1 ? 's' : ''}</span>
+                        <span className="text-[11px] font-semibold text-blk">{fVal(groupTotal)}</span>
+                      </div>
                     </button>
 
-                    {isExpanded && (
-                      <div className="bg-blue-50/30 border-t border-blue-100 px-4 py-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-blue-600">Line Items — {q.id}</span>
-                          <div className="flex items-center gap-1.5">
-                            {/* PDF */}
-                            <button
-                              type="button"
-                              title="Download Quote PDF"
-                              onClick={() => {
-                                const cust = data.customers.find(x => x.name === q.cust);
-                                const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
-                                const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
-                                const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
-                                generateQuotePDF(q, cust, data.settings, sig, true, unit);
-                              }}
-                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
-                            >
-                              <FileText size={9} /> PDF
-                            </button>
-                            {/* Docs — open quote attachment dialog */}
-                            <button
-                              type="button"
-                              title="View quote documents"
-                              onClick={() => openAttachmentModal('quote', q.id)}
-                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
-                            >
-                              <Paperclip size={9} /> Docs
-                            </button>
-                            {/* Edit */}
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/quotes/new?id=${q.id}`)}
-                              title="Edit quote"
-                              className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
-                            >
-                              <ExternalLink size={9} /> Edit
-                            </button>
-                          </div>
-                        </div>
-                        <div className="bg-white border border-g200 rounded-[3px] overflow-x-auto">
-                          <table className="w-full border-collapse text-[11px]">
-                            <thead className="bg-g100">
-                              <tr>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200 w-6">#</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Description</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Material</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">Qty</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">UOM</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Unit Rate</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">GST%</th>
-                                <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Amount</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(q.items ?? []).map((item, i) => (
-                                <tr key={i} className="hover:bg-g50/50">
-                                  <td className="px-2.5 py-1.5 border-b border-g100 font-mono text-g400">{i + 1}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-blk">{item.desc || <span className="text-g300 italic">—</span>}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-g500">{item.mat || '—'}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-blk">{item.qty}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center text-g500">{item.uom}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono text-blk">{formatINR(item.unitPrice ?? 0)}</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-g500">{item.gst ?? 0}%</td>
-                                  <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono font-semibold text-blk">{formatINR(item.total ?? 0)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="flex justify-end gap-5 items-center pt-2">
-                          <span className="text-[10px] text-g600">Sub-Total: <strong className="text-blk font-bold font-mono">{formatINR(subTotal)}</strong></span>
-                          <span className="text-[10px] text-g600">GST: <strong className="text-blk font-bold font-mono">{formatINR(gstTotal)}</strong></span>
-                          <span className="text-[11px] text-red-mrt font-bold font-mono tracking-tight">Grand: {formatINR(grandTotal)}</span>
-                        </div>
+                    {/* Expanded: individual quote rows */}
+                    {isSiteOpen && (
+                      <div className="divide-y divide-g100 bg-g50/30">
+                        {group.quotes.map(q => {
+                          const desc = (q.items ?? [])[0]?.desc ?? '';
+                          const isExpanded = expandedQuote === q.id;
+                          const subTotal  = (q.items ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
+                          const gstTotal  = (q.items ?? []).reduce((s, i) => s + ((i.total ?? 0) * ((i.gst ?? 0) / 100)), 0);
+                          const grandTotal = subTotal + gstTotal;
+                          return (
+                            <div key={q.id}>
+                              <button type="button" title={`Toggle ${q.id}`} onClick={() => setExpandedQuote(isExpanded ? null : q.id)}
+                                className={cn(
+                                  'w-full flex items-center gap-3 pl-9 pr-4 py-2.5 transition-colors text-left cursor-pointer',
+                                  isExpanded ? 'bg-blue-50' : 'hover:bg-blue-50'
+                                )}>
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[q.status] ?? 'bg-g300'}`} />
+                                <span className="font-mono text-[10px] font-semibold text-g600 w-28 shrink-0">{q.id}</span>
+                                <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
+                                <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(grandTotal)}</span>
+                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
+                                <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy, HH:mm') : '—'}</span>
+                                <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
+                              </button>
+
+                              {isExpanded && (
+                                <div className="bg-blue-50/30 border-t border-blue-100 px-4 py-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-mono text-[8px] font-bold tracking-[1.5px] uppercase text-blue-600">Line Items — {q.id}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        title="Download Quote PDF"
+                                        onClick={() => {
+                                          const cust = data.customers.find(x => x.name === q.cust);
+                                          const unit = q.unitId ? data.units.find(u => u.id === q.unitId) : data.units.find(u => u.is_default);
+                                          const unitSig = unit?.signatory_id ? data.signatories.find(s => s.id === unit.signatory_id) : undefined;
+                                          const sig = unitSig ?? data.signatories.find((s: any) => s.is_default);
+                                          generateQuotePDF(q, cust, data.settings, sig, true, unit);
+                                        }}
+                                        className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                      >
+                                        <FileText size={9} /> PDF
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="View quote documents"
+                                        onClick={() => openAttachmentModal('quote', q.id)}
+                                        className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                      >
+                                        <Paperclip size={9} /> Docs
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => navigate(`/quotes/new?id=${q.id}`)}
+                                        title="Edit quote"
+                                        className="h-6 inline-flex items-center gap-1 px-2 border border-g200 bg-white rounded-[3px] text-[9px] font-medium text-g600 hover:bg-g50 transition-colors"
+                                      >
+                                        <ExternalLink size={9} /> Edit
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white border border-g200 rounded-[3px] overflow-x-auto">
+                                    <table className="w-full border-collapse text-[11px]">
+                                      <thead className="bg-g100">
+                                        <tr>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200 w-6">#</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Description</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-left border-b border-g200">Material</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">Qty</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">UOM</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Unit Rate</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-center border-b border-g200 w-12">GST%</th>
+                                          <th className="font-mono text-[8px] tracking-[1px] uppercase text-g500 px-2.5 py-1.5 text-right border-b border-g200">Amount</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(q.items ?? []).map((item, i) => (
+                                          <tr key={i} className="hover:bg-g50/50">
+                                            <td className="px-2.5 py-1.5 border-b border-g100 font-mono text-g400">{i + 1}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-blk">{item.desc || <span className="text-g300 italic">—</span>}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-g500">{item.mat || '—'}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-blk">{item.qty}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-center text-g500">{item.uom}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono text-blk">{formatINR(item.unitPrice ?? 0)}</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-center font-mono text-g500">{item.gst ?? 0}%</td>
+                                            <td className="px-2.5 py-1.5 border-b border-g100 text-right font-mono font-semibold text-blk">{formatINR(item.total ?? 0)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  <div className="flex justify-end gap-5 items-center pt-2">
+                                    <span className="text-[10px] text-g600">Sub-Total: <strong className="text-blk font-bold font-mono">{formatINR(subTotal)}</strong></span>
+                                    <span className="text-[10px] text-g600">GST: <strong className="text-blk font-bold font-mono">{formatINR(gstTotal)}</strong></span>
+                                    <span className="text-[11px] text-red-mrt font-bold font-mono tracking-tight">Grand: {formatINR(grandTotal)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
