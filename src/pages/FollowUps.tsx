@@ -251,6 +251,8 @@ export default function FollowUps() {
   const [nextNote, setNextNote] = useState('');
   // Explicit stage the user is logging activity for — does NOT auto-advance
   const [stageOverride, setStageOverride] = useState<string>('');
+  // Sibling quotes from the same customer to also log this activity for
+  const [alsoLogFor, setAlsoLogFor] = useState<Set<string>>(new Set());
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const applyChip = useCallback((chip: Suggestion) => {
@@ -397,6 +399,7 @@ export default function FollowUps() {
     if (selectedItem?.quote.id !== prevSelectedRef.current) {
       prevSelectedRef.current = selectedItem?.quote.id ?? null;
       setStageOverride('');
+      setAlsoLogFor(new Set());
     }
   }, [selectedItem?.quote.id]);
 
@@ -446,11 +449,17 @@ export default function FollowUps() {
     };
 
     try {
+      // Log for the primary selected quote
       await addFollowUpLog(selectedQuoteId, newLog, nextDate || null, nextTime || null, '', stageOverride || null);
+      // Log same activity for any ticked sibling quotes (next date/time carried over)
+      for (const sibId of alsoLogFor) {
+        await addFollowUpLog(sibId, newLog, nextDate || null, nextTime || null, '', null);
+      }
       setNote('');
       setNextDate('');
       setNextTime('');
       setNextNote('');
+      setAlsoLogFor(new Set());
       // Keep stageOverride so the next log defaults to the same stage
     } catch (err) {
       alert('Failed to log activity. Please ensure followups table exists in Supabase.');
@@ -1249,6 +1258,74 @@ export default function FollowUps() {
           {/* Scrollable form body */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
 
+            {/* Also log for sibling quotes — same customer, other open quotes */}
+            {(() => {
+              const custName = selectedItem.quote.cust;
+              const siblings = followUpQueue.filter(item =>
+                item.quote.cust === custName &&
+                item.quote.id !== selectedItem.quote.id
+              );
+              if (siblings.length === 0) return null;
+              const allChecked = siblings.every(s => alsoLogFor.has(s.quote.id));
+              return (
+                <div className="bg-blue-50 border border-blue-200 rounded-[3px] p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-blue-700">
+                      Also log for ({siblings.length} more {custName} quote{siblings.length > 1 ? 's' : ''})
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAlsoLogFor(allChecked ? new Set() : new Set(siblings.map(s => s.quote.id)))}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                    >
+                      {allChecked ? 'None' : 'All'}
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {siblings.map(sib => {
+                      const value = sib.quote.items.reduce((a, i) => a + i.total, 0);
+                      const checked = alsoLogFor.has(sib.quote.id);
+                      return (
+                        <label key={sib.quote.id} className={cn(
+                          'flex items-center gap-2.5 px-2.5 py-2 rounded-[3px] cursor-pointer border transition-colors',
+                          checked ? 'bg-blue-100 border-blue-300' : 'bg-white border-g200 hover:border-blue-300'
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              const next = new Set(alsoLogFor);
+                              e.target.checked ? next.add(sib.quote.id) : next.delete(sib.quote.id);
+                              setAlsoLogFor(next);
+                            }}
+                            className="accent-blue-600 w-3.5 h-3.5 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] font-bold text-blue-700">{sib.quote.id}</span>
+                              <span className={cn(
+                                'text-[9px] font-semibold px-1.5 py-0.5 rounded-[3px]',
+                                sib.priority === 'overdue' ? 'bg-red-100 text-red-700' :
+                                sib.priority === 'today' ? 'bg-amber-100 text-amber-700' :
+                                sib.priority === 'unscheduled' ? 'bg-orange-100 text-orange-700' :
+                                'bg-g100 text-g600'
+                              )}>{sib.priority === 'unscheduled' ? 'No next step' : sib.priority}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="font-mono text-[10.5px] font-bold text-blk">₹{value.toLocaleString('en-IN')}</span>
+                              {sib.followUp?.stage && (
+                                <span className="text-[9px] text-g500 truncate">{sib.followUp.stage}</span>
+                              )}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Follow-up Stage — explicit, no auto-advance */}
             <div className="space-y-1.5">
               <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Follow-up Stage</div>
@@ -1450,7 +1527,7 @@ export default function FollowUps() {
               className="w-full bg-red-mrt text-white font-mono text-[10px] uppercase font-bold tracking-wider px-6 py-2.5 rounded-[3px] transition-colors hover:bg-red-h active:scale-95 flex items-center justify-center gap-1.5"
             >
               <CheckCircle2 size={13} />
-              Log Activity
+              {alsoLogFor.size > 0 ? `Log for ${alsoLogFor.size + 1} Quotes` : 'Log Activity'}
             </button>
           </div>
         </form>
