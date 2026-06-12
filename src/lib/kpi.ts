@@ -125,6 +125,8 @@ export interface DoerMetrics {
   // Time-lap KPIs (avg hours; lower is better). Surfaced on the doer cards.
   enqLapH: number | null;     // DEO: enquiry received → punched in (recv → created_at)
   quoteLapH: number | null;   // Rate Entry: enquiry punched → quote sent (created_at → sent_at)
+  avgLateH: number | null;    // SC_1/Negotiation: avg hours overdue on late steps (null = no late steps)
+  lateCount: number;          // SC_1/Negotiation: number of late steps
   // DEO sub-counts (visible on detail card so manager can read enquiries vs orders separately).
   enqCount: number;           // DEO: enquiries entered in period
   orderCount: number;         // DEO: orders converted in period
@@ -194,6 +196,7 @@ export function computeDoerMetrics(
     _speedSum: number; _speedN: number;
     _enqLapSum: number; _enqLapN: number;     // recv → created_at
     _quoteLapSum: number; _quoteLapN: number; // created_at → sent_at
+    _lateHSum: number; _lateN: number;        // sum of overdue hours on late steps
   }
   const rowKey = doerRowKey;
   const out = new Map<string, Raw>();
@@ -203,10 +206,11 @@ export function computeDoerMetrics(
     out.set(rowKey(m.email, m.role), {
       email: m.email, displayName: m.display_name, role: m.role,
       onTimePct: null, volume: 0, avgCycleH: null, winRate: null,
-      enqLapH: null, quoteLapH: null,
+      enqLapH: null, quoteLapH: null, avgLateH: null, lateCount: 0,
       enqCount: 0, orderCount: 0,
       dueNextWeek: [], composite: null, _speedSum: 0, _speedN: 0,
       _enqLapSum: 0, _enqLapN: 0, _quoteLapSum: 0, _quoteLapN: 0,
+      _lateHSum: 0, _lateN: 0,
     });
   }
   if (out.size === 0) return new Map();
@@ -292,7 +296,9 @@ export function computeDoerMetrics(
     for (let i = 1; i < chain.length; i++) {
       const log = chain[i];
       if (!inRange(log.ts, range)) continue;
-      const onTime = new Date(log.ts) <= stepDeadline(settings, chain, i);
+      const deadline = stepDeadline(settings, chain, i);
+      const onTime = new Date(log.ts) <= deadline;
+      const lateH = onTime ? 0 : Math.round((new Date(log.ts).getTime() - deadline.getTime()) / 3_600_000);
       for (const role of ['SC_1', 'Negotiation'] as const) {
         const raw = matchDoer(log.who, role) ?? matchDoer(fu.owner, role);
         if (!raw) continue;
@@ -300,6 +306,7 @@ export function computeDoerMetrics(
         acc.tot++;
         if (onTime) acc.on++;
         onTimeAcc.set(raw, acc);
+        if (!onTime) { raw._lateHSum += lateH; raw._lateN++; }
       }
     }
 
@@ -360,6 +367,8 @@ export function computeDoerMetrics(
     raw.quoteLapH = raw._quoteLapN > 0 ? Math.round(raw._quoteLapSum / raw._quoteLapN) : null;
     const ot = onTimeAcc.get(raw);
     raw.onTimePct = ot && ot.tot > 0 ? Math.round(ot.on / ot.tot * 100) : null;
+    raw.avgLateH = raw._lateN > 0 ? Math.round(raw._lateHSum / raw._lateN) : null;
+    raw.lateCount = raw._lateN;
     const w = winAcc.get(raw);
     raw.winRate = w && w.closed > 0 ? Math.round(w.won / w.closed * 100) : null;
   }
@@ -394,7 +403,7 @@ export function computeDoerMetrics(
   // Strip private accumulators.
   const result = new Map<string, DoerMetrics>();
   for (const [k, raw] of out) {
-    const { _speedSum, _speedN, _enqLapSum, _enqLapN, _quoteLapSum, _quoteLapN, ...clean } = raw;
+    const { _speedSum, _speedN, _enqLapSum, _enqLapN, _quoteLapSum, _quoteLapN, _lateHSum, _lateN, ...clean } = raw;
     result.set(k, clean);
   }
   return result;

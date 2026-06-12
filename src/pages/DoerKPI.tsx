@@ -315,20 +315,41 @@ export function DoerKPI() {
                   </div>
                 </div>
 
-                {/* On-time bar (SC_1 + Negotiation) */}
-                {(m.role === 'SC_1' || m.role === 'Other') && m.onTimePct != null && (
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-[8.5px] font-bold tracking-[1px] uppercase text-g400">On-time breakdown</span>
+                {/* On-time + lateness bar (SC_1 / Negotiation / Other) */}
+                {(m.role === 'SC_1' || m.role === 'Negotiation' || m.role === 'Other') && m.onTimePct != null && (
+                  <div className="mb-3 space-y-1.5">
+                    {/* Split bar */}
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[8.5px] font-bold tracking-[1px] uppercase text-g400">Speed vs plan</span>
                       <span className={cn('text-[10px] font-bold', healthColor(m.onTimePct))}>{m.onTimePct}% on-time</span>
                     </div>
                     <div className="h-2 bg-g100 rounded-full overflow-hidden flex">
                       <div className={cn('h-full rounded-l-full', healthBg(m.onTimePct))} style={{ width: `${m.onTimePct}%` }} />
                       <div className="h-full bg-red-200 flex-1" />
                     </div>
-                    <div className="flex justify-between text-[9px] text-g400 mt-0.5">
-                      <span>{m.onTimePct}% on time</span>
-                      <span>{100 - m.onTimePct}% late</span>
+                    {/* Two stat chips: on-time count vs late + avg overdue */}
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-[4px] px-2 py-1.5">
+                        <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                        <div>
+                          <div className="font-mono text-[11px] font-bold text-emerald-700 leading-none">{m.onTimePct}%</div>
+                          <div className="text-[8.5px] text-g400 mt-0.5">done on time</div>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        'flex-1 flex items-center gap-1.5 rounded-[4px] px-2 py-1.5 border',
+                        m.lateCount === 0 ? 'bg-g50 border-g200' : 'bg-red-50 border-red-200'
+                      )}>
+                        <Clock size={11} className={m.lateCount === 0 ? 'text-g400 shrink-0' : 'text-red-500 shrink-0'} />
+                        <div>
+                          <div className={cn('font-mono text-[11px] font-bold leading-none', m.lateCount === 0 ? 'text-g500' : 'text-red-700')}>
+                            {m.lateCount === 0 ? '0 late' : m.avgLateH != null ? `+${fmtHours(m.avgLateH)}` : `${m.lateCount} late`}
+                          </div>
+                          <div className="text-[8.5px] text-g400 mt-0.5">
+                            {m.lateCount === 0 ? 'no late steps' : `avg overdue · ${m.lateCount} step${m.lateCount > 1 ? 's' : ''}`}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
