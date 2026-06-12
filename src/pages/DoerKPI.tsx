@@ -264,23 +264,39 @@ export function DoerKPI() {
                       <span className="text-[10px] text-g400">{m.email}</span>
                     </div>
                   </div>
-                  {/* Composite score circle */}
-                  {!deferred && m.composite != null ? (
-                    <div className={cn(
-                      'shrink-0 w-12 h-12 rounded-full flex flex-col items-center justify-center border-2',
-                      m.composite >= 70 ? 'border-emerald-400 bg-emerald-50' :
-                      m.composite >= 40 ? 'border-amber-400 bg-amber-50' :
-                      'border-red-400 bg-red-50'
-                    )}>
-                      <span className={cn('font-mono text-[14px] font-extrabold leading-none',
-                        m.composite >= 70 ? 'text-emerald-700' :
-                        m.composite >= 40 ? 'text-amber-700' : 'text-red-700'
-                      )}>{m.composite}</span>
-                      <span className="text-[8px] text-g400 font-bold">score</span>
-                    </div>
-                  ) : (
-                    <div className="shrink-0 w-12 h-12 rounded-full border-2 border-g200 bg-g50 flex items-center justify-center">
-                      <span className="text-[10px] text-g300 font-bold">—</span>
+                  {/* Shortfall badge — gap to reach 100% */}
+                  {!deferred && m.composite != null ? (() => {
+                    const gap = m.composite - 100; // always ≤ 0
+                    const perfect = gap === 0;
+                    return (
+                      <div className={cn(
+                        'shrink-0 flex flex-col items-center justify-center rounded-[8px] px-3 py-2 min-w-[64px] border',
+                        perfect ? 'bg-emerald-50 border-emerald-300' :
+                        m.composite >= 70 ? 'bg-amber-50 border-amber-300' :
+                        'bg-red-50 border-red-300'
+                      )}>
+                        <span className={cn(
+                          'font-mono text-[18px] font-extrabold leading-none tracking-tight',
+                          perfect ? 'text-emerald-700' :
+                          m.composite >= 70 ? 'text-amber-700' : 'text-red-700'
+                        )}>
+                          {perfect ? '0%' : `${gap}%`}
+                        </span>
+                        <span className={cn(
+                          'text-[8px] font-bold uppercase tracking-wide mt-0.5',
+                          perfect ? 'text-emerald-500' : 'text-g400'
+                        )}>
+                          {perfect ? 'perfect' : 'shortfall'}
+                        </span>
+                        {!perfect && (
+                          <span className="text-[8px] text-g400 mt-0.5">to reach 100</span>
+                        )}
+                      </div>
+                    );
+                  })() : (
+                    <div className="shrink-0 flex flex-col items-center justify-center rounded-[8px] px-3 py-2 min-w-[64px] border border-g200 bg-g50">
+                      <span className="text-[18px] font-mono font-extrabold text-g300 leading-none">—</span>
+                      <span className="text-[8px] text-g300 font-bold uppercase tracking-wide mt-0.5">shortfall</span>
                     </div>
                   )}
                 </div>
@@ -430,17 +446,23 @@ export function DoerKPI() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {deferred ? <span className="text-g300">—</span> : (
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 rounded-full bg-g100 overflow-hidden">
-                            <div className={cn('h-full rounded-full', healthBg(m.composite))}
-                              style={{ width: `${m.composite ?? 0}%` }} />
+                      {deferred ? <span className="text-g300">—</span> : m.composite == null ? <span className="text-g300">—</span> : (() => {
+                        const gap = m.composite - 100;
+                        const perfect = gap === 0;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 rounded-full bg-red-100 overflow-hidden">
+                              <div className={cn('h-full rounded-full', healthBg(m.composite))}
+                                style={{ width: `${m.composite}%` }} />
+                            </div>
+                            <span className={cn('font-mono font-bold tabular-nums text-[11px]',
+                              perfect ? 'text-emerald-600' : m.composite >= 70 ? 'text-amber-600' : 'text-red-600'
+                            )}>
+                              {perfect ? '0%' : `${gap}%`}
+                            </span>
                           </div>
-                          <span className={cn('font-mono font-bold tabular-nums text-[11px]', healthColor(m.composite))}>
-                            {m.composite ?? '—'}
-                          </span>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={cn('tabular-nums font-semibold', healthColor(m.onTimePct))}>
