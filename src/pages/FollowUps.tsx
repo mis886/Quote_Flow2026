@@ -253,6 +253,8 @@ export default function FollowUps() {
   const [stageOverride, setStageOverride] = useState<string>('');
   // Sibling quotes from the same customer to also log this activity for
   const [alsoLogFor, setAlsoLogFor] = useState<Set<string>>(new Set());
+  // Which sibling card is expanded to show detail
+  const [expandedSibling, setExpandedSibling] = useState<string | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const applyChip = useCallback((chip: Suggestion) => {
@@ -400,6 +402,7 @@ export default function FollowUps() {
       prevSelectedRef.current = selectedItem?.quote.id ?? null;
       setStageOverride('');
       setAlsoLogFor(new Set());
+      setExpandedSibling(null);
     }
   }, [selectedItem?.quote.id]);
 
@@ -1285,40 +1288,98 @@ export default function FollowUps() {
                     {siblings.map(sib => {
                       const value = sib.quote.items.reduce((a, i) => a + i.total, 0);
                       const checked = alsoLogFor.has(sib.quote.id);
+                      const isExpanded = expandedSibling === sib.quote.id;
+                      const lastLog = sib.followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).slice(-1)[0];
                       return (
-                        <label key={sib.quote.id} className={cn(
-                          'flex items-center gap-2.5 px-2.5 py-2 rounded-[3px] cursor-pointer border transition-colors',
-                          checked ? 'bg-blue-100 border-blue-300' : 'bg-white border-g200 hover:border-blue-300'
+                        <div key={sib.quote.id} className={cn(
+                          'rounded-[3px] border transition-colors overflow-hidden',
+                          checked ? 'border-blue-300' : 'border-g200'
                         )}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={e => {
-                              const next = new Set(alsoLogFor);
-                              e.target.checked ? next.add(sib.quote.id) : next.delete(sib.quote.id);
-                              setAlsoLogFor(next);
-                            }}
-                            className="accent-blue-600 w-3.5 h-3.5 shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[10px] font-bold text-blue-700">{sib.quote.id}</span>
-                              <span className={cn(
-                                'text-[9px] font-semibold px-1.5 py-0.5 rounded-[3px]',
-                                sib.priority === 'overdue' ? 'bg-red-100 text-red-700' :
-                                sib.priority === 'today' ? 'bg-amber-100 text-amber-700' :
-                                sib.priority === 'unscheduled' ? 'bg-orange-100 text-orange-700' :
-                                'bg-g100 text-g600'
-                              )}>{sib.priority === 'unscheduled' ? 'No next step' : sib.priority}</span>
+                          {/* Card header row */}
+                          <div className={cn(
+                            'flex items-center gap-2.5 px-2.5 py-2',
+                            checked ? 'bg-blue-100' : 'bg-white'
+                          )}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => {
+                                const next = new Set(alsoLogFor);
+                                e.target.checked ? next.add(sib.quote.id) : next.delete(sib.quote.id);
+                                setAlsoLogFor(next);
+                              }}
+                              className="accent-blue-600 w-3.5 h-3.5 shrink-0 cursor-pointer"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10px] font-bold text-blue-700">{sib.quote.id}</span>
+                                <span className={cn(
+                                  'text-[9px] font-semibold px-1.5 py-0.5 rounded-[3px]',
+                                  sib.priority === 'overdue' ? 'bg-red-100 text-red-700' :
+                                  sib.priority === 'today' ? 'bg-amber-100 text-amber-700' :
+                                  sib.priority === 'unscheduled' ? 'bg-orange-100 text-orange-700' :
+                                  'bg-g100 text-g600'
+                                )}>{sib.priority === 'unscheduled' ? 'No next step' : sib.priority}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="font-mono text-[10.5px] font-bold text-blk">₹{value.toLocaleString('en-IN')}</span>
+                                {sib.followUp?.stage && (
+                                  <span className="text-[9px] text-g500 truncate">{sib.followUp.stage}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-[10.5px] font-bold text-blk">₹{value.toLocaleString('en-IN')}</span>
-                              {sib.followUp?.stage && (
-                                <span className="text-[9px] text-g500 truncate">{sib.followUp.stage}</span>
+                            <button
+                              type="button"
+                              title={isExpanded ? 'Collapse' : 'View detail'}
+                              onClick={() => setExpandedSibling(isExpanded ? null : sib.quote.id)}
+                              className="shrink-0 p-1 rounded hover:bg-blue-200 text-blue-500 hover:text-blue-800 transition-colors"
+                            >
+                              <ChevronRight size={13} className={cn('transition-transform duration-150', isExpanded && 'rotate-90')} />
+                            </button>
+                          </div>
+
+                          {/* Expanded detail */}
+                          {isExpanded && (
+                            <div className="border-t border-blue-200 bg-white px-3 py-2.5 space-y-2">
+                              {/* Line items */}
+                              <div>
+                                <div className="font-mono text-[8.5px] font-bold tracking-[1.5px] uppercase text-g400 mb-1">Items</div>
+                                <div className="space-y-0.5">
+                                  {sib.quote.items.map((item, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-[11px]">
+                                      <span className="text-g700 truncate flex-1 pr-2">{item.desc}</span>
+                                      <span className="font-mono font-bold text-blk shrink-0">₹{item.total.toLocaleString('en-IN')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Next step */}
+                              {sib.followUp?.next_date && (
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <Calendar size={10} className="text-amber-600 shrink-0" />
+                                  <span className="font-bold text-amber-800">
+                                    Next: {formatDue(sib.followUp.next_date, sib.followUp.next_time)}
+                                    {sib.followUp.next_date < new Date().toISOString().slice(0, 10) ? ' ⚠' : ''}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Last activity */}
+                              {lastLog ? (
+                                <div className="flex items-start gap-1.5 text-[11px] text-g500">
+                                  <span className="shrink-0">{CHANNEL_CONFIG[lastLog.channel]?.icon ?? '📌'}</span>
+                                  <div className="min-w-0">
+                                    <span className="italic leading-snug">{lastLog.note.substring(0, 120)}{lastLog.note.length > 120 ? '…' : ''}</span>
+                                    <div className="text-[9.5px] text-g400 mt-0.5">{fmtIST(parseISO(lastLog.ts), 'dd MMM · hh:mm aa')} · {lastLog.who}</div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-[10.5px] text-g300 italic">No activity yet</div>
                               )}
                             </div>
-                          </div>
-                        </label>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
