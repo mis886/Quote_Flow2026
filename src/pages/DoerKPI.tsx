@@ -822,11 +822,27 @@ const STOP_WORDS = new Set([
   'good','well','still','call','called','told','told','need','want','will',
 ]);
 
+function isSystemNote(note: string): boolean {
+  const t = note.trimStart();
+  return (
+    t.startsWith('Quote sent —') ||
+    t.startsWith('Sent MRT-') ||
+    t.startsWith('Sent ') ||
+    /^MRT-\d{4}-\d+/.test(t)
+  );
+}
+
 function tokenize(notes: string[]): Map<string, number> {
   const freq = new Map<string, number>();
   for (const note of notes) {
-    if (!note) continue;
-    const words = note.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/);
+    if (!note || isSystemNote(note)) continue;
+    let text = note
+      .replace(/MRT-\d{4}-\d+/gi, ' ')           // quote numbers
+      .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, ' ')  // dates like 12/06/2026
+      .replace(/\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/gi, ' ')  // "12 Jun"
+      .replace(/₹[\d,]+/g, ' ')                  // rupee amounts
+      .replace(/[^a-z\s]/gi, ' ');               // everything non-alpha
+    const words = text.toLowerCase().split(/\s+/);
     for (const w of words) {
       if (w.length < 3 || STOP_WORDS.has(w)) continue;
       freq.set(w, (freq.get(w) ?? 0) + 1);
