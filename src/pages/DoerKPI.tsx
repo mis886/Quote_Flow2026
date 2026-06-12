@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { cn } from '../lib/utils';
@@ -8,6 +8,7 @@ import {
   Clock, TrendingUp, Users, ChevronDown, ChevronRight,
   CheckCircle2, AlertTriangle, Target, Zap, Trophy,
   Phone, FileText, Receipt, Activity, ArrowUp, ArrowDown, Minus,
+  Cloud, X,
 } from 'lucide-react';
 import { BulkLogSidePanel } from '../components/BulkLogSidePanel';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
@@ -134,6 +135,7 @@ export function DoerKPI() {
     [data, activeTrendKey]);
 
   const [bulkLog, setBulkLog] = useState<{ context: string; items: DueItem[] } | null>(null);
+  const [cloudOpen, setCloudOpen] = useState(false);
 
   // Team-level summary stats
   const teamStats = useMemo(() => {
@@ -167,7 +169,7 @@ export function DoerKPI() {
 
   return (
     <div className="p-6 lg:p-8 bg-cream min-h-full space-y-5">
-      <PageHeader range={range} />
+      <PageHeader range={range} onCloud={() => setCloudOpen(true)} />
 
       {/* ── Team pulse strip ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -614,6 +616,10 @@ export function DoerKPI() {
           onClose={() => setBulkLog(null)}
         />
       )}
+
+      {cloudOpen && (
+        <WordCloudModal notes={data.followups.flatMap(fu => (fu.logs ?? []).map((l: any) => l.note as string))} onClose={() => setCloudOpen(false)} />
+      )}
     </div>
   );
 }
@@ -649,7 +655,7 @@ function PulseTile({ icon, label, value, sub, color, progress }: {
   );
 }
 
-function PageHeader({ range }: { range: GlobalDateRangeLike }) {
+function PageHeader({ range, onCloud }: { range: GlobalDateRangeLike; onCloud: () => void }) {
   return (
     <div className="flex items-end justify-between flex-wrap gap-2">
       <div>
@@ -658,8 +664,18 @@ function PageHeader({ range }: { range: GlobalDateRangeLike }) {
           Per-person performance — volume, on-time rate, speed, and win rate over the selected period.
         </p>
       </div>
-      <div className="font-mono text-[10px] text-g400 bg-white border border-g200 rounded-[6px] px-3 py-1.5">
-        {range.startDate} → {range.endDate}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onCloud}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-g200 bg-white text-[11px] font-bold text-g600 hover:bg-g50 hover:border-g300 transition-colors shadow-sm"
+        >
+          <Cloud size={13} className="text-indigo-500" />
+          Note Cloud
+        </button>
+        <div className="font-mono text-[10px] text-g400 bg-white border border-g200 rounded-[6px] px-3 py-1.5">
+          {range.startDate} → {range.endDate}
+        </div>
       </div>
     </div>
   );
@@ -790,4 +806,193 @@ function buildTrend(data: ReturnType<typeof useAppStore>['data'], roster: any[],
     });
   }
   return { name, points };
+}
+
+// ─── Word Cloud ───────────────────────────────────────────────────────────────
+
+const STOP_WORDS = new Set([
+  'a','an','the','and','or','but','in','on','at','to','for','of','with','by',
+  'from','as','is','was','are','were','be','been','being','have','has','had',
+  'do','does','did','will','would','could','should','may','might','can','it',
+  'its','this','that','these','those','i','me','my','we','our','you','your',
+  'he','him','his','she','her','they','them','their','not','no','so','if',
+  'then','than','when','while','where','which','who','how','what','get','got',
+  'also','just','very','more','most','said','say','one','two','all','any',
+  'some','there','here','new','old','out','up','down','about','after','before',
+  'good','well','still','call','called','told','told','need','want','will',
+]);
+
+function tokenize(notes: string[]): Map<string, number> {
+  const freq = new Map<string, number>();
+  for (const note of notes) {
+    if (!note) continue;
+    const words = note.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/);
+    for (const w of words) {
+      if (w.length < 3 || STOP_WORDS.has(w)) continue;
+      freq.set(w, (freq.get(w) ?? 0) + 1);
+    }
+  }
+  return freq;
+}
+
+const CLOUD_COLORS = [
+  '#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444',
+  '#8b5cf6','#06b6d4','#84cc16','#f97316','#ec4899',
+];
+
+interface PlacedWord { word: string; count: number; x: number; y: number; size: number; color: string; }
+
+function placeWords(words: [string, number][], W: number, H: number): PlacedWord[] {
+  const placed: PlacedWord[] = [];
+  const rects: { x: number; y: number; w: number; h: number }[] = [];
+  const cx = W / 2; const cy = H / 2;
+  const maxCount = words[0]?.[1] ?? 1;
+
+  function overlaps(x: number, y: number, w: number, h: number) {
+    for (const r of rects) {
+      if (x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y) return true;
+    }
+    return false;
+  }
+
+  for (let i = 0; i < words.length; i++) {
+    const [word, count] = words[i];
+    const size = Math.round(12 + (count / maxCount) * 36);
+    const charW = size * 0.6; const padY = size * 0.3;
+    const ww = word.length * charW; const wh = size + padY;
+    const color = CLOUD_COLORS[i % CLOUD_COLORS.length];
+
+    let placed_ = false;
+    for (let step = 0; step < 800; step++) {
+      const angle = step * 0.25;
+      const radius = step * 0.8;
+      const tx = cx + radius * Math.cos(angle) - ww / 2;
+      const ty = cy + radius * Math.sin(angle) - wh / 2;
+      if (tx < 0 || ty < 0 || tx + ww > W || ty + wh > H) continue;
+      if (!overlaps(tx, ty, ww, wh)) {
+        rects.push({ x: tx, y: ty, w: ww, h: wh });
+        placed.push({ word, count, x: tx, y: ty, size, color });
+        placed_ = true;
+        break;
+      }
+    }
+    if (!placed_) break; // canvas full
+  }
+  return placed;
+}
+
+function NoteWordCloud({ notes }: { notes: string[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 700, h: 420 });
+  const [filter, setFilter] = useState('');
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setDims({ w: width, h: height });
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const placed = useMemo(() => {
+    const filtered = filter
+      ? notes.filter(n => n?.toLowerCase().includes(filter.toLowerCase()))
+      : notes;
+    const freq = tokenize(filtered);
+    const sorted = Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 80);
+    return placeWords(sorted, dims.w, dims.h);
+  }, [notes, filter, dims]);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-5 pt-3 pb-2 border-b border-g100 flex items-center gap-2">
+        <input
+          className="flex-1 text-[12px] border border-g200 rounded-[6px] px-2.5 py-1 outline-none focus:border-indigo-400"
+          placeholder="Filter notes containing…"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+        />
+        {filter && (
+          <button type="button" onClick={() => setFilter('')}
+            className="text-[10px] text-g400 hover:text-g600 px-1">
+            clear
+          </button>
+        )}
+        <span className="text-[10px] text-g400 ml-1 whitespace-nowrap">
+          {placed.length} words · {notes.filter(Boolean).length} notes
+        </span>
+      </div>
+      <div ref={containerRef} className="flex-1 relative overflow-hidden select-none">
+        {placed.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-[13px] text-g400">
+            No words to show
+          </div>
+        )}
+        {placed.map(p => (
+          <span
+            key={p.word}
+            title={`"${p.word}" — ${p.count} time${p.count !== 1 ? 's' : ''}`}
+            style={{
+              position: 'absolute',
+              left: p.x,
+              top: p.y,
+              fontSize: p.size,
+              color: p.color,
+              fontWeight: p.count > 5 ? 700 : p.count > 2 ? 600 : 400,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+              cursor: 'default',
+              opacity: 0.85 + Math.min(0.15, p.count * 0.01),
+            }}
+          >
+            {p.word}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WordCloudModal({ notes, onClose }: { notes: string[]; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-stretch justify-center"
+      style={{ background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(3px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="flex flex-col bg-white rounded-[14px] shadow-2xl overflow-hidden m-6 w-full max-w-4xl">
+        {/* header */}
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-g100 shrink-0">
+          <Cloud size={16} className="text-indigo-500" />
+          <div className="flex-1">
+            <div className="font-bold text-[14px] text-blk leading-none">Follow-up Note Cloud</div>
+            <div className="text-[11px] text-g400 mt-0.5">Most frequent words in "What Happened?" logs</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close"
+            aria-label="Close word cloud"
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-g100 text-g400 hover:text-g600 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        {/* cloud body */}
+        <div className="flex-1 overflow-hidden min-h-0">
+          <NoteWordCloud notes={notes} />
+        </div>
+      </div>
+    </div>
+  );
 }

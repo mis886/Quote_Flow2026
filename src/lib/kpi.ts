@@ -373,31 +373,46 @@ export function computeDoerMetrics(
     raw.winRate = w && w.closed > 0 ? Math.round(w.won / w.closed * 100) : null;
   }
 
-  // ── Normalize volume & speed to 0–100 within cohort, then composite ──
+  // ── Composite score = done / total assigned × 100 ──────────────────────────
+  // For each role, "done" and "total" are the primary accountability metric:
+  //   SC_1 / Negotiation / Other: follow-up steps done on-time / total steps due
+  //   DEO:                        enquiries punched / (enquiries punched + open)
+  //   Rate Entry:                 quotes sent / (quotes sent + drafts pending)
+  //   PI Sender:                  scoring deferred (null)
+  //
+  // composite is 0–100. shortfall = composite − 100 (shown as e.g. −21%).
+  // Formula: composite = round(done * 100 / total)
   const members = [...out.values()];
-  // Normalize volume & speed WITHIN each role — a DEO's enquiry count is not
-  // comparable to an SC_1's log count, so each role has its own best-in-cohort.
-  const maxVolByRole = new Map<DoerRole, number>();
-  const maxSpeedByRole = new Map<DoerRole, number>();
   for (const m of members) {
-    maxVolByRole.set(m.role, Math.max(maxVolByRole.get(m.role) ?? 1, m.volume));
-    if (m.avgCycleH != null) maxSpeedByRole.set(m.role, Math.max(maxSpeedByRole.get(m.role) ?? 1, m.avgCycleH));
-  }
+    if (ROLE_WEIGHTS[m.role] === null) { m.composite = null; continue; }
 
-  for (const m of members) {
-    const w = ROLE_WEIGHTS[m.role];
-    if (!w) { m.composite = null; continue; }
-    const maxVol = maxVolByRole.get(m.role) ?? 1;
-    const maxSpeed = maxSpeedByRole.get(m.role) ?? 1;
-    const volScore = (m.volume / maxVol) * 100;
-    // Speed: lower is better → invert against the role's worst.
-    const speedScore = m.avgCycleH != null ? (1 - m.avgCycleH / maxSpeed) * 100 : 0;
-    let sum = 0, wsum = 0;
-    if (w.onTime != null && m.onTimePct != null) { sum += w.onTime * m.onTimePct; wsum += w.onTime; }
-    if (w.win != null && m.winRate != null) { sum += w.win * m.winRate; wsum += w.win; }
-    if (w.volume != null) { sum += w.volume * volScore; wsum += w.volume; }
-    if (w.speed != null && m.avgCycleH != null) { sum += w.speed * speedScore; wsum += w.speed; }
-    m.composite = wsum > 0 ? Math.round(sum / wsum) : null;
+    if (m.role === 'SC_1' || m.role === 'Negotiation' || m.role === 'Other') {
+      // done = on-time steps, total = all steps credited to this doer
+      const ot = onTimeAcc.get(m as any);
+      if (!ot || ot.tot === 0) { m.composite = null; continue; }
+      m.composite = Math.round(ot.on * 100 / ot.tot);
+
+    } else if (m.role === 'DEO') {
+      // done = enquiries punched in period; total = done + still-open (no qRef, not Quoted)
+      const openEnqCount = data.enquiries.filter(e =>
+        !e.qRef && e.status !== 'Lost' && e.status !== 'Parked' && e.doer &&
+        identitiesFor({ email: m.email, display_name: m.displayName }).has((e.doer ?? '').toLowerCase())
+      ).length;
+      const total = m.volume + openEnqCount;
+      m.composite = total === 0 ? null : Math.round(m.volume * 100 / total);
+
+    } else if (m.role === 'Rate Entry') {
+      // done = quotes sent; total = done + drafts still pending
+      const draftCount = data.quotes.filter(q =>
+        q.status === 'Draft' && q.doer &&
+        identitiesFor({ email: m.email, display_name: m.displayName }).has((q.doer ?? '').toLowerCase())
+      ).length;
+      const total = m.volume + draftCount;
+      m.composite = total === 0 ? null : Math.round(m.volume * 100 / total);
+
+    } else {
+      m.composite = null;
+    }
   }
 
   // Strip private accumulators.

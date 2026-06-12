@@ -131,11 +131,14 @@ export function Dashboard() {
 
   // Quotes in current period — kept for display values; trends are now shown via rotating sub-text.
   const quotesInPeriod = data.quotes.filter(q => isWithinCurrentPeriod(q.date));
-  // Subset that has actually been sent — drives the "Quotes Sent" KPI.
+  // Subset that has actually been sent — drives the "Quotes Sent" KPI and all derived metrics.
+  // Draft/Parked quotes are excluded: they haven't reached the customer so they shouldn't
+  // inflate value or dilute conversion rate.
   const sentQuotesInPeriod = quotesInPeriod.filter(wasSent);
-  const quoteValInPeriod = quotesInPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
-  const wonQuotesInPeriod = quotesInPeriod.filter(q => q.status === 'Won');
-  const q2oRate = quotesInPeriod.length ? Math.round((wonQuotesInPeriod.length / quotesInPeriod.length) * 100) : 0;
+  const quoteValInPeriod = sentQuotesInPeriod.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
+  const wonQuotesInPeriod = sentQuotesInPeriod.filter(q => q.status === 'Won');
+  // Q→O denominator = sent quotes (Sent + Won + Lost), not all quotes including unsent drafts.
+  const q2oRate = sentQuotesInPeriod.length ? Math.round((wonQuotesInPeriod.length / sentQuotesInPeriod.length) * 100) : 0;
 
   // ── Rolling 7d / 30d windows for sub-text rotation ─────────────────────────
   // "Current" = last 7d (or 30d); "prev" = the 7d (or 30d) before that.
@@ -183,18 +186,19 @@ export function Dashboard() {
   // Quote value (in lakhs, 1 decimal)
   const sumQuoteVal = (qs: typeof data.quotes) =>
     qs.reduce((acc, q) => acc + q.items.reduce((s, i) => s + i.total + (i.total * i.gst / 100), 0), 0);
-  const qvLast7  = sumQuoteVal(data.quotes.filter(q => inLast(q.date, 7)));
-  const qvPrev7  = sumQuoteVal(data.quotes.filter(q => inPrevWindow(q.date, 7)));
-  const qvLast30 = sumQuoteVal(data.quotes.filter(q => inLast(q.date, 30)));
-  const qvPrev30 = sumQuoteVal(data.quotes.filter(q => inPrevWindow(q.date, 30)));
+  const qvLast7  = sumQuoteVal(data.quotes.filter(q => wasSent(q) && inLast(q.date, 7)));
+  const qvPrev7  = sumQuoteVal(data.quotes.filter(q => wasSent(q) && inPrevWindow(q.date, 7)));
+  const qvLast30 = sumQuoteVal(data.quotes.filter(q => wasSent(q) && inLast(q.date, 30)));
+  const qvPrev30 = sumQuoteVal(data.quotes.filter(q => wasSent(q) && inPrevWindow(q.date, 30)));
   const inLakhs = (v: number) => +(v / 100_000).toFixed(1);
   const quoteValWeekDelta  = inLakhs(qvLast7  - qvPrev7);
   const quoteValMonthDelta = inLakhs(qvLast30 - qvPrev30);
 
-  // Q→O conversion rate (percentage points)
+  // Q→O conversion rate (percentage points) — denominator is sent quotes only (Sent+Won+Lost).
   const ratePctPts = (qs: typeof data.quotes): number | null => {
-    if (qs.length === 0) return null;
-    return Math.round((qs.filter(q => q.status === 'Won').length / qs.length) * 100);
+    const sent = qs.filter(wasSent);
+    if (sent.length === 0) return null;
+    return Math.round((sent.filter(q => q.status === 'Won').length / sent.length) * 100);
   };
   const r7  = ratePctPts(data.quotes.filter(q => inLast(q.date, 7)));
   const rp7 = ratePctPts(data.quotes.filter(q => inPrevWindow(q.date, 7)));
@@ -1473,12 +1477,12 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   const activeOrds = data.orders.filter((o: any) => o.status === 'Processing');
 
   const stages = [
-    { label: 'Open Enquiries', count: openEnqs.length,   val: 0,                  color: 'text-blue-600',    bar: 'bg-blue-500',    hover: 'group-hover:bg-blue-50',    badge: 'text-blue-700 bg-blue-50 border-blue-200',    path: '/enquiries' },
-    { label: 'Quoted',         count: quotedEnqs.length, val: quoteVal(data.quotes.filter((q: any) => quotedEnqs.some((e: any) => e.id === q.enqRef))), color: 'text-purple-600', bar: 'bg-purple-500', hover: 'group-hover:bg-purple-50', badge: 'text-purple-700 bg-purple-50 border-purple-200', path: '/quotes' },
-    { label: 'Sent',           count: sentQts.length,    val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  hover: 'group-hover:bg-orange-50',  badge: 'text-orange-700 bg-orange-50 border-orange-200', path: '/quotes' },
-    { label: 'Won',            count: wonQts.length,     val: quoteVal(wonQts),   color: 'text-emerald-600', bar: 'bg-emerald-500', hover: 'group-hover:bg-emerald-50', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', path: '/quotes' },
-    { label: 'Lost',           count: lostEnqs.length + lostQts.length, val: quoteVal(lostQts), color: 'text-red-600', bar: 'bg-red-500', hover: 'group-hover:bg-red-50', badge: 'text-red-700 bg-red-50 border-red-200', path: '/enquiries' },
-    { label: 'Active Orders',  count: activeOrds.length, val: 0,                  color: 'text-teal-600',    bar: 'bg-teal-500',    hover: 'group-hover:bg-teal-50',    badge: 'text-teal-700 bg-teal-50 border-teal-200',    path: '/orders' },
+    { label: 'Open Enquiries', sub: 'pending quote',    count: openEnqs.length,   val: 0,                  color: 'text-blue-600',    bar: 'bg-blue-500',    hover: 'group-hover:bg-blue-50',    badge: 'text-blue-700 bg-blue-50 border-blue-200',    path: '/enquiries' },
+    { label: 'Quoted',         sub: 'draft / not sent', count: quotedEnqs.length, val: quoteVal(data.quotes.filter((q: any) => quotedEnqs.some((e: any) => e.id === q.enqRef))), color: 'text-purple-600', bar: 'bg-purple-500', hover: 'group-hover:bg-purple-50', badge: 'text-purple-700 bg-purple-50 border-purple-200', path: '/quotes' },
+    { label: 'Awaiting PO',    sub: 'sent, no order yet', count: sentQts.length,  val: quoteVal(sentQts),  color: 'text-orange-600',  bar: 'bg-orange-500',  hover: 'group-hover:bg-orange-50',  badge: 'text-orange-700 bg-orange-50 border-orange-200', path: '/quotes' },
+    { label: 'Won',            sub: 'PO received',      count: wonQts.length,     val: quoteVal(wonQts),   color: 'text-emerald-600', bar: 'bg-emerald-500', hover: 'group-hover:bg-emerald-50', badge: 'text-emerald-700 bg-emerald-50 border-emerald-200', path: '/quotes' },
+    { label: 'Lost',           sub: 'enqs + quotes',    count: lostEnqs.length + lostQts.length, val: quoteVal(lostQts), color: 'text-red-600', bar: 'bg-red-500', hover: 'group-hover:bg-red-50', badge: 'text-red-700 bg-red-50 border-red-200', path: '/enquiries' },
+    { label: 'Active Orders',  sub: 'in processing',    count: activeOrds.length, val: 0,                  color: 'text-teal-600',    bar: 'bg-teal-500',    hover: 'group-hover:bg-teal-50',    badge: 'text-teal-700 bg-teal-50 border-teal-200',    path: '/orders' },
   ];
 
   const maxCount = Math.max(...stages.map(s => s.count), 1);
@@ -1487,7 +1491,7 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
   // Thresholds match confetti milestones exactly — same numbers user sees celebrated
   const totalSentQuotes = data.quotes.filter((q: any) => q.status === 'Sent' || q.status === 'Won' || q.status === 'Lost').length;
   const STAGE_MILESTONES: Record<string, { threshold: number; label: string; count: number }[]> = {
-    'Sent':          [{ threshold: 10, label: '10 Sent', count: totalSentQuotes }, { threshold: 50, label: '50 Sent', count: totalSentQuotes }, { threshold: 100, label: '100 Sent 🚀', count: totalSentQuotes }, { threshold: 250, label: '250 Sent 🔥', count: totalSentQuotes }],
+    'Awaiting PO':   [{ threshold: 10, label: '10 Sent', count: totalSentQuotes }, { threshold: 50, label: '50 Sent', count: totalSentQuotes }, { threshold: 100, label: '100 Sent 🚀', count: totalSentQuotes }, { threshold: 250, label: '250 Sent 🔥', count: totalSentQuotes }],
     'Open Enquiries':[{ threshold: 10, label: '10 Enqs', count: openEnqs.length }, { threshold: 50, label: '50 Enqs', count: openEnqs.length }, { threshold: 100, label: '100 Enqs 🎯', count: openEnqs.length }, { threshold: 500, label: '500 Enqs 🏆', count: openEnqs.length }],
     'Won':           [{ threshold: 1,  label: 'First Win! 🎉', count: wonQts.length }, { threshold: 10, label: '10 Won 🏅', count: wonQts.length }, { threshold: 50, label: '50 Won 🥇', count: wonQts.length }],
     'Active Orders': [{ threshold: 5,  label: '5 Active', count: activeOrds.length }, { threshold: 10, label: '10 Active', count: activeOrds.length }],
@@ -1524,6 +1528,9 @@ function PipelineFunnel({ data, navigate }: { data: any; navigate: (path: string
               <span className={`font-mono text-[9px] font-bold tracking-[1.5px] uppercase ${s.color}`}>{s.label}</span>
               <span className="font-serif text-[20px] text-blk leading-none font-bold">{s.count}</span>
               <span className={`font-mono text-[10px] font-bold ${s.color}`}>{fmt(s.val)}</span>
+              {'sub' in s && s.sub && (
+                <span className="font-mono text-[8px] text-g400 tracking-wide">{s.sub}</span>
+              )}
               {badge && (
                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-[8px] font-bold border ${s.badge}`}>
                   🏆 {badge.label}
