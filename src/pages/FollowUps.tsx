@@ -1270,11 +1270,17 @@ export default function FollowUps() {
               );
               if (siblings.length === 0) return null;
               const allChecked = siblings.every(s => alsoLogFor.has(s.quote.id));
+              const siblingsTotal = siblings.reduce((sum, s) => sum + s.quote.items.reduce((a, i) => a + i.total, 0), 0);
               return (
                 <div className="bg-blue-50 border border-blue-200 rounded-[3px] p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-blue-700">
-                      Also log for ({siblings.length} more {custName} quote{siblings.length > 1 ? 's' : ''})
+                    <div>
+                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-blue-700">
+                        Also log for ({siblings.length} more {custName} quote{siblings.length > 1 ? 's' : ''})
+                      </div>
+                      <div className="font-mono text-[11px] font-bold text-blue-800 mt-0.5">
+                        ₹{siblingsTotal.toLocaleString('en-IN')} open value
+                      </div>
                     </div>
                     <button
                       type="button"
