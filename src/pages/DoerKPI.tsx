@@ -832,22 +832,80 @@ function isSystemNote(note: string): boolean {
   );
 }
 
+// Seed phrases that should always be detected as a unit when present.
+// Normalised to lowercase; variations (spelling, spacing) are handled by the
+// fuzzy-match step in tokenize before ngram scoring.
+const SEED_PHRASES = [
+  'not answering','not answered','not reachable','not available','not picking',
+  'not responding','no answer','no response','switched off','phone off',
+  'out of station','not interested','will confirm','will check','will share',
+  'sent reminder','price high','rate high','already ordered','already placed',
+  'budget issue','payment pending','delivery issue','sample requested',
+  'waiting for approval','under consideration','meeting scheduled',
+];
+
+function normaliseText(raw: string): string {
+  return raw
+    .replace(/MRT-\d{4}-\d+/gi, ' ')
+    .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, ' ')
+    .replace(/\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/gi, ' ')
+    .replace(/₹[\d,]+/g, ' ')
+    .replace(/[^a-z\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function tokenize(notes: string[]): Map<string, number> {
   const freq = new Map<string, number>();
+
   for (const note of notes) {
     if (!note || isSystemNote(note)) continue;
-    let text = note
-      .replace(/MRT-\d{4}-\d+/gi, ' ')           // quote numbers
-      .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, ' ')  // dates like 12/06/2026
-      .replace(/\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/gi, ' ')  // "12 Jun"
-      .replace(/₹[\d,]+/g, ' ')                  // rupee amounts
-      .replace(/[^a-z\s]/gi, ' ');               // everything non-alpha
-    const words = text.toLowerCase().split(/\s+/);
-    for (const w of words) {
+    const text = normaliseText(note);
+    const tokens = text.split(' ').filter(w => w.length >= 2);
+
+    // ── phrase pass: check seed phrases and high-frequency bigrams/trigrams ──
+    const phraseMatched = new Set<number>(); // token indices consumed by a phrase
+
+    // seed phrase detection (fuzzy: collapse spaces, allow 1-char typos via inclusion)
+    for (const phrase of SEED_PHRASES) {
+      const pTokens = phrase.split(' ');
+      const pLen = pTokens.length;
+      outer: for (let i = 0; i <= tokens.length - pLen; i++) {
+        for (let j = 0; j < pLen; j++) {
+          const a = tokens[i + j]; const b = pTokens[j];
+          // allow prefix match for typos (e.g. "answred" starts with "answ")
+          if (a !== b && !a.startsWith(b.slice(0, 4))) continue outer;
+        }
+        freq.set(phrase, (freq.get(phrase) ?? 0) + 1);
+        for (let j = 0; j < pLen; j++) phraseMatched.add(i + j);
+        break; // count phrase once per note occurrence
+      }
+    }
+
+    // ── bigram pass: count all 2-word combos not in stop words ──
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (phraseMatched.has(i) || phraseMatched.has(i + 1)) continue;
+      const a = tokens[i]; const b = tokens[i + 1];
+      if (a.length < 3 || b.length < 3 || STOP_WORDS.has(a) || STOP_WORDS.has(b)) continue;
+      const bigram = `${a} ${b}`;
+      freq.set(bigram, (freq.get(bigram) ?? 0) + 1);
+    }
+
+    // ── unigram pass: individual words not consumed by a phrase ──
+    for (let i = 0; i < tokens.length; i++) {
+      if (phraseMatched.has(i)) continue;
+      const w = tokens[i];
       if (w.length < 3 || STOP_WORDS.has(w)) continue;
       freq.set(w, (freq.get(w) ?? 0) + 1);
     }
   }
+
+  // ── prune bigrams that appear only once (noise) ──
+  for (const [k, v] of freq) {
+    if (k.includes(' ') && v < 2) freq.delete(k);
+  }
+
   return freq;
 }
 
@@ -874,8 +932,10 @@ function placeWords(words: [string, number][], W: number, H: number): PlacedWord
   for (let i = 0; i < words.length; i++) {
     const [word, count] = words[i];
     const size = Math.round(12 + (count / maxCount) * 36);
-    const charW = size * 0.6; const padY = size * 0.3;
-    const ww = word.length * charW; const wh = size + padY;
+    const charW = size * 0.58; const padY = size * 0.3;
+    // phrases have spaces (narrower) — estimate per-char width more accurately
+    const ww = word.split('').reduce((acc, ch) => acc + (ch === ' ' ? size * 0.28 : charW), 0);
+    const wh = size + padY;
     const color = CLOUD_COLORS[i % CLOUD_COLORS.length];
 
     let placed_ = false;
