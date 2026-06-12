@@ -918,9 +918,9 @@ export default function FollowUps() {
       </div>
       )} {/* /viewTab !== 'board' left panel */}
 
-      {/* Right Panel: Detail & Log Activity — hidden in board view */}
+      {/* Center Panel: Detail — hidden in board view */}
       {viewTab !== 'board' && (
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full">
         {!selectedItem ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
             <div className="w-20 h-20 bg-g100 rounded-full flex items-center justify-center mb-6 animate-bounce duration-[3s]">
@@ -1026,11 +1026,8 @@ export default function FollowUps() {
 
             </div>
 
-            {/* Content: Timeline (left, fixed) + Log Activity panel (right, flex-1) */}
-            <div className="flex-1 overflow-hidden flex bg-g50">
-
-              {/* Timeline column — fixed width so Log Activity gets the rest */}
-              <div className="w-[460px] shrink-0 overflow-hidden flex flex-col border-r border-g200">
+            {/* Content: Timeline */}
+            <div className="flex-1 overflow-hidden flex flex-col min-w-0 bg-g50">
                 {/* Contacts bar — lives in the timeline column (left) so it doesn't
                     push the Log Activity panel down; panel starts right below the KPIs. */}
                 {(() => {
@@ -1231,233 +1228,233 @@ export default function FollowUps() {
                 </div>
               </div>
 
-              {/* Log Activity panel — takes all remaining width */}
-              {!isClosedTab && (
-                <form onSubmit={handleLogActivity} className="flex-1 min-w-0 bg-white flex flex-col overflow-hidden">
-                  {/* Panel header */}
-                  <div className="flex items-center justify-between px-5 py-1.5 border-b border-g150 shrink-0">
-                    <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
-                    <span className="text-[11px] text-g400">
-                      {selectedItem.followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).length
-                        ? `${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length} entr${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length === 1 ? 'y' : 'ies'}`
-                        : ''}
-                    </span>
-                  </div>
-
-                  {/* Scrollable form body */}
-                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
-
-                    {/* Follow-up Stage — explicit, no auto-advance */}
-                    <div className="space-y-1.5">
-                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Follow-up Stage</div>
-                      <select
-                        title="Which follow-up stage is this activity for?"
-                        className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
-                        value={stageOverride || (selectedItem?.followUp?.stage ?? 'Sent Quotation')}
-                        onChange={e => setStageOverride(e.target.value)}
-                      >
-                        <option value="Sent Quotation">Sent Quotation</option>
-                        <option value="Offer Acknowledged">Offer Acknowledged</option>
-                        <option value="1st Follow-up">1st Follow-up</option>
-                        <option value="2nd Follow-up">2nd Follow-up</option>
-                        <option value="Negotiation">Negotiation</option>
-                      </select>
-                    </div>
-
-                    {/* Activity Done */}
-                    <div className="space-y-1.5">
-                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Activity Done</div>
-                      <div className="flex gap-2">
-                        <select
-                          title="Activity channel"
-                          className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
-                          value={channel}
-                          onChange={e => setChannel(e.target.value as any)}
-                        >
-                          <option>Called</option>
-                          <option>WhatsApp</option>
-                          <option>Email</option>
-                          <option>Meeting</option>
-                          <option>Visit</option>
-                        </select>
-                        <div className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12px] text-g600 truncate flex items-center min-w-0">
-                          {store.stampName()}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div className="space-y-1.5">
-                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">What Happened?</div>
-                      <textarea
-                        ref={noteRef}
-                        required
-                        placeholder="What did the customer say? Any commitments made?"
-                        className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[140px]"
-                        value={note}
-                        onChange={e => setNote(e.target.value)}
-                      />
-                    </div>
-
-                    {/* Next Follow-Up block */}
-                    <div className="bg-amber-50 border border-amber-200 rounded-[3px] p-3 space-y-2.5">
-                      <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-amber-700 flex items-center gap-1.5">
-                        <Calendar size={10} className="text-amber-600" />Next Follow-Up Planned
-                      </div>
-                      <select
-                        title="Next follow-up action"
-                        className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
-                        value={nextAction}
-                        onChange={e => setNextAction(e.target.value as any)}
-                      >
-                        <option value="">— Action —</option>
-                        <option value="To Call">To Call</option>
-                        <option value="WhatsApp">WhatsApp</option>
-                        <option value="Email">Email</option>
-                        <option value="Meeting">Meeting</option>
-                        <option value="Visit">Visit</option>
-                      </select>
-                      {/* Quick "remind in" chips — same-day reschedules for no-answer / out-of-coverage */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { label: '+½ hr', hrs: 0.5 },
-                          { label: '+1 hr', hrs: 1 },
-                          { label: '+2 hrs', hrs: 2 },
-                          { label: '+3 hrs', hrs: 3 },
-                        ].map(q => (
-                          <button
-                            key={q.label}
-                            type="button"
-                            title={`Remind ${q.label.toLowerCase()} from now`}
-                            onClick={() => {
-                              const t = q.hrs < 1
-                                ? addMinutes(new Date(), Math.round(q.hrs * 60))
-                                : addHours(new Date(), q.hrs);
-                              setNextDate(format(t, 'yyyy-MM-dd'));
-                              setNextTime(format(t, 'HH:mm'));
-                              if (!nextAction) setNextAction('To Call');
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
-                          >
-                            <Clock size={10} />{q.label}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          title="Remind tomorrow morning"
-                          onClick={() => {
-                            setNextDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
-                            setNextTime('09:30');
-                            if (!nextAction) setNextAction('To Call');
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
-                        >
-                          <Calendar size={10} />Tomorrow AM
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="date"
-                          title="Next follow-up date"
-                          min={format(new Date(), 'yyyy-MM-dd')}
-                          className="flex-1 bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
-                          value={nextDate}
-                          onChange={e => setNextDate(e.target.value)}
-                        />
-                        <input
-                          type="time"
-                          title="Next follow-up time"
-                          className="w-[100px] bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
-                          value={nextTime}
-                          onChange={e => setNextTime(e.target.value)}
-                        />
-                      </div>
-                      {nextDate && (
-                        <textarea
-                          value={nextNote}
-                          onChange={e => setNextNote(e.target.value)}
-                          placeholder="What to do on next follow-up? (optional)"
-                          rows={2}
-                          className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[11.5px] outline-none focus:border-red-mrt focus:bg-white resize-none transition-colors"
-                        />
-                      )}
-                      <span className="text-[10.5px] text-g400">No answer / out of coverage? Tap a chip to retry in a few hours — same day is allowed.</span>
-                    </div>
-
-                  </div>
-
-                  {/* Footer: outcome buttons + PDF + submit */}
-                  <div className="shrink-0 px-5 py-4 border-t border-g150 space-y-2.5">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={e => handleMarkWon(selectedItem.quote.id, e)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                      >
-                        <Trophy size={11} /> Mark Won
-                      </button>
-                      <button
-                        type="button"
-                        onClick={e => handleMarkLost(selectedItem.quote.id, e)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors"
-                      >
-                        <XCircle size={11} /> Mark Lost
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClose}
-                        title="Close this quote without a win/loss outcome"
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors"
-                      >
-                        <CheckCircle2 size={11} /> Close
-                      </button>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleQuotePDF(selectedItem.quote)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
-                      >
-                        <FileText size={11} /> Quote PDF
-                      </button>
-                      {(() => {
-                        const hasOrder = !!data.orders.find(o => o.quoteRef === selectedItem.quote.id);
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => handlePIPDF(selectedItem.quote)}
-                            disabled={!hasOrder}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <Receipt size={11} /> PI PDF
-                          </button>
-                        );
-                      })()}
-                      <button
-                        type="button"
-                        onClick={() => openAttachmentModal('quote', selectedItem.quote.id)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
-                      >
-                        <Paperclip size={11} /> Docs
-                      </button>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full bg-red-mrt text-white font-mono text-[10px] uppercase font-bold tracking-wider px-6 py-2.5 rounded-[3px] transition-colors hover:bg-red-h active:scale-95 flex items-center justify-center gap-1.5"
-                    >
-                      <CheckCircle2 size={13} />
-                      Log Activity
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
           </>
         )}
       </div>
-      )} {/* /viewTab !== 'board' right panel */}
+      )} {/* /viewTab !== 'board' center panel */}
+
+      {/* Right Log Activity panel — sibling at main body level, hidden in board/closed views */}
+      {viewTab !== 'board' && selectedItem && !isClosedTab && (
+        <form onSubmit={handleLogActivity} className="w-[420px] shrink-0 bg-white flex flex-col h-full overflow-hidden border-l border-g200">
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-5 py-1.5 border-b border-g150 shrink-0">
+            <span className="font-mono text-[9.5px] font-bold tracking-[2px] uppercase text-g600">Log Activity</span>
+            <span className="text-[11px] text-g400">
+              {selectedItem.followUp?.logs?.filter(l => !isQuoteSentLog(l.note)).length
+                ? `${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length} entr${selectedItem.followUp.logs.filter(l => !isQuoteSentLog(l.note)).length === 1 ? 'y' : 'ies'}`
+                : ''}
+            </span>
+          </div>
+
+          {/* Scrollable form body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+
+            {/* Follow-up Stage — explicit, no auto-advance */}
+            <div className="space-y-1.5">
+              <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Follow-up Stage</div>
+              <select
+                title="Which follow-up stage is this activity for?"
+                className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                value={stageOverride || (selectedItem?.followUp?.stage ?? 'Sent Quotation')}
+                onChange={e => setStageOverride(e.target.value)}
+              >
+                <option value="Sent Quotation">Sent Quotation</option>
+                <option value="Offer Acknowledged">Offer Acknowledged</option>
+                <option value="1st Follow-up">1st Follow-up</option>
+                <option value="2nd Follow-up">2nd Follow-up</option>
+                <option value="Negotiation">Negotiation</option>
+              </select>
+            </div>
+
+            {/* Activity Done */}
+            <div className="space-y-1.5">
+              <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">Activity Done</div>
+              <div className="flex gap-2">
+                <select
+                  title="Activity channel"
+                  className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                  value={channel}
+                  onChange={e => setChannel(e.target.value as any)}
+                >
+                  <option>Called</option>
+                  <option>WhatsApp</option>
+                  <option>Email</option>
+                  <option>Meeting</option>
+                  <option>Visit</option>
+                </select>
+                <div className="flex-1 bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12px] text-g600 truncate flex items-center min-w-0">
+                  {store.stampName()}
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-g500">What Happened?</div>
+              <textarea
+                ref={noteRef}
+                required
+                placeholder="What did the customer say? Any commitments made?"
+                className="w-full bg-cream border border-g200 rounded-[3px] p-3 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white resize-vertical transition-colors min-h-[140px]"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+              />
+            </div>
+
+            {/* Next Follow-Up block */}
+            <div className="bg-amber-50 border border-amber-200 rounded-[3px] p-3 space-y-2.5">
+              <div className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase text-amber-700 flex items-center gap-1.5">
+                <Calendar size={10} className="text-amber-600" />Next Follow-Up Planned
+              </div>
+              <select
+                title="Next follow-up action"
+                className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-2 text-[12.5px] outline-none focus:border-red-mrt focus:bg-white transition-colors"
+                value={nextAction}
+                onChange={e => setNextAction(e.target.value as any)}
+              >
+                <option value="">— Action —</option>
+                <option value="To Call">To Call</option>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Email">Email</option>
+                <option value="Meeting">Meeting</option>
+                <option value="Visit">Visit</option>
+              </select>
+              {/* Quick "remind in" chips — same-day reschedules for no-answer / out-of-coverage */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: '+½ hr', hrs: 0.5 },
+                  { label: '+1 hr', hrs: 1 },
+                  { label: '+2 hrs', hrs: 2 },
+                  { label: '+3 hrs', hrs: 3 },
+                ].map(q => (
+                  <button
+                    key={q.label}
+                    type="button"
+                    title={`Remind ${q.label.toLowerCase()} from now`}
+                    onClick={() => {
+                      const t = q.hrs < 1
+                        ? addMinutes(new Date(), Math.round(q.hrs * 60))
+                        : addHours(new Date(), q.hrs);
+                      setNextDate(format(t, 'yyyy-MM-dd'));
+                      setNextTime(format(t, 'HH:mm'));
+                      if (!nextAction) setNextAction('To Call');
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+                  >
+                    <Clock size={10} />{q.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  title="Remind tomorrow morning"
+                  onClick={() => {
+                    setNextDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
+                    setNextTime('09:30');
+                    if (!nextAction) setNextAction('To Call');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-300 bg-white text-[11px] font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+                >
+                  <Calendar size={10} />Tomorrow AM
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  title="Next follow-up date"
+                  min={format(new Date(), 'yyyy-MM-dd')}
+                  className="flex-1 bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
+                  value={nextDate}
+                  onChange={e => setNextDate(e.target.value)}
+                />
+                <input
+                  type="time"
+                  title="Next follow-up time"
+                  className="w-[100px] bg-white border border-amber-300 rounded-[3px] px-3 py-1.5 text-[12px] font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-colors"
+                  value={nextTime}
+                  onChange={e => setNextTime(e.target.value)}
+                />
+              </div>
+              {nextDate && (
+                <textarea
+                  value={nextNote}
+                  onChange={e => setNextNote(e.target.value)}
+                  placeholder="What to do on next follow-up? (optional)"
+                  rows={2}
+                  className="w-full bg-cream border border-g200 rounded-[3px] px-3 py-1.5 text-[11.5px] outline-none focus:border-red-mrt focus:bg-white resize-none transition-colors"
+                />
+              )}
+              <span className="text-[10.5px] text-g400">No answer / out of coverage? Tap a chip to retry in a few hours — same day is allowed.</span>
+            </div>
+
+          </div>
+
+          {/* Pinned footer: outcome buttons + PDF + submit */}
+          <div className="shrink-0 px-5 py-4 border-t border-g150 space-y-2.5">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={e => handleMarkWon(selectedItem.quote.id, e)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              >
+                <Trophy size={11} /> Mark Won
+              </button>
+              <button
+                type="button"
+                onClick={e => handleMarkLost(selectedItem.quote.id, e)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-red-mrt/30 text-red-mrt bg-red-lt hover:bg-red-mrt hover:text-white transition-colors"
+              >
+                <XCircle size={11} /> Mark Lost
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                title="Close this quote without a win/loss outcome"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase rounded-[3px] border border-g300 text-g600 bg-white hover:bg-g50 transition-colors"
+              >
+                <CheckCircle2 size={11} /> Close
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuotePDF(selectedItem.quote)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
+              >
+                <FileText size={11} /> Quote PDF
+              </button>
+              {(() => {
+                const hasOrder = !!data.orders.find(o => o.quoteRef === selectedItem.quote.id);
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handlePIPDF(selectedItem.quote)}
+                    disabled={!hasOrder}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Receipt size={11} /> PI PDF
+                  </button>
+                );
+              })()}
+              <button
+                type="button"
+                onClick={() => openAttachmentModal('quote', selectedItem.quote.id)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10.5px] font-bold tracking-wider uppercase rounded-[3px] border border-g200 text-blk bg-white hover:bg-g50 transition-colors"
+              >
+                <Paperclip size={11} /> Docs
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-red-mrt text-white font-mono text-[10px] uppercase font-bold tracking-wider px-6 py-2.5 rounded-[3px] transition-colors hover:bg-red-h active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              <CheckCircle2 size={13} />
+              Log Activity
+            </button>
+          </div>
+        </form>
+      )}
       </div>{/* /flex flex-1 overflow-hidden */}
     </div>
   );
