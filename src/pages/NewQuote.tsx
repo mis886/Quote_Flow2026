@@ -318,9 +318,8 @@ export function NewQuote() {
   // leadTime and taxes are never overwritten (user-only fields).
   useEffect(() => {
     const sel = inco === 'OVERRIDE' ? customInco : inco;
-    let delivery = 'As per schedule', pnf = 'Extra @ 2%', freight = 'Courier charges extra at actuals';
-    if (sel.includes('EXW')) { delivery = 'Ex-works, Meerut'; }
-    else if (sel.includes('FOR') && sel.toLowerCase().includes('transport godown')) { delivery = 'FOR, Your Transport Godown'; pnf = 'Included'; freight = 'Up to transport godown'; }
+    let delivery = 'Ex-works, Meerut', pnf = 'Extra @ 2%', freight = 'Courier charges extra at actuals';
+    if (sel.includes('FOR') && sel.toLowerCase().includes('transport godown')) { delivery = 'FOR, Your Transport Godown'; pnf = 'Included'; freight = 'Up to transport godown'; }
     else if (sel.includes('FOR')) { delivery = 'FOR, Your Works'; pnf = 'Included'; freight = 'Included up to your works'; }
     else if (sel.includes('FOB')) { delivery = 'FOB Port of Loading'; pnf = 'Included'; freight = "Buyer's account from port"; }
     else if (sel.includes('CIF') || sel.includes('CIP')) { delivery = 'CIF/CIP Destination'; pnf = 'Included'; freight = 'Included up to destination'; }
@@ -816,7 +815,7 @@ export function NewQuote() {
                 <div className="p-[12px_16px] flex flex-col gap-[10px]">
                   <div>
                     <label className="block text-[10px] font-bold text-g600 tracking-[0.5px] uppercase mb-[4px]">Incoterms</label>
-                    <select value={inco} onChange={e => setInco(e.target.value)} className={selectCls}>
+                    <select value={inco} onChange={e => { const v = e.target.value; setInco(v); if (v !== 'OVERRIDE') setCustomInco(''); }} className={selectCls}>
                       {INCO_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                       <option value="OVERRIDE">Other / Override…</option>
                     </select>
