@@ -107,7 +107,7 @@ export function DetailPanel() {
             <div className="font-mono text-[9px] font-bold tracking-[2.5px] uppercase text-red-mrt mb-3 border-b border-red-lt pb-1">Enquiry Details</div>
             <div className="grid grid-cols-[100px_1fr] gap-y-2 text-[13px]">
               <div className="text-g500 font-mono text-[10.5px] font-bold tracking-wider pt-0.5">RECEIVED</div>
-              <div className="text-blk">{fmtIST(dt, 'dd MMM yyyy, hh:mm a')}</div>
+              <div className="text-blk">{fmtIST(dt, 'dd-MMM-yyyy, hh:mm a')}</div>
               
               <div className="text-g500 font-mono text-[10.5px] font-bold tracking-wider pt-0.5">SOURCE</div>
               <div className="text-blk flex items-center gap-1.5">
@@ -249,7 +249,7 @@ export function DetailPanel() {
               
               <div className="relative">
                 <div className="absolute -left-[20px] top-[4px] w-2.5 h-2.5 rounded-full border-2 border-red-mrt bg-white shadow-[0_0_0_2px_#fff]"></div>
-                <div className="font-mono text-[9.5px] text-g500 mb-0.5">{fmtIST(dt, 'dd MMM yyyy, hh:mm a')}</div>
+                <div className="font-mono text-[9.5px] text-g500 mb-0.5">{fmtIST(dt, 'dd-MMM-yyyy, hh:mm a')}</div>
                 <div className="text-[13px] font-semibold text-blk">Enquiry Received — {enq.src}</div>
                 <div className="text-[12px] text-g500">{enq.contact || enq.cust} · {enq.items.length} items</div>
               </div>
@@ -269,7 +269,7 @@ export function DetailPanel() {
                   <div className="relative">
                     <div className="absolute -left-[20px] top-[4px] w-2.5 h-2.5 rounded-full border-2 border-red-mrt bg-white shadow-[0_0_0_2px_#fff]"></div>
                     <div className="font-mono text-[9.5px] text-g500 mb-0.5">
-                      {qDt ? fmtIST(qDt, 'dd MMM yyyy, hh:mm a') : '—'}
+                      {qDt ? fmtIST(qDt, 'dd-MMM-yyyy, hh:mm a') : '—'}
                       <span className="text-red-mrt font-bold ml-2">E2Q: {Number(enq.ageH).toFixed(2)}h</span>
                     </div>
                     <div className="text-[13px] font-semibold text-blk">Quotation Created — {enq.qRef}</div>

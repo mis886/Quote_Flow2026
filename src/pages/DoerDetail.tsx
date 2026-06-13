@@ -414,7 +414,7 @@ function WorkHistoryTable({ timeline, doerName }: { timeline: TimelineRow[]; doe
                     )}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="font-mono text-[10px] font-semibold text-g600">
-                        {fmtIST(new Date(row.ts), 'dd MMM yyyy')}
+                        {fmtIST(new Date(row.ts), 'dd-MMM-yyyy')}
                       </div>
                       <div className="font-mono text-[9.5px] text-g400 mt-0.5">
                         {fmtIST(new Date(row.ts), 'hh:mm a')}

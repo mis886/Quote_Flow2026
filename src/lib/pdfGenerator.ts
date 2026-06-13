@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Customer, Quote, Order, AppSettings, CompanyUnit, BankAccount } from './types';
-import { formatINR, resolveAdjustments, maxItemGstRate, type ResolvedAdjustment } from './utils';
+import { formatINR, resolveAdjustments, maxItemGstRate, fmtDate, type ResolvedAdjustment } from './utils';
 
 export function getQuoteTotals(q: Quote) {
   const sub = q.items.reduce((a, i) => a + i.total, 0);
@@ -465,7 +465,7 @@ export function generatePIPDF(
   y += 7;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
   const poDateLong = order.poDate
-    ? new Date(order.poDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    ? fmtDate(order.poDate)
     : '—';
   doc.setFont('helvetica', 'bold'); doc.text('Sub: ', mx, y);
   const subLabelW = doc.getTextWidth('Sub: ');
@@ -520,8 +520,8 @@ export function generatePIPDF(
   let ry = y - 15;
   const piDetails: [string, string][] = [
     ['PO Number', order.poNo || '—'],
-    ['PO Date', order.poDate ? new Date(order.poDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
-    ['Delivery Date', order.dlvDate ? new Date(order.dlvDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
+    ['PO Date', order.poDate ? fmtDate(order.poDate) : '—'],
+    ['Delivery Date', order.dlvDate ? fmtDate(order.dlvDate) : '—'],
     ['Quote Ref', order.quoteRef || '—'],
   ];
   piDetails.forEach(([k, v]) => {

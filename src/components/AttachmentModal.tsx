@@ -230,7 +230,7 @@ export function AttachmentModal({ entityType, entityId, isOpen, onClose }: Attac
                         <div className="text-[9px] text-g500 font-mono mt-0.5 uppercase flex gap-2">
                           <span className="text-red-mrt">{att.docType || (att.fileName.toLowerCase().includes('drawing') ? 'Drawing' : 'Enquiry Doc')}</span>
                           <span>•</span>
-                          <span>{fmtIST(new Date(att.uploadedAt), 'dd MMM yyyy')}</span>
+                          <span>{fmtIST(new Date(att.uploadedAt), 'dd-MMM-yyyy')}</span>
                           {att.sourceEntity && (
                             <>
                               <span>•</span>

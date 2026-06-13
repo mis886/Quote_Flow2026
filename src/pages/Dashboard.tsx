@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { formatINR, cn, getThisWeekRange, localDateStr, siteLabel } from '../lib/utils';
+import { formatINR, cn, getThisWeekRange, localDateStr, siteLabel, fmtIST } from '../lib/utils';
 import { Badge, Button } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Clock, IndianRupee, FileSignature, Trophy, Activity, Phone, Mail, MessageSquare, Users, FileText, ShoppingBag, AlertCircle, CalendarClock, TrendingUp, ChevronDown, ChevronRight, Calendar, ChevronLeft } from 'lucide-react';
@@ -233,7 +233,7 @@ export function Dashboard() {
   const openPipeMonthDelta = openQuotes.filter(q => inLast(q.date, 30)).length;
 
   const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const formattedDate = fmtIST(today, 'EEE, dd-MMM-yyyy');
 
   const AgeCell = ({ hours }: { hours: number }) => {
     let color = "text-[#059669]";
@@ -605,7 +605,7 @@ export function Dashboard() {
     [calendarWeekOffset]
   );
 
-  const calWeekLabel = `${calWeekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${calWeekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const calWeekLabel = `${calWeekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${fmtIST(calWeekEnd, 'dd-MMM-yyyy')}`;
   const todayKey = dateKey(new Date());
 
   return (

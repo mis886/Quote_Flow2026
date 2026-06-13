@@ -370,7 +370,7 @@ export default function FollowUps() {
 
   const calWeekLabel = useMemo(() => {
     const s = calDays[0], e = calDays[6];
-    return `${fmtIST(s, 'dd MMM')} – ${fmtIST(e, 'dd MMM yyyy')}`;
+    return `${fmtIST(s, 'dd MMM')} – ${fmtIST(e, 'dd-MMM-yyyy')}`;
   }, [calDays]);
 
   const calEventMap = useMemo(() => {
@@ -1016,7 +1016,7 @@ export default function FollowUps() {
               <div className="flex items-center flex-wrap gap-x-4 gap-y-0.5 border-t border-g150 px-6 py-1.5">
                 {[
                   { label: 'Quote Value', value: `₹${selectedItem.quote.items.reduce((a, i) => a + i.total, 0).toLocaleString('en-IN')}`, mono: true },
-                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd MMM yyyy'), mono: false,
+                  { label: 'Valid Till', value: fmtIST(parseISO(selectedItem.quote.validity), 'dd-MMM-yyyy'), mono: false,
                     color: (() => { const ms = new Date(selectedItem.quote.validity).getTime() - Date.now(); return ms < 0 ? 'text-red-700 font-bold' : ms < 3 * 86_400_000 ? 'text-orange-700 font-bold' : 'text-slate-700 font-semibold'; })() },
                   { label: 'On-Time %', value: (() => { const p = cardOnTimeRate(buildFullChain(selectedItem.quote, selectedItem.followUp)); return p !== null ? `${p}%` : '—'; })(),
                     mono: true,
@@ -1152,7 +1152,7 @@ export default function FollowUps() {
                             <div className="flex items-center gap-3 my-3">
                               <div className="flex-1 h-px bg-g200" />
                               <span className="text-[10px] font-mono font-bold text-g400 bg-g50 px-2">
-                                {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd MMM yyyy')}
+                                {isToday(parseISO(day)) ? 'Today' : fmtIST(parseISO(day), 'dd-MMM-yyyy')}
                               </span>
                               <div className="flex-1 h-px bg-g200" />
                             </div>
@@ -1182,7 +1182,7 @@ export default function FollowUps() {
                                       {log.nextDate && (
                                         <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
                                           <Calendar size={10} className="text-amber-600 shrink-0" />
-                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd-MMM-yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                       )}
                                       <div className="text-[10px] text-g400 mt-0.5">{log.who}</div>
@@ -1217,7 +1217,7 @@ export default function FollowUps() {
                                       <div className="mb-1.5">
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-amber-50 border border-amber-200">
                                           <Calendar size={10} className="text-amber-600 shrink-0" />
-                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
+                                          <span className="text-[11px] font-bold text-amber-800">Next: {fmtIST(parseISO(log.nextDate), 'dd-MMM-yyyy')}{log.nextTime ? ` at ${log.nextTime}` : ''}{log.nextChannel ? ` · ${log.nextChannel}` : ''}</span>
                                         </div>
                                         {log.nextNote && (
                                           <div className="text-[10.5px] italic text-slate-500 pl-2 border-l-2 border-amber-200 mt-1">

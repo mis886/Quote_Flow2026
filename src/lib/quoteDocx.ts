@@ -4,7 +4,7 @@ import {
   convertInchesToTwip, HeadingLevel, UnderlineType,
 } from 'docx';
 import type { Quote, Order, Customer, AppSettings, CompanyUnit, BankAccount } from './types';
-import { formatINR, resolveAdjustments, maxItemGstRate } from './utils';
+import { formatINR, resolveAdjustments, maxItemGstRate, fmtDate as utilFmtDate } from './utils';
 
 // ── colour palette (mirrors PDF)
 const C_DARK    = '1E1E1E';
@@ -22,7 +22,7 @@ function fmtDate(iso: string) {
   });
 }
 function fmtShort(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return utilFmtDate(iso);
 }
 function fmtRate(v: number, sym: string) {
   return sym.trimEnd() + ' ' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', '=');

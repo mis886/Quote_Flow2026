@@ -392,7 +392,7 @@ function CustomerDetail({ stats, allFollowups }: {
                                 <span className="text-[11px] text-g500 flex-1 truncate">{desc || '—'}</span>
                                 <span className="text-[11px] font-semibold text-blk whitespace-nowrap">{fVal(grandTotal)}</span>
                                 <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                                <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy, HH:mm') : '—'}</span>
+                                <span className="text-[10px] text-g400 text-right shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd-MMM-yyyy, HH:mm') : '—'}</span>
                                 <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
                               </button>
 
@@ -505,7 +505,7 @@ function CustomerDetail({ stats, allFollowups }: {
                       <span className="text-[9px] text-g400 font-mono">{t.quoteId}</span>
                     </div>
                     <div className="text-[11px] text-g500 mt-0.5">{t.note}</div>
-                    <div className="text-[9.5px] text-g400 mt-1">{t.who} · {t.ts ? fmtIST(new Date(t.ts), 'dd MMM yyyy, HH:mm') : '—'}</div>
+                    <div className="text-[9.5px] text-g400 mt-1">{t.who} · {t.ts ? fmtIST(new Date(t.ts), 'dd-MMM-yyyy, HH:mm') : '—'}</div>
                   </div>
                 </div>
               ))}
@@ -938,7 +938,7 @@ function AllQuotationsView({
                                   <span className="text-[11px] text-g500 flex-1 truncate min-w-0">{desc || '—'}</span>
                                   <span className="font-mono text-[11px] font-semibold text-blk whitespace-nowrap shrink-0">{fVal(grand)}</span>
                                   <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_BADGE[q.status] ?? STATUS_BADGE.Draft}`}>{q.status}</span>
-                                  <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd MMM yy') : '—'}</span>
+                                  <span className="text-[10px] text-g400 shrink-0 whitespace-nowrap">{q.date ? fmtIST(new Date(q.date), 'dd-MMM-yy') : '—'}</span>
                                   <ChevronRight size={12} className={cn('text-g300 shrink-0 transition-transform duration-200', isExpanded && 'rotate-90')} />
                                 </button>
 

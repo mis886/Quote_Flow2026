@@ -227,7 +227,7 @@ export function Quotes() {
                           <div className="font-semibold">{q.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === q.cust), (q as any).siteId || data.enquiries.find(e => e.id === q.enqRef)?.siteId); return sl ? <span className="font-normal text-g500"> — {sl}</span> : null; })()}</div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {q.date ? fmtIST(new Date(q.date), 'dd MMM yyyy') : '--'}
+                          {q.date ? fmtIST(new Date(q.date), 'dd-MMM-yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <span className="font-mono text-[10px] font-bold bg-g100 text-g600 px-[7px] py-[2px] rounded-full inline-flex items-center">

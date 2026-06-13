@@ -553,7 +553,7 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
                   <div key={q.id} className="flex items-center justify-between text-[11.5px] py-1 border-b border-g100 last:border-0">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-sQ text-[10.5px]">{q.id}</span>
-                      <span className="text-g500">{q.date ? fmtIST(parseISO(q.date), 'dd MMM yy') : '—'}</span>
+                      <span className="text-g500">{q.date ? fmtIST(parseISO(q.date), 'dd-MMM-yy') : '—'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[11px]">{formatINR(q.items.reduce((s,i) => s + i.total, 0))}</span>
@@ -589,7 +589,7 @@ function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () 
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-blk">{log.channel}</span>
-                        <span className="text-g400 text-[10px]">{fmtIST(parseISO(log.ts), 'dd MMM yy, HH:mm')}</span>
+                        <span className="text-g400 text-[10px]">{fmtIST(parseISO(log.ts), 'dd-MMM-yy, HH:mm')}</span>
                         {log.who && <span className="text-g400 text-[10px]">by {log.who}</span>}
                         <span className="font-mono text-[9px] text-g300 bg-g100 px-1.5 rounded">{log.quoteId}</span>
                       </div>

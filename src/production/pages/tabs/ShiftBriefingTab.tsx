@@ -74,7 +74,7 @@ export function ShiftBriefingTab({ data }: { data: ProductionData }) {
     } finally { setSavingHrs(false); }
   };
 
-  const today = fmtIST(new Date(), 'dd MMM yyyy');
+  const today = fmtIST(new Date(), 'dd-MMM-yyyy');
 
   return (
     <div className="space-y-3">

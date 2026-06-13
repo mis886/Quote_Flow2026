@@ -726,7 +726,7 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                             <p className="text-[12.5px] text-blk leading-relaxed">{log.note}</p>
                             {log.nextDate && (
                               <div className="mt-1.5 text-[11px] font-semibold text-sR">
-                                → Next: {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
+                                → Next: {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd-MMM-yyyy')}{log.nextChannel ? ` via ${log.nextChannel}` : ''}
                               </div>
                             )}
                             <div className="text-[8.5px] text-amber-600/60 mt-1">{log.who}</div>
@@ -759,7 +759,7 @@ function CardDrawer({ card, onClose, onCreateQuote }: { card: BoardCard; onClose
                                 To-Do{log.nextChannel ? ` · ${log.nextChannel}` : ''}
                               </div>
                               <div className="text-[12px] font-semibold text-emerald-900">
-                                {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd MMM yyyy')}
+                                {isToday(parseISO(log.nextDate)) ? 'Today' : fmtIST(parseISO(log.nextDate), 'dd-MMM-yyyy')}
                               </div>
                               {log.nextNote && (
                                 <p className="text-[11.5px] leading-relaxed whitespace-pre-wrap mt-1 text-emerald-950/90">{log.nextNote}</p>

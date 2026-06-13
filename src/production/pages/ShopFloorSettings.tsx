@@ -66,7 +66,7 @@ export function ShopFloorSettingsPage() {
     await refresh();
   };
 
-  const today = fmtIST(new Date(), 'dd MMM yyyy');
+  const today = fmtIST(new Date(), 'dd-MMM-yyyy');
 
   const deptCount = (dept: string, present?: boolean) => {
     const list = workers.filter(w => w.department === dept);

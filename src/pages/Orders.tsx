@@ -305,7 +305,7 @@ export function Orders() {
                           </div>
                         </td>
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] text-g600 whitespace-nowrap">
-                          {o.poDate ? fmtIST(new Date(o.poDate), 'dd MMM yyyy') : '--'}
+                          {o.poDate ? fmtIST(new Date(o.poDate), 'dd-MMM-yyyy') : '--'}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle">
                           <span className="font-mono text-[10px] font-bold bg-g100 text-g600 px-[7px] py-[2px] rounded-full inline-flex items-center">
@@ -318,13 +318,13 @@ export function Orders() {
                             // Colour the due date only while the order is still open:
                             // red = past due, amber = within 7 days, green = safe.
                             const cls = dlvDateClass(o.dlvDate, o.status);
-                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date(o.dlvDate), 'dd MMM yyyy')}</span>;
+                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date(o.dlvDate), 'dd-MMM-yyyy')}</span>;
                           })() : <span className="text-g600">--</span>}
                         </td> */}
                         <td className="px-[13px] py-[10px] align-middle text-[11.5px] whitespace-nowrap">
                           {(o as any).created_at ? (() => {
                             const cls = punchedAtClass((o as any).created_at);
-                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date((o as any).created_at), 'dd MMM yyyy')}</span>;
+                            return <span className={cls.text} title={cls.title}>{fmtIST(new Date((o as any).created_at), 'dd-MMM-yyyy')}</span>;
                           })() : <span className="text-g600">--</span>}
                         </td>
                         <td className="px-[13px] py-[10px] align-middle"><Badge status={o.status} /></td>
@@ -362,7 +362,7 @@ export function Orders() {
                             <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); openAttachmentModal('order', o.id); }}>Docs</Button>
                             {data.settings?.sheets_webhook_url && (
                               o.sheetsExportedAt ? (
-                                <button type="button" disabled title={`Exported ${fmtIST(new Date(o.sheetsExportedAt!), 'dd MMM yyyy')}`} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-[#A2DEBD] bg-[#EAF8F1] cursor-not-allowed shrink-0">
+                                <button type="button" disabled title={`Exported ${fmtIST(new Date(o.sheetsExportedAt!), 'dd-MMM-yyyy')}`} className="w-[26px] h-[26px] inline-flex items-center justify-center rounded-[3px] border border-[#A2DEBD] bg-[#EAF8F1] cursor-not-allowed shrink-0">
                                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="#0F9D58" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                 </button>
                               ) : (
