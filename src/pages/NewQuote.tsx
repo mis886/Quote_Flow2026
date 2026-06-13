@@ -277,7 +277,7 @@ export function NewQuote() {
         // If the enquiry had no contactId the details were typed manually — preserve them
         setContactManual(!enq.contactId && !!(enq.contact || enq.email));
         const cr = data.customers.find(c => c.name === enq.cust);
-        if (cr) { setInco(cr.inco || 'EXW - Ex Works'); setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
+        if (cr) { const ci = cr.inco || 'EXW - Ex Works'; if (INCO_OPTIONS.includes(ci)) { setInco(ci); } else { setInco('OVERRIDE'); setCustomInco(ci); } setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
         setItems(enq.items.map((i, idx) => ({ ...i, seq: idx + 1, hsn: '40169930', unitPrice: 0, gst: 18, total: 0 })));
       }
     } else {
@@ -299,7 +299,7 @@ export function NewQuote() {
     if (!custName) return;
     const customer = data.customers.find(c => c.name === custName);
     if (!customer) return;
-    if (!editId) { setInco(customer.inco || 'EXW - Ex Works'); setCurr(customer.curr || 'INR'); setPay(customer.pay || '30 days'); }
+    if (!editId) { const ci = customer.inco || 'EXW - Ex Works'; if (INCO_OPTIONS.includes(ci)) { setInco(ci); } else { setInco('OVERRIDE'); setCustomInco(ci); } setCurr(customer.curr || 'INR'); setPay(customer.pay || '30 days'); }
     const sites = customer.sites ?? [];
     if (siteId) {
       const site = sites.find(s => s.id === siteId);
@@ -641,7 +641,7 @@ export function NewQuote() {
                 setContact(enq.contact); setEmail(enq.email);
                 setContactManual(!enq.contactId && !!(enq.contact || enq.email));
                 const cr = data.customers.find(c => c.name === enq.cust);
-                if (cr) { setInco(cr.inco || 'EXW - Ex Works'); setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
+                if (cr) { const ci = cr.inco || 'EXW - Ex Works'; if (INCO_OPTIONS.includes(ci)) { setInco(ci); } else { setInco('OVERRIDE'); setCustomInco(ci); } setCurr(cr.curr || 'INR'); setPay(cr.pay || '30 days'); }
                 setItems(enq.items.map((i, idx) => ({ ...i, seq: idx + 1, hsn: '40169930', unitPrice: 0, gst: 18, total: 0 })));
               }
             }} className="flex-1">
