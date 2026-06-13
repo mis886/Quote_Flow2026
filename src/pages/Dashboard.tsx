@@ -58,7 +58,7 @@ function dateKey(d: Date | string): string {
 
 export function Dashboard() {
   // @ts-ignore - Assuming globalDateRange is added to the store
-  const { data, openDetailPanel, user, globalDateRange } = useAppStore();
+  const { data, openDetailPanel, user, globalDateRange, activeDoer } = useAppStore();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<Period>('30d');
   const [activeTab, setActiveTab] = useState<DashTab>('overview');
@@ -481,8 +481,9 @@ export function Dashboard() {
 
   const mdoPendingFollowups = useMemo(() =>
     data.followups.filter(fu =>
-      fu.status === 'open' && fu.next_date && inThisWeek(fu.next_date)
-    ), [data.followups, weekStart.getTime()]);
+      fu.status === 'open' && fu.next_date && inThisWeek(fu.next_date) &&
+      (!activeDoer || fu.owner === activeDoer.display_name)
+    ), [data.followups, weekStart.getTime(), activeDoer]);
 
   const mdoOverdueEnqs = useMemo(() =>
     data.enquiries.filter(e =>
