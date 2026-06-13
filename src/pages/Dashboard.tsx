@@ -1122,21 +1122,36 @@ export function Dashboard() {
                       <div className="text-[12.5px] text-g500">All open enquiries are within SLA.</div>
                     </div>
                   ) : (
-                    attnEnqs.slice(attnPage * 3, attnPage * 3 + 3).map(e => (
+                    attnEnqs.slice(attnPage * 3, attnPage * 3 + 3).map(e => {
+                      const urgBox: Record<string, string> = {
+                        Hot: 'bg-red-mrt/10 text-red-mrt border-red-mrt/20',
+                        Urgent: 'bg-sP/10 text-sP border-sP/20',
+                        Normal: 'bg-sN/10 text-sN border-sN/20',
+                        Low: 'bg-sL/10 text-sL border-sL/20',
+                      };
+                      const urgAge: Record<string, string> = {
+                        Hot: 'text-red-mrt',
+                        Urgent: 'text-sP',
+                        Normal: 'text-sN',
+                        Low: 'text-sL',
+                      };
+                      const boxCls = urgBox[e.urg] ?? urgBox.Hot;
+                      const ageCls = urgAge[e.urg] ?? urgAge.Hot;
+                      return (
                       <div key={e.id} className="flex flex-col gap-1 p-[10px_16px] border-b border-g100 last:border-0 cursor-pointer hover:bg-g50 transition-colors" onClick={() => navigate(`/enquiries/new?id=${e.id}`)}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-[28px] h-[28px] rounded-[3px] bg-red-lt text-red-mrt flex items-center justify-center font-mono text-[12px] uppercase font-bold shrink-0 border border-red-mrt/10">
+                            <div className={`w-[28px] h-[28px] rounded-[3px] flex items-center justify-center font-mono text-[12px] uppercase font-bold shrink-0 border ${boxCls}`}>
                               Δ
                             </div>
                             <div>
-                              <div className="font-mono text-[10px] font-bold text-red-mrt tracking-wider mb-0.5">{e.id}</div>
+                              <div className={`font-mono text-[10px] font-bold tracking-wider mb-0.5 ${ageCls}`}>{e.id}</div>
                               <div className="text-[13px] font-bold text-blk">{e.cust}{(() => { const sl = siteLabel(data.customers.find(c => c.name === e.cust), e.siteId); return sl ? <span className="font-normal text-g400"> — {sl}</span> : null; })()}</div>
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <Badge status={e.urg} />
-                            <div className="font-mono text-[11px] font-bold text-red-mrt">
+                            <div className={`font-mono text-[11px] font-bold ${ageCls}`}>
                               {e.ageH >= 24 ? Math.floor(e.ageH/24)+'d' : e.ageH.toFixed(1)+'h'} old
                             </div>
                           </div>
@@ -1145,7 +1160,8 @@ export function Dashboard() {
                           {e.items.length} item{e.items.length !== 1 && 's'}: {e.items.map(i => i.desc).join(', ')}
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                   {attnEnqs.length > 3 && (
                     <div className="flex items-center justify-between p-[8px_16px] border-t border-g100">
