@@ -20,7 +20,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS prod_options_field_value_uniq
   ON public.prod_options (field, lower(value));
 
 -- ------------------------------------------------------------
--- RLS — same @manglarubbers.com gate as the other prod_* tables
+-- RLS — same @himalayaterpene.com gate as the other prod_* tables
 -- ------------------------------------------------------------
 ALTER TABLE public.prod_options ENABLE ROW LEVEL SECURITY;
 
@@ -28,8 +28,8 @@ DROP POLICY IF EXISTS "Allow company access" ON public.prod_options;
 CREATE POLICY "Allow company access"
   ON public.prod_options
   FOR ALL TO authenticated
-  USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-  WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
+  USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+  WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com');
 
 -- Realtime enrolment (idempotent; safe if publication absent).
 DO $$

@@ -40,7 +40,7 @@ async function getAccessToken(silent = false): Promise<string> {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPES,
-      login_hint: 'info@manglarubbers.com',
+      login_hint: 'info@himalayaterpene.com',
       callback: (resp: any) => {
         if (resp.error) { reject(new Error(resp.error_description ?? resp.error)); return; }
         _cachedToken = resp.access_token as string;

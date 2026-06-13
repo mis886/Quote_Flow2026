@@ -103,7 +103,7 @@ export async function generateJobCardPDF(job: ProductionJob, download = true): P
     doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
     doc.text('Excellence Since 1981', pw / 2, 19, { align: 'center' });
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-    doc.text('Mangla Rubber Technologies', pw / 2, 25, { align: 'center' });
+    doc.text('Himalaya TerpenesRubber Technologies', pw / 2, 25, { align: 'center' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110, 110, 110);
     doc.text('Manufacturing Excellence • Quality Assured • Customer Focused', pw / 2, 29, { align: 'center' });
     y = 34;

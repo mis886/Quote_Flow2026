@@ -112,8 +112,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const closeAttachmentModal = () => setAttachmentModal({ type: null, id: null });
 
   const checkUserDomain = (u: User | null) => {
-    if (u && u.email && !u.email.endsWith('@manglarubbers.com')) {
-      setAuthError('Access restricted to @manglarubbers.com users only.');
+    if (u && u.email && !u.email.endsWith('@himalayaterpene.com')) {
+      setAuthError('Access restricted to @himalayaterpene.com users only.');
       signOut();
       return null;
     }

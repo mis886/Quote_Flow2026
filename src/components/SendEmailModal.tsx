@@ -7,7 +7,7 @@ import { generateQuotePDF } from '../lib/pdfGenerator';
 import { generatePIPDF } from '../lib/pdfGenerator';
 import { sendViaGmail } from '../lib/gmail';
 
-const SUPPORT_CC = 'support@manglarubbers.com';
+const SUPPORT_CC = 'support@himalayaterpene.com';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function getSiteContacts(customer?: Customer, siteId?: string): Contact[] {
@@ -50,8 +50,8 @@ export function SendEmailModal(props: Props) {
   const pdfName = isQuote ? `${docId}.pdf` : `${docId}_PI.pdf`;
 
   const defaultSubject = isQuote
-    ? `Quotation ${docId} — Mangla Rubber Technologies`
-    : `Proforma Invoice ${docId} — Mangla Rubber Technologies`;
+    ? `Quotation ${docId} — Himalaya TerpenesRubber Technologies`
+    : `Proforma Invoice ${docId} — Himalaya TerpenesRubber Technologies`;
 
   const totalValue = isQuote
     ? (props.doc as Quote).items.reduce((s, i) => s + i.total, 0)
@@ -64,8 +64,8 @@ export function SendEmailModal(props: Props) {
   const poLine = '';
 
   const defaultBody = primaryContact
-    ? `Dear ${primaryContact.name},\n\nPlease find attached our ${isQuote ? 'quotation' : 'Proforma Invoice'} ${docId} for the requirements discussed.\n\nTotal value: ${formatINR(totalValue)}${poLine}\n\nLooking forward to your favorable response.\n\nWarm regards,\n${sigName}${sigDesig}\nMangla Rubber Technologies`
-    : `Dear Sir/Madam,\n\nPlease find attached our ${isQuote ? 'quotation' : 'Proforma Invoice'} ${docId}.${poLine}\n\nWarm regards,\n${sigName}${sigDesig}\nMangla Rubber Technologies`;
+    ? `Dear ${primaryContact.name},\n\nPlease find attached our ${isQuote ? 'quotation' : 'Proforma Invoice'} ${docId} for the requirements discussed.\n\nTotal value: ${formatINR(totalValue)}${poLine}\n\nLooking forward to your favorable response.\n\nWarm regards,\n${sigName}${sigDesig}\nHimalaya TerpenesRubber Technologies`
+    : `Dear Sir/Madam,\n\nPlease find attached our ${isQuote ? 'quotation' : 'Proforma Invoice'} ${docId}.${poLine}\n\nWarm regards,\n${sigName}${sigDesig}\nHimalaya TerpenesRubber Technologies`;
 
   const [to, setTo]           = useState(primaryEmail);
   const [subject, setSubject] = useState(defaultSubject);

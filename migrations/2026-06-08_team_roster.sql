@@ -39,8 +39,8 @@ BEGIN
   EXECUTE $f$
     CREATE POLICY "Allow company access"
     ON public.team_roster FOR ALL TO authenticated
-    USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
+    USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
   $f$;
 END $$;
 
@@ -56,10 +56,10 @@ END $$;
 -- Roster to match the actual login identities (must equal what lands in the
 -- doer/owner/who fields, or be the person's display name).
 INSERT INTO public.team_roster (email, display_name, role) VALUES
-  ('accounts@manglarubbers.com',     'Data Entry Operator', 'DEO'),
-  ('accounts@manglarubbers.com',  'Pankaj',              'Rate Entry'),
-  ('sc1@manglarubbers.com',   'Disha Khurana',       'SC_1'),
-  ('akash@manglarubbers.com',    'Akash Gupta',  'Negotiation'),
-  ('sagar@manglarubbers.com',    'Sagar Gupta',        'Negotiation'),
-  ('accounts@manglarubbers.com','PI Sender (Accounts)','PI Sender')
+  ('accounts@himalayaterpene.com',     'Data Entry Operator', 'DEO'),
+  ('accounts@himalayaterpene.com',  'Pankaj',              'Rate Entry'),
+  ('sc1@himalayaterpene.com',   'Disha Khurana',       'SC_1'),
+  ('akash@himalayaterpene.com',    'Akash Gupta',  'Negotiation'),
+  ('sagar@himalayaterpene.com',    'Sagar Gupta',        'Negotiation'),
+  ('accounts@himalayaterpene.com','PI Sender (Accounts)','PI Sender')
 ON CONFLICT (email, role) DO NOTHING;

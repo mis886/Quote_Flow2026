@@ -35,11 +35,11 @@ export function Login() {
           <div className="w-16 h-16 bg-red-lt rounded-full flex items-center justify-center text-red-mrt mb-4">
             <Lock size={32} />
           </div>
-          <div className="font-mono text-[10px] font-bold tracking-[4px] uppercase text-red-mrt mb-2">Mangla Rubbers</div>
+          <div className="font-mono text-[10px] font-bold tracking-[4px] uppercase text-red-mrt mb-2">Himalaya Terpenes</div>
           <h1 className="font-serif text-3xl text-blk tracking-tight leading-tight">EQ System Access</h1>
           <p className="text-g500 text-sm mt-3 font-light">
             Authorized personnel only. Please sign in with your <br/> 
-            <strong className="text-blk font-medium">@manglarubbers.com</strong> email account.
+            <strong className="text-blk font-medium">@himalayaterpene.com</strong> email account.
           </p>
           {displayError && (
             <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded text-red-mrt text-xs font-medium animate-in fade-in slide-in-from-top-1">

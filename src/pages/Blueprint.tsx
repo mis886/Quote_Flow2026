@@ -31,7 +31,7 @@ export function Blueprint() {
     { id: 'M03', name: 'Order Management', icon: '📦', status: 'Live', progress: 100, desc: 'Convert Won quotes to orders. Amend MOC/qty/rate per PO. PO number tracking. Pro-forma invoice. Delivery scheduling.', entities: 'ORDERS, ORDER_ITEMS', records: totalOrd + ' orders', color: 'text-sW border-sW', bg: 'bg-sW' },
     { id: 'M04', name: 'Customer Master', icon: '👤', status: 'Live', progress: 100, desc: 'Single source of truth — GSTIN, Incoterms, currency, payment terms, segment. Auto-populates all downstream forms.', entities: 'CUSTOMERS', records: totalCust + ' customers', color: 'text-sN border-sN', bg: 'bg-sN' },
     { id: 'M05', name: 'Analytics Engine', icon: '📊', status: 'Live', progress: 100, desc: 'E2Q time distribution, SLA compliance heatmap, conversion funnel, source analysis, pipeline by customer. All computed live.', entities: 'Computed from all modules', records: '6 KPI widgets · 4 chart panels', color: 'text-sR border-sR', bg: 'bg-sR' },
-    { id: 'M06', name: 'PDF Generator', icon: '🖨️', status: 'Live', progress: 100, desc: 'Branded Mangla letterhead PDF. Auto-populated from quote data. High resolution vector shapes.', entities: 'QUOTE_PDF_TEMPLATES', records: 'Letterhead Integrated', color: 'text-[#EA580C] border-[#EA580C]', bg: 'bg-[#EA580C]' },
+    { id: 'M06', name: 'PDF Generator', icon: '🖨️', status: 'Live', progress: 100, desc: 'Branded Himalaya Terpenesletterhead PDF. Auto-populated from quote data. High resolution vector shapes.', entities: 'QUOTE_PDF_TEMPLATES', records: 'Letterhead Integrated', color: 'text-[#EA580C] border-[#EA580C]', bg: 'bg-[#EA580C]' },
     { id: 'M07', name: 'App Settings', icon: '⚙️', status: 'Live', progress: 100, desc: 'Upload custom PDF header images and manage application configurations directly from settings.', entities: 'LOCAL_STORAGE', records: 'Custom PDF Branding', color: 'text-sW border-sW', bg: 'bg-sW' },
     { id: 'M08', name: 'Follow-Up CRM', icon: '📞', status: 'Live', progress: 100, desc: 'Split-panel Command Centre for quote follow-ups. Log activity, schedule next steps, and track overdue responses.', entities: 'FOLLOWUPS', records: 'Real-time logging active', color: 'text-sW border-sW', bg: 'bg-sW' },
   ];
@@ -102,7 +102,7 @@ export function Blueprint() {
           <div>
             <div className="font-mono text-[9px] font-bold tracking-[3px] uppercase text-red-mrt mb-1">System Architecture</div>
             <h1 className="font-serif text-2xl text-blk tracking-tight leading-tight mb-2">System <em className="italic text-red-mrt">Blueprint</em></h1>
-            <p className="text-xs text-g500 font-light max-w-2xl">Complete module registry, React architecture, integrations, SLA engine, and phased roadmap for the Mangla EQ System.</p>
+            <p className="text-xs text-g500 font-light max-w-2xl">Complete module registry, React architecture, integrations, SLA engine, and phased roadmap for the Himalaya TerpenesEQ System.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => navigate('/analytics')}>← Analytics</Button>

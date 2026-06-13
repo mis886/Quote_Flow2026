@@ -437,7 +437,7 @@ export function Settings() {
                 <div className={`text-[12.5px] font-semibold ${tokenActive ? 'text-green-800' : 'text-g600'}`}>
                   {tokenActive ? 'Connected to Gmail' : 'Not authorized — click Sync Now to connect'}
                 </div>
-                <div className="text-[11px] text-g400 font-mono mt-0.5">info@manglarubbers.com · Google Workspace</div>
+                <div className="text-[11px] text-g400 font-mono mt-0.5">info@himalayaterpene.com · Google Workspace</div>
               </div>
               {data.settings?.gmail_last_sync && (
                 <div className="text-right shrink-0">

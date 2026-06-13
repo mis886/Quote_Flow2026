@@ -36,15 +36,15 @@ BEGIN
   EXECUTE $f$
     CREATE POLICY "Allow company access"
     ON public.prod_attachments FOR ALL TO authenticated
-    USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
+    USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
   $f$;
 END $$;
 
 -- ── 3. Supabase Storage bucket (run separately in Supabase dashboard) ──────
 -- Create a private bucket named: prod-docs
 -- Storage → New Bucket → Name: prod-docs → NOT public
--- Add policy: authenticated users with @manglarubbers.com can read/write.
+-- Add policy: authenticated users with @himalayaterpene.com can read/write.
 -- SQL for bucket policy (run in SQL editor after creating the bucket):
 /*
 INSERT INTO storage.buckets (id, name, public) VALUES ('prod-docs', 'prod-docs', false)
@@ -52,6 +52,6 @@ ON CONFLICT DO NOTHING;
 
 CREATE POLICY "Company access to prod-docs"
 ON storage.objects FOR ALL TO authenticated
-USING (bucket_id = 'prod-docs' AND (auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-WITH CHECK (bucket_id = 'prod-docs' AND (auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+USING (bucket_id = 'prod-docs' AND (auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+WITH CHECK (bucket_id = 'prod-docs' AND (auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 */

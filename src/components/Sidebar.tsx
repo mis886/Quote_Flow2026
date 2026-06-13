@@ -114,7 +114,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </div>
             <button
               type="button"
-              onClick={() => { if (confirm('Logout from Mangla EQ?')) logout(); }}
+              onClick={() => { if (confirm('Logout from Himalaya TerpenesEQ?')) logout(); }}
               title="Sign Out"
               className="w-8 h-8 flex items-center justify-center rounded-[5px] text-white/40 hover:bg-white/5 hover:text-white/80 transition-colors"
             >
@@ -134,7 +134,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </div>
             <button
               type="button"
-              onClick={() => { if (confirm('Logout from Mangla EQ?')) logout(); }}
+              onClick={() => { if (confirm('Logout from Himalaya TerpenesEQ?')) logout(); }}
               className="flex items-center gap-2 px-2.5 py-2 rounded-[5px] text-[12px] text-white/40 hover:bg-white/5 hover:text-white/80 transition-colors"
             >
               <LogOut size={14} strokeWidth={2} />

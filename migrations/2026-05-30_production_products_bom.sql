@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.prod_boms (
 CREATE INDEX IF NOT EXISTS prod_boms_product_idx ON public.prod_boms(product_id);
 
 -- ------------------------------------------------------------
--- 4. RLS — same @manglarubbers.com gate
+-- 4. RLS — same @himalayaterpene.com gate
 -- ------------------------------------------------------------
 ALTER TABLE public.prod_compounds   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prod_products    ENABLE ROW LEVEL SECURITY;
@@ -93,20 +93,20 @@ ALTER TABLE public.prod_boms        ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow company access" ON public.prod_compounds;
 CREATE POLICY "Allow company access" ON public.prod_compounds
   FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Allow company access" ON public.prod_products;
 CREATE POLICY "Allow company access" ON public.prod_products
   FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Allow company access" ON public.prod_boms;
 CREATE POLICY "Allow company access" ON public.prod_boms
   FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 -- ------------------------------------------------------------
 -- 5. Realtime

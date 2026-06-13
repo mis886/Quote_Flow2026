@@ -78,13 +78,13 @@ export function generateQuotePDF(
     // GSTIN is already part of the letterhead image — don't stamp it again
   } else {
     doc.setFont('times', 'bold'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
-    doc.text('Mangla Rubber Technologies' + (unit?.name ? ' — ' + unit.name : ''), mx, 12);
+    doc.text('Himalaya TerpenesRubber Technologies' + (unit?.name ? ' — ' + unit.name : ''), mx, 12);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(50, 50, 50);
     const addrLines = doc.splitTextToSize(unit?.address || '319, Shivaji Road; Vijay Nagar; Meerut (UP) – 250002; India', 95) as string[];
     addrLines.forEach((line, i) => doc.text(line, rx, 8 + i * 4, { align: 'right' }));
     doc.text('0121 – 2441966, (M) +91 9760024630', rx, 13, { align: 'right' });
-    doc.text('E-mail: info@manglarubbers.com', rx, 18, { align: 'right' });
-    doc.text('Website: www.manglarubbers.com', rx, 23, { align: 'right' });
+    doc.text('E-mail: info@himalayaterpene.com', rx, 18, { align: 'right' });
+    doc.text('Website: www.himalayaterpene.com', rx, 23, { align: 'right' });
     doc.text('GSTIN no.: ' + (unit?.gstin || '09ABMFM1195K1ZP'), rx, 28, { align: 'right' });
     y = headerH;
   }
@@ -372,7 +372,7 @@ export function generateQuotePDF(
     : defaultSignatory || { name: 'Akash Gupta', designation: 'Rubber Technologist', phone: '' };
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-  const boldPart = 'Mangla Rubber Technologies';
+  const boldPart = 'Himalaya TerpenesRubber Technologies';
   doc.text(boldPart, mx, y);
   const boldW = doc.getTextWidth(boldPart);
   doc.setFont('helvetica', 'normal');
@@ -424,13 +424,13 @@ export function generatePIPDF(
     // GSTIN is already part of the letterhead image — don't stamp it again
   } else {
     doc.setFont('times', 'bold'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
-    doc.text('Mangla Rubber Technologies' + (unit?.name ? ' — ' + unit.name : ''), mx, 12);
+    doc.text('Himalaya TerpenesRubber Technologies' + (unit?.name ? ' — ' + unit.name : ''), mx, 12);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(50, 50, 50);
     const addrLines = doc.splitTextToSize(unit?.address || '319, Shivaji Road; Vijay Nagar; Meerut (UP) – 250002; India', 95) as string[];
     addrLines.forEach((line, i) => doc.text(line, rx, 8 + i * 4, { align: 'right' }));
     doc.text('0121 – 2441966, (M) +91 9760024630', rx, 13, { align: 'right' });
-    doc.text('E-mail: info@manglarubbers.com', rx, 18, { align: 'right' });
-    doc.text('Website: www.manglarubbers.com', rx, 23, { align: 'right' });
+    doc.text('E-mail: info@himalayaterpene.com', rx, 18, { align: 'right' });
+    doc.text('Website: www.himalayaterpene.com', rx, 23, { align: 'right' });
     doc.text('GSTIN no.: ' + (unit?.gstin || '09ABMFM1195K1ZP'), rx, 28, { align: 'right' });
     y = headerH;
   }
@@ -697,7 +697,7 @@ export function generatePIPDF(
     : defaultSignatory || { name: 'Akash Gupta', designation: 'Rubber Technologist', phone: '' };
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-  const boldPart = 'Mangla Rubber Technologies';
+  const boldPart = 'Himalaya TerpenesRubber Technologies';
   doc.text(boldPart, mx, y);
   const boldW = doc.getTextWidth(boldPart);
   doc.setFont('helvetica', 'normal');

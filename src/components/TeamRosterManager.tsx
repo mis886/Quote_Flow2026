@@ -81,7 +81,7 @@ export function TeamRosterManager() {
         DEO + Rate Entry + PI Sender), and a role can be shared by several people — add one row per (person, role). To
         change a row's role, remove it and add a new one.
         <br /><strong className="text-g700">Aliases</strong>: if older records stored a different name for this login
-        (e.g. a Google profile name like <code>Mangla Rubber Technologies A</code>), list it as an alias so that history
+        (e.g. a Google profile name like <code>Himalaya TerpenesRubber Technologies A</code>), list it as an alias so that history
         still attributes correctly.
       </p>
 
@@ -94,7 +94,7 @@ export function TeamRosterManager() {
           </div>
           <div>
             <label className="block text-[10px] font-bold text-g500 tracking-[0.5px] uppercase mb-1.5">Email / login</label>
-            <input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="disha@manglarubbers.com" />
+            <input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="disha@himalayaterpene.com" />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-g500 tracking-[0.5px] uppercase mb-1.5">Role</label>
@@ -109,7 +109,7 @@ export function TeamRosterManager() {
         </div>
         <div className="mt-3">
           <label className="block text-[10px] font-bold text-g500 tracking-[0.5px] uppercase mb-1.5">Aliases <span className="text-g400 normal-case font-normal">(optional — other names/emails in old records, comma-separated)</span></label>
-          <input className={inputCls} value={aliases} onChange={e => setAliases(e.target.value)} placeholder="Mangla Rubber Technologies A, old.email@…" />
+          <input className={inputCls} value={aliases} onChange={e => setAliases(e.target.value)} placeholder="Himalaya TerpenesRubber Technologies A, old.email@…" />
         </div>
         <p className="text-[11px] text-g400 mt-2">{ROLE_HELP[role]}</p>
         {err && <p className="text-[11px] text-red-mrt font-medium mt-1.5">{err}</p>}

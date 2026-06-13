@@ -175,9 +175,9 @@ export async function downloadQuoteDOCX(
       children: [
         // ── Company header
         para([
-          r((unit?.name ? `Mangla Rubber Technologies — ${unit.name}` : 'Mangla Rubber Technologies'), { bold: true, size: 26 }),
+          r((unit?.name ? `Himalaya TerpenesRubber Technologies — ${unit.name}` : 'Himalaya TerpenesRubber Technologies'), { bold: true, size: 26 }),
         ], AlignmentType.LEFT, 20),
-        para([r('319, Shivaji Road, Vijay Nagar, Meerut (UP) – 250002  |  info@manglarubbers.com  |  www.manglarubbers.com', { size: 14, color: C_GRAY })], AlignmentType.LEFT, 40),
+        para([r('319, Shivaji Road, Vijay Nagar, Meerut (UP) – 250002  |  info@himalayaterpene.com  |  www.himalayaterpene.com', { size: 14, color: C_GRAY })], AlignmentType.LEFT, 40),
         hrPara(),
 
         // ── Mfr tagline
@@ -274,7 +274,7 @@ export async function downloadQuoteDOCX(
         // ── Sign-off
         para([r('Thanks & Kind Regards,', { size: 18 })], AlignmentType.LEFT, 120),
         para([
-          r('Mangla Rubber Technologies', { bold: true, size: 18 }),
+          r('Himalaya TerpenesRubber Technologies', { bold: true, size: 18 }),
           r(` | ${person.name} | ${person.designation}${person.phone ? ' | Tel.: ' + person.phone : ''}`, { size: 18 }),
         ], AlignmentType.LEFT, 0),
       ],
@@ -392,8 +392,8 @@ export async function downloadPIDOCX(
       properties: { page: { margin: PAGE_MARGIN } },
       children: [
         // ── Header
-        para([r(unit?.name ? `Mangla Rubber Technologies — ${unit.name}` : 'Mangla Rubber Technologies', { bold: true, size: 26 })], AlignmentType.LEFT, 20),
-        para([r('319, Shivaji Road, Vijay Nagar, Meerut (UP) – 250002  |  info@manglarubbers.com  |  www.manglarubbers.com', { size: 14, color: C_GRAY })], AlignmentType.LEFT, 40),
+        para([r(unit?.name ? `Himalaya TerpenesRubber Technologies — ${unit.name}` : 'Himalaya TerpenesRubber Technologies', { bold: true, size: 26 })], AlignmentType.LEFT, 20),
+        para([r('319, Shivaji Road, Vijay Nagar, Meerut (UP) – 250002  |  info@himalayaterpene.com  |  www.himalayaterpene.com', { size: 14, color: C_GRAY })], AlignmentType.LEFT, 40),
         hrPara(),
 
         para([r('Manufacturers: High Performance Kalrez, FFKM, EPDM, Viton, HNBR, Silicone, Nitrile, Neoprene, Butyl and Natural Rubber Components for Medium and Heavy Industries | Specialist: Rubber Gaskets for PHEs and Liners for Butterfly Valves.', { size: 13, color: C_GRAY, italics: true })], AlignmentType.LEFT, 100),
@@ -507,7 +507,7 @@ export async function downloadPIDOCX(
         // ── Sign-off
         para([r('Thanks & Kind Regards,', { size: 18 })], AlignmentType.LEFT, 120),
         para([
-          r('Mangla Rubber Technologies', { bold: true, size: 18 }),
+          r('Himalaya TerpenesRubber Technologies', { bold: true, size: 18 }),
           r(` | ${person.name} | ${person.designation}${person.phone ? ' | Tel.: ' + person.phone : ''}`, { size: 18 }),
         ], AlignmentType.LEFT, 0),
       ],

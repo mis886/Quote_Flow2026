@@ -65,7 +65,7 @@ The application translates internal properties to their corresponding `snake_cas
 - `items` -> `items (JSONB)`
 
 ## Security & Access
-Row-Level Security (RLS) is strictly enforced for all 4 tables. Policies are formulated to authenticate specific users against their `@manglarubbers.com` workspace. 
+Row-Level Security (RLS) is strictly enforced for all 4 tables. Policies are formulated to authenticate specific users against their `@himalayaterpene.com` workspace. 
 
 Failed insertion requests generally occur for two reasons:
 1. Properties mapped inaccurately causing PostgreSQL to fail looking up mapped keys (now fixed with strict mapping handlers inside `store/index.tsx`).

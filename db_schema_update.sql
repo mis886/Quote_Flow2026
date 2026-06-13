@@ -57,8 +57,8 @@ ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow company access" ON public.app_settings;
 CREATE POLICY "Allow company access"
 ON public.app_settings FOR ALL TO authenticated
-USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
+USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com');
 
 -- Seed initial config
 INSERT INTO public.app_settings (id) VALUES ('config') ON CONFLICT (id) DO NOTHING;
@@ -100,5 +100,5 @@ ALTER TABLE public.authorized_signatories ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow company access" ON public.authorized_signatories;
 CREATE POLICY "Allow company access"
 ON public.authorized_signatories FOR ALL TO authenticated
-USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com');
+USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com');

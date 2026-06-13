@@ -1,6 +1,6 @@
 # EnqBoss — Sales Pipeline & Order Management
 
-EnqBoss is an internal B2B sales operations tool for **Mangla Rubber Technologies**, built to manage the full pipeline from customer enquiry through quotation, order, and follow-up. It replaces manual spreadsheet workflows with a structured, searchable, and PDF-ready system.
+EnqBoss is an internal B2B sales operations tool for **Himalaya TerpenesRubber Technologies**, built to manage the full pipeline from customer enquiry through quotation, order, and follow-up. It replaces manual spreadsheet workflows with a structured, searchable, and PDF-ready system.
 
 **Tech Stack:** React 19 · TypeScript · Vite 6 · Tailwind CSS v4 · Supabase (Postgres + Storage) · jsPDF · pdfjs-dist · Gmail API · Google Sheets webhooks
 

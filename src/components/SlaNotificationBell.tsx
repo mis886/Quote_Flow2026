@@ -17,7 +17,7 @@ type AlertItem = {
   daysOverdue: number;
 };
 
-const SLA_EMAIL = 'support@manglarubbers.com';
+const SLA_EMAIL = 'support@himalayaterpene.com';
 
 export function SlaNotificationBell() {
   const { data, user } = useAppStore();

@@ -169,7 +169,7 @@ INSERT INTO public.prod_shop_floor_settings (id) VALUES ('config')
   ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------
--- 7. RLS policies — same @manglarubbers.com gate as CRM tables
+-- 7. RLS policies — same @himalayaterpene.com gate as CRM tables
 -- ------------------------------------------------------------
 ALTER TABLE public.prod_presses                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prod_workers                 ENABLE ROW LEVEL SECURITY;
@@ -191,8 +191,8 @@ BEGIN
       CREATE POLICY "Allow company access"
       ON public.%I
       FOR ALL TO authenticated
-      USING  (auth.jwt() ->> 'email' LIKE '%%@manglarubbers.com')
-      WITH CHECK (auth.jwt() ->> 'email' LIKE '%%@manglarubbers.com')
+      USING  (auth.jwt() ->> 'email' LIKE '%%@himalayaterpene.com')
+      WITH CHECK (auth.jwt() ->> 'email' LIKE '%%@himalayaterpene.com')
     $f$, t);
   END LOOP;
 END $$;

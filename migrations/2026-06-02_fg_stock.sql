@@ -34,8 +34,8 @@ BEGIN
   EXECUTE $f$
     CREATE POLICY "Allow company access"
     ON public.prod_fg_stock FOR ALL TO authenticated
-    USING  (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
-    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@manglarubbers.com')
+    USING  (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
+    WITH CHECK (auth.jwt() ->> 'email' LIKE '%@himalayaterpene.com')
   $f$;
 END $$;
 

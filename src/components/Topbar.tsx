@@ -42,7 +42,7 @@ export function Topbar() {
   return (
     <header className="h-[50px] bg-white border-b border-g200 flex items-center px-5 gap-2.5 shrink-0">
       <div className="text-[13px] text-g500">
-        Mangla EQ <span className="text-g300 mx-1">/</span> <strong className="text-blk font-semibold">{title}</strong>
+        Himalaya TerpenesEQ <span className="text-g300 mx-1">/</span> <strong className="text-blk font-semibold">{title}</strong>
       </div>
 
       <div className="ml-auto flex items-center gap-2 bg-g100 border border-g200 rounded-[5px] px-2.5 h-[30px] w-[200px] transition-all focus-within:bg-white focus-within:border-g400 focus-within:ring-[3px] focus-within:ring-red-lt">

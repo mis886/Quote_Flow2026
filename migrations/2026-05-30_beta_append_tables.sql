@@ -153,7 +153,7 @@ CREATE INDEX IF NOT EXISTS prod_dispatch_items_dispatch_idx ON public.prod_dispa
 CREATE INDEX IF NOT EXISTS prod_dispatch_items_jc_idx      ON public.prod_dispatch_items(job_card_id);
 
 -- ------------------------------------------------------------
--- 6. RLS — same @manglarubbers.com gate on all 5 tables
+-- 6. RLS — same @himalayaterpene.com gate on all 5 tables
 -- ------------------------------------------------------------
 ALTER TABLE public.prod_molding          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prod_finishing        ENABLE ROW LEVEL SECURITY;
@@ -163,28 +163,28 @@ ALTER TABLE public.prod_dispatch_items   ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Company access" ON public.prod_molding;
 CREATE POLICY "Company access" ON public.prod_molding FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Company access" ON public.prod_finishing;
 CREATE POLICY "Company access" ON public.prod_finishing FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Company access" ON public.prod_inspection;
 CREATE POLICY "Company access" ON public.prod_inspection FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Company access" ON public.prod_dispatches;
 CREATE POLICY "Company access" ON public.prod_dispatches FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 DROP POLICY IF EXISTS "Company access" ON public.prod_dispatch_items;
 CREATE POLICY "Company access" ON public.prod_dispatch_items FOR ALL TO authenticated
-  USING  ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com')
-  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@manglarubbers.com');
+  USING  ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com')
+  WITH CHECK ((auth.jwt() ->> 'email') LIKE '%@himalayaterpene.com');
 
 -- ------------------------------------------------------------
 -- 7. Realtime publication

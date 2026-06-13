@@ -353,7 +353,7 @@ export interface TeamMember {
   role: DoerRole;
   active: boolean;
   // Extra identities this login appears under in older records (e.g. a Google
-  // profile name like "Mangla Rubber Technologies A"). Also matched to
+  // profile name like "Himalaya TerpenesRubber Technologies A"). Also matched to
   // doer/owner/who so historical data attributes correctly. Lowercased.
   aliases?: string[];
   // SHA-256 hash of this doer's identity password (set by admin). Empty/absent =
