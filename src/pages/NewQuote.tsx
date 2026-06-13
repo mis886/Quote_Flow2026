@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { generateId, formatINR, localDateStr } from '../lib/utils';
+import { generateId, formatINR, localDateStr, fmtDate } from '../lib/utils';
 import { QuoteItem, Quote, AuthorizedSignatory, QuoteStatus } from '../lib/types';
 import { Button } from '../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
@@ -325,7 +325,7 @@ export function NewQuote() {
     else if (sel.includes('FOB')) { delivery = 'FOB Port of Loading'; pnf = 'Included'; freight = "Buyer's account from port"; }
     else if (sel.includes('CIF') || sel.includes('CIP')) { delivery = 'CIF/CIP Destination'; pnf = 'Included'; freight = 'Included up to destination'; }
     else if (sel.includes('DDP') || sel.includes('DAP')) { delivery = 'Door Delivery, Customer Site'; pnf = 'Included'; freight = 'Included'; }
-    setTnc(p => ({ ...p, delivery, pnf, freight, payment: pay, validity }));
+    setTnc(p => ({ ...p, delivery, pnf, freight, payment: pay, validity: fmtDate(validity) }));
   }, [inco, customInco, pay, validity]);
 
   // Item helpers
@@ -1213,7 +1213,7 @@ export function NewQuote() {
                 <div className="space-y-1.5 text-[12px]">
                   <div className="flex justify-between"><span className="text-g500">Reference</span><span className="font-mono font-bold text-blk">{quoteId}</span></div>
                   <div className="flex justify-between"><span className="text-g500">Date</span><span>{date}</span></div>
-                  <div className="flex justify-between"><span className="text-g500">Valid Until</span><span className="text-red-mrt font-medium">{validity}</span></div>
+                  <div className="flex justify-between"><span className="text-g500">Valid Until</span><span className="text-red-mrt font-medium">{fmtDate(validity)}</span></div>
                   {editId && <div className="flex justify-between"><span className="text-g500">Status</span><span className="font-bold uppercase text-[10px] px-2 py-0.5 bg-g100 rounded">{quoteStatus}</span></div>}
                 </div>
               </div>
